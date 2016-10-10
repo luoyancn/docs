@@ -1,0 +1,380 @@
+\chapter{安装Ironic}
+
+\section{MySQL配置}
+
+需要创建Ironic使用的数据库，并赋予相关的权限
+\begin{code-block}{mysql}
+CREATE DATABASE neutron CHARACTER SET utf8;
+GRANT ALL PRIVILEGES ON neutron.* TO 'neutron'@'localhost' IDENTIFIED BY 'neutron';
+GRANT ALL PRIVILEGES ON neutron.* TO 'neutron'@'%' IDENTIFIED BY 'neutron';
+
+CREATE DATABASE nova CHARACTER SET utf8;
+GRANT ALL PRIVILEGES ON nova.* TO 'nova'@'localhost' IDENTIFIED BY 'nova';
+GRANT ALL PRIVILEGES ON nova.* TO 'nova'@'%' IDENTIFIED BY 'nova';
+
+CREATE DATABASE nova_api CHARACTER SET utf8;
+GRANT ALL PRIVILEGES ON nova_api.* TO 'nova_api'@'localhost' IDENTIFIED BY 'nova_api';
+GRANT ALL PRIVILEGES ON nova_api.* TO 'nova_api'@'%' IDENTIFIED BY 'nova_api';
+
+CREATE DATABASE ironic CHARACTER SET utf8;
+GRANT ALL PRIVILEGES ON ironic.* TO 'ironic'@'localhost' IDENTIFIED BY 'ironic';
+GRANT ALL PRIVILEGES ON ironic.* TO 'ironic'@'%' IDENTIFIED BY 'ironic';
+\end{code-block}
+
+\section{KeyStone安装配置}
+参见章节\nameref{keystone_install}
+
+\section{Glance安装配置}
+参见章节\nameref{glance_install}
+
+\section{制作镜像}
+Ironic部署需要2类镜像：1是deploy的镜像，这类镜像当中安装有ironic-python-agent，用于引导物理机启动，并安装操作系统；
+2是操作系统镜像，就是真正的运行在操作系统内部的镜像。
+
+制作deploy镜像
+\begin{code-block}{bash}
+yum install diskimage-builder -y
+export DIB_DEV_USER_PASSWORD="awcloud"
+export DIB_DEV_USER_PWDLESS_SUDO="yes"
+export DIB_DEV_USER_USERNAME="awcloud"
+export DIB_REPOREF_ironic_agent="stable/mitaka"
+disk-image-create ironic-agent enable-serial-console devuser source-repositories centos7 -o centos7-deploy
+\end{code-block}
+镜像制作完毕之后，应该如下面所示：
+\begin{code-block}{bash}
+[root@controller centos]# ls -l
+total 321720
+drwxr-xr-x 3 root root        34 Aug 11 20:12 centos7-deploy.d
+-rw-r--r-- 1 root root 319116951 Aug 11 20:15 centos7-deploy.initramfs
+-rwxr-xr-x 1 root root   5159792 Aug 11 20:15 centos7-deploy.kernel
+-rwxr-xr-x 1 root root   5159792 Aug 11 20:15 centos7-deploy.vmlinuz
+\end{code-block}
+
+将deploy镜像上传到glance
+\begin{code-block}{bash}
+export DEPLOY_RAMDISK_ID=`glance image-create --name centos7-deploy-initrd --visibility public \
+    --disk-format ari --container-format ari < centos7-deploy.initramfs | grep -w id | awk '{print $4}'`
+export DEPLOY_KERNEL_ID=`glance image-create --name centos7-deploy-kernel --visibility public \
+    --disk-format aki --container-format aki < centos7-deploy.kernel | grep -w id | awk '{print $4}'`
+\end{code-block}
+
+制作操作系统镜像
+\begin{code-block}{bash}
+yum install diskimage-builder -y
+export DIB_DEV_USER_PASSWORD="awcloud"
+export DIB_DEV_USER_PWDLESS_SUDO="yes"
+export DIB_DEV_USER_USERNAME="awcloud"
+export FS_TYPE="xfs"
+disk-image-create centos7 devuser baremetal enable-serial-console dhcp-all-interfaces grub2 -o centos7 -t raw
+\end{code-block}
+
+镜像制作完毕之后，应该如下面所示：
+\begin{code-block}{bash}
+[root@controller centos]# ls -l
+total 1863796
+drwxr-xr-x. 3 root root         34 Aug 19 11:38 centos7.d
+-rw-r--r--. 1 root root   37374150 Aug 19 11:38 centos7.initrd
+-rw-r--r--. 1 root root  552369664 Aug 19 11:40 centos7.qcow2
+-rw-r--r--. 1 root root 2316369920 Aug 19 11:42 centos7.raw
+-rwxr-xr-x. 1 root root    5159792 Aug 19 11:38 centos7.vmlinuz
+\end{code-block}
+
+\begin{attention}
+在制作ubuntu，redhat6，centos6的image时，FS\_TYPE可以不用设置;
+但是在制作\underline{\color{red} \textbf{\textit{centos7，rhel7，fedora（>22）}}}镜像的时候，
+如果忘记设置FS\_TYPE环境变量，则会导致格式化硬盘默认采用的是ext4格式， 而image的fstab当中，
+配置的却是xfs格式。这会导致操作系统无法启动。因此，如果忘记设置FS\_TYPE，镜像制作完毕之后，
+还需要进行相关的修改。
+\begin{mdframed}[topline=false, bottomline=false, leftline=false, rightline=false, backgroundcolor=lbcolor]
+\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true]{bash}
+export FS=`virt-filesystem -a centos7.raw`
+guestmount -a centos7.raw -m $FS /mnt
+sed -i 's/xfs/ext4/g' /mnt/etc/fstab
+guestumount /mnt
+\end{minted}
+\end{mdframed}
+\end{attention}
+
+将操作系统镜像上传到glance
+\begin{code-block}{bash}
+export RAMDISK_ID=`glance image-create --name centos7-initrd --visibility public --disk-format ari \
+    --container-format ari < centos7.initrd| grep -w id | awk '{print $4}'`
+export KERNEL_ID=`glance image-create --name centos7-kernel --visibility public --disk-format aki \
+    --container-format aki < centos7.vmlinuz| grep -w id | awk '{print $4}'`
+export IMAGE_ID=`glance image-create --name centos7 --visibility public --disk-format raw \
+    --container-format bare --property  kernel_id=$KERNEL_ID \
+    --property  ramdisk_id=$RAMDISK_ID < centos7.raw | grep -w id | awk '{print $4}'`
+\end{code-block}
+
+\section{Neutron安装配置}
+配置OVS网络
+\begin{code-block}{bash}
+systemctl enable openvswitch
+systemctl start openvswitch
+ovs-vsctl add-br br-int
+ovs-vsctl add-br br-em1
+ovs-vsctl add-port br-em1 em1
+\end{code-block}
+
+配置neutron
+\begin{code-block}{bash}
+openstack-config --set /etc/neutron/neutron.conf DEFAULT core_plugin ml2
+openstack-config --set /etc/neutron/neutron.conf DEFAULT rpc_backend rabbit
+openstack-config --set /etc/neutron/neutron.conf DEFAULT auth_strategy keystone
+
+openstack-config --set /etc/neutron/neutron.conf keystone_authtoken auth_uri http://controller:5000
+openstack-config --set /etc/neutron/neutron.conf keystone_authtoken auth_url http://controller:35357
+openstack-config --set /etc/neutron/neutron.conf keystone_authtoken auth_type password
+openstack-config --set /etc/neutron/neutron.conf keystone_authtoken project_domain_name default
+openstack-config --set /etc/neutron/neutron.conf keystone_authtoken user_domain_name default
+openstack-config --set /etc/neutron/neutron.conf keystone_authtoken project_name service
+openstack-config --set /etc/neutron/neutron.conf keystone_authtoken username neutron
+openstack-config --set /etc/neutron/neutron.conf keystone_authtoken password neutron
+
+openstack-config --set /etc/neutron/neutron.conf database connection \
+    mysql+pymysql://neutron:neutron@controller/neutron
+
+openstack-config --set /etc/neutron/neutron.conf nova auth_url http://controller:35357
+openstack-config --set /etc/neutron/neutron.conf nova auth_type password
+openstack-config --set /etc/neutron/neutron.conf nova project_domain_name default
+openstack-config --set /etc/neutron/neutron.conf nova user_domain_name default
+openstack-config --set /etc/neutron/neutron.conf nova project_name service
+openstack-config --set /etc/neutron/neutron.conf nova username nova
+openstack-config --set /etc/neutron/neutron.conf nova password nova
+openstack-config --set /etc/neutron/neutron.conf nova region_name wuhan
+
+openstack-config --set /etc/neutron/neutron.conf oslo_messaging_rabbit rabbit_host controller
+
+openstack-config --set /etc/neutron/plugins/ml2/ml2_conf.ini ml2 type_drivers flat
+openstack-config --set /etc/neutron/plugins/ml2/ml2_conf.ini ml2 tenant_network_types flat
+openstack-config --set /etc/neutron/plugins/ml2/ml2_conf.ini ml2 mechanism_drivers openvswitch
+openstack-config --set /etc/neutron/plugins/ml2/ml2_conf.ini ml2_type_flat flat_networks physnet1
+openstack-config --set /etc/neutron/plugins/ml2/ml2_conf.ini securitygroup \
+    firewall_driver neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
+
+openstack-config --set /etc/neutron/plugins/ml2/openvswitch_agent.ini ovs bridge_mappings physnet1:br-em1
+
+openstack-config --set /etc/neutron/dhcp_agent.ini DEFAULT interface_driver openvswitch
+openstack-config --set /etc/neutron/dhcp_agent.ini DEFAULT enable_isolated_metadata True
+
+openstack-config --set /etc/neutron/metadata_agent.ini DEFAULT nova_metadata_ip controller
+openstack-config --set /etc/neutron/metadata_agent.ini DEFAULT metadata_proxy_shared_secret awcloud
+
+ln -s /etc/neutron/plugins/ml2/ml2_conf.ini /etc/neutron/plugin.ini
+
+neutron-db-manage --config-file /etc/neutron/neutron.conf --config-file \
+    /etc/neutron/plugins/ml2/ml2_conf.ini upgrade head
+
+chown -R neutron:neutron /etc/neutron /var/lib/neutron /var/log/neutron
+
+for id in neutron-{server,openvswitch-agent,metadata-agent,dhcp-agent};do systemctl enable $id; \
+    systemctl start $id;done
+\end{code-block}
+
+初始化ironic网络
+\begin{code-block}{bash}
+neutron net-create ironic_net --shared --provider:network_type flat --provider:physical_network physnet1
+neutron subnet-create --name ironic_subnet --allocation-pool start=192.168.140.21,end=192.168.140.30 \
+    --gateway 192.168.128.1 --enable-dhcp ironic_net 192.168.140.0/20
+\end{code-block}
+
+\section{Nova安装配置}
+\begin{code-block}{bash}
+export MY_IP=`ifconfig br-em1 | grep -w inet | awk '{print $2}'`
+openstack-config --set /etc/nova/nova.conf DEFAULT debug True
+openstack-config --set /etc/nova/nova.conf DEFAULT rpc_backend rabbit
+openstack-config --set /etc/nova/nova.conf DEFAULT auth_strategy keystone
+openstack-config --set /etc/nova/nova.conf DEFAULT network_api_class \
+    nova.network.neutronv2.api.API
+openstack-config --set /etc/nova/nova.conf DEFAULT use_neutron True
+openstack-config --set /etc/nova/nova.conf DEFAULT security_group_api neutron
+openstack-config --set /etc/nova/nova.conf DEFAULT linuxnet_interface_driver \
+    nova.network.linux_net.LinuxOVSInterfaceDriver
+openstack-config --set /etc/nova/nova.conf DEFAULT firewall_driver \
+    nova.virt.firewall.NoopFirewallDriver
+openstack-config --set /etc/nova/nova.conf DEFAULT enabled_apis osapi_compute,metadata
+openstack-config --set /etc/nova/nova.conf DEFAULT osapi_compute_workers 2
+openstack-config --set /etc/nova/nova.conf DEFAULT metadata_workers 2
+openstack-config --set /etc/nova/nova.conf DEFAULT instance_usage_audit_period hour
+openstack-config --set /etc/nova/nova.conf DEFAULT rootwrap_config /etc/nova/rootwrap.conf
+openstack-config --set /etc/nova/nova.conf DEFAULT api_paste_config /etc/nova/api-paste.ini
+
+openstack-config --set /etc/nova/nova.conf DEFAULT compute_driver ironic.IronicDriver
+openstack-config --set /etc/nova/nova.conf DEFAULT scheduler_host_manager ironic_host_manager
+openstack-config --set /etc/nova/nova.conf DEFAULT ram_allocation_ratio 1.0
+openstack-config --set /etc/nova/nova.conf DEFAULT reserved_host_memory_mb 0
+openstack-config --set /etc/nova/nova.conf DEFAULT scheduler_use_baremetal_filters True
+openstack-config --set /etc/nova/nova.conf DEFAULT scheduler_tracks_instance_changes False
+openstack-config --set /etc/nova/nova.conf DEFAULT scheduler_host_manager ironic_host_manager
+
+openstack-config --set /etc/nova/nova.conf api_database connection \
+    mysql+pymysql://nova_api:nova_api@controller/nova_api
+openstack-config --set /etc/nova/nova.conf database connection \
+    mysql+pymysql://nova:nova@controller/nova
+
+openstack-config --set /etc/nova/nova.conf oslo_messaging_rabbit rabbit_host controller
+openstack-config --set /etc/nova/nova.conf oslo_messaging_rabbit rabbit_userid guest
+openstack-config --set /etc/nova/nova.conf oslo_messaging_rabbit rabbit_password guest
+
+openstack-config --set /etc/nova/nova.conf keystone_authtoken auth_uri http://$MY_IP:5000
+openstack-config --set /etc/nova/nova.conf keystone_authtoken auth_url http://$MY_IP:35357
+openstack-config --set /etc/nova/nova.conf keystone_authtoken auth_type password
+openstack-config --set /etc/nova/nova.conf keystone_authtoken project_domain_name default
+openstack-config --set /etc/nova/nova.conf keystone_authtoken user_domain_name default
+openstack-config --set /etc/nova/nova.conf keystone_authtoken project_name service
+openstack-config --set /etc/nova/nova.conf keystone_authtoken username nova
+openstack-config --set /etc/nova/nova.conf keystone_authtoken password nova
+
+openstack-config --set /etc/nova/nova.conf glance host $MY_IP
+
+openstack-config --set /etc/nova/nova.conf oslo_concurrency lock_path /var/lib/nova/tmp
+
+openstack-config --set /etc/nova/nova.conf neutron url http://$MY_IP:9696
+openstack-config --set /etc/nova/nova.conf neutron auth_url http://$MY_IP:35357
+openstack-config --set /etc/nova/nova.conf neutron auth_type password
+openstack-config --set /etc/nova/nova.conf neutron project_domain_name default
+openstack-config --set /etc/nova/nova.conf neutron user_domain_name default
+openstack-config --set /etc/nova/nova.conf neutron region_name wuhan
+openstack-config --set /etc/nova/nova.conf neutron project_name service
+openstack-config --set /etc/nova/nova.conf neutron username neutron
+openstack-config --set /etc/nova/nova.conf neutron password neutron
+openstack-config --set /etc/nova/nova.conf neutron service_metadata_proxy True
+openstack-config --set /etc/nova/nova.conf neutron metadata_proxy_shared_secret awcloud
+
+openstack-config --set /etc/nova/nova.conf conductor workers 4
+
+openstack-config --set /etc/nova/nova.conf ironic admin_username ironic
+openstack-config --set /etc/nova/nova.conf ironic admin_password ironic
+openstack-config --set /etc/nova/nova.conf ironic admin_tenant_name service
+openstack-config --set /etc/nova/nova.conf ironic api_endpoint http://$MY_IP:6385/v1
+
+nova-manage api_db sync
+nova-manage db sync
+
+chown -R nova:nova /etc/nova/ /var/lib/nova /var/log/nova
+for id in openstack-nova-{api,scheduler,conductor,compute};do systemctl enable $id;systemctl start $id;done
+\end{code-block}
+
+
+\section{配置Ironic}
+通用配置
+\begin{code-block}{bash}
+openstack-config --set /etc/ironic/ironic.conf DEFAULT auth_strategy keystone
+openstack-config --set /etc/ironic/ironic.conf DEFAULT rpc_backend rabbit
+openstack-config --set /etc/ironic/ironic.conf DEFAULT my_ip $MY_IP
+openstack-config --set /etc/ironic/ironic.conf api api_workers 2
+
+openstack-config --set /etc/ironic/ironic.conf oslo_messaging_rabbit rabbit_host controller
+openstack-config --set /etc/ironic/ironic.conf database connection \
+    mysql+pymysql://ironic:ironic@controller/ironic
+
+openstack-config --set /etc/ironic/ironic.conf glance glance_host $MY_IP
+openstack-config --set /etc/ironic/ironic.conf neutron url http://$MY_IP:9696
+
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken auth_uri http://$MY_IP:5000
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken auth_url http://$MY_IP:35357
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken auth_type password
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken project_domain_name default
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken user_domain_name default
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken project_name service
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken username ironic
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken password ironic
+
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken admin_user ironic
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken admin_password ironic
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken admin_tenant_name service
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken identity_uri http://$MY_IP:35357/
+openstack-config --set /etc/ironic/ironic.conf keystone_authtoken region_name wuhan
+\end{code-block}
+
+配置conductor，除上述通用配置之外，还需要继续如下的配置
+\begin{code-block}{bash}
+openstack-config --set /etc/ironic/ironic.conf DEFAULT enabled_drivers pxe_ipmitool
+openstack-config --set /etc/ironic/ironic.conf conductor api_url http://$MY_IP:6385
+\end{code-block}
+
+初始化Ironic数据库
+\begin{code-block}{bash}
+ironic-dbsync --config-file /etc/ironic/ironic.conf create_schema
+\end{code-block}
+
+启动Ironic服务
+\begin{code-block}{bash}
+chown -R ironic:ironic /etc/ironic /var/lib/ironic
+for id in openstack-ironic-{api,conductor};do systemctl enable $id;systemctl start $id;done
+\end{code-block}
+
+\section{安装配置TFTP}
+\begin{code-block}{bash}
+mkdir -p /tftpboot
+chmod 777 /tftpboot
+yum install tftp-server syslinux-tftpboot xinetd -y
+sed -i \
+    's/\tserver_args\t\t= -s \/var\/lib\/tftpboot/\tserver_args\t\t= -v -v -v -v -v --map-file /tftpboot/map-file -s \/tftpboot -c -u root/g'\
+    /etc/xinetd.d/tftp
+sed -i 's/\tdisable\t\t\t= yes/\tdisable\t\t\t= no/g' /etc/xinetd.d/tftp
+cp /var/lib/tftpboot/* /tftpboot
+echo 're ^(/tftpboot/) /tftpboot/\2' > /tftpboot/map-file
+echo 're ^/tftpboot/ /tftpboot/' >> /tftpboot/map-file
+echo 're ^(^/) /tftpboot/\1' >> /tftpboot/map-file
+echo 're ^([^/]) /tftpboot/\1' >> /tftpboot/map-file
+systemctl enable xinetd
+systemctl start xinetd
+\end{code-block}
+
+\section{Ironic使用}
+现在有一台物理服务器，可以用来作为ironic的节点使用，其基本信息如下：
+\begin{itemize}
+  \item MAC地址：84:2b:2b:5e:62:39
+  \item IPMI地址：192.168.132.14
+  \item IPMI用户：ADMIN
+  \item IPMI密码：ADMIN
+  \item 内存：128GB即131072MB
+  \item cpu：24核
+  \item 磁盘：600GB
+\end{itemize}
+
+检测ipmi是否可用
+\begin{code-block}{bash}
+ipmitool -I lanplus -H 192.168.132.14  -U ADMIN -P ADMIN chassis power status
+\end{code-block}
+
+如果以上的命令执行成功，则表示ipmi可用。反之，则需要检测ipmi的配置。
+以Dell PowerEdge R510为例，如果命令执行不成功，需要勾选图 \nameref{fig:ipmi}中的红色部分。
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.5]{ipmi.png}
+  \caption{Dell PowerEdge R510 IPMI设置}
+  \label{fig:ipmi}
+\end{figure}
+
+将该节点加入ironic
+\begin{code-block}{bash}
+export NODE_ID=`ironic node-create --driver pxe_ipmitool --name node1 --driver-info ipmi_username=ADMIN \
+    --driver-info ipmi_password=ADMIN --driver-info ipmi_address=192.168.132.14 \
+    --driver-info deploy_kernel=$DEPLOY_KERNEL_ID \
+    --driver-info deploy_ramdisk=$DEPLOY_RAMDISK_ID \
+    --properties cpus=24  --properties memory_mb=131072 --properties local_gb=600 \
+    --properties cpu_arch=x86_64 --properties \
+    capabilities='disk_label:gpt' | grep -w uuid | awk '{print $4}'`
+ironic port-create -n $NODE_ID -a 84:2b:2b:5e:62:39
+
+ironic node-update $NODE_ID add \
+    instance_info/image_source=$IMAGE_ID \
+    instance_info/kernel=$KERNEL_ID \
+    instance_info/ramdisk=$RAMDISK_ID \
+    instance_info/root_gb=600 \
+    instance_info/capabilities='{"disk_label": "gpt"}'
+\end{code-block}
+
+创建所需要的flavor
+\begin{code-block}{bash}
+nova flavor-create baremetal-flavor auto 131072 600 24
+nova flavor-key baremetal-flavor set cpu_arch=x86_64
+nova flavor-key baremetal-flavor set capabilities:disk_label=gpt
+\end{code-block}
+
+部署ironic节点
+\begin{code-block}{bash}
+nova boot fedora24 --image $IMAGE_ID --flavor baremetal-flavor --nic net-id=<ironic_net_uuid>
+\end{code-block}

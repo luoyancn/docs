@@ -1,0 +1,114 @@
+\chapter{KeyStone普通安装}
+\label{keystone_install}
+
+\section{MySQL配置}
+
+创建KeyStone使用的数据库，并赋予相关的权限
+\begin{code-block}{mysql}
+CREATE DATABASE keystone CHARACTER SET utf8;
+GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'keystone';
+GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'keystone';
+\end{code-block}
+
+\section{KeyStone安装配置}
+\begin{code-block}{bash}
+yum install httpd openstack-keystone openstack-utils python-keystone python-openstackclient -y
+
+openstack-config --set /etc/keystone/keystone.conf DEFAULT admin_token ADMIN_TOKEN
+openstack-config --set /etc/keystone/keystone.conf DEFAULT debug true
+openstack-config --set /etc/keystone/keystone.conf eventlet_server public_workers 2
+openstack-config --set /etc/keystone/keystone.conf eventlet_server admin_workers 2
+openstack-config --set /etc/keystone/keystone.conf database connection \
+    mysql+pymysql://keystone:keystone@controller/keystone
+openstack-config --set /etc/keystone/keystone.conf token provider fernet
+
+keystone-manage db_sync
+keystone-manage pki_setup --keystone-user keystone --keystone-group keystone
+keystone-manage fernet_setup --keystone-user keystone --keystone-group keystone
+
+chown -R keystone:keystone /etc/keystone/ /var/log/keystone/
+cp /usr/share/keystone/wsgi-keystone.conf /etc/httpd/conf.d/wsgi-keystone.conf
+
+systemctl enable httpd
+systemctl start httpd
+
+export OS_TOKEN=ADMIN_TOKEN
+export OS_URL=http://controller:35357/v3
+export OS_IDENTITY_API_VERSION=3
+openstack service create --name keystone --description "OpenStack Identity" identity
+openstack endpoint create --region wuhan identity public http://controller:5000/v3
+openstack endpoint create --region wuhan identity internal http://controller:5000/v3
+openstack endpoint create --region wuhan identity admin http://controller:35357/v3
+
+openstack service create --name glance --description "OpenStack Image service" image
+openstack endpoint create --region wuhan  image public http://controller:9292
+openstack endpoint create --region wuhan  image public http://controller:9292
+openstack endpoint create --region wuhan  image public http://controller:9292
+
+openstack service create --name neutron  --description "OpenStack Networking" network
+openstack endpoint create --region wuhan network public http://controller:9696
+openstack endpoint create --region wuhan network internal http://controller:9696
+openstack endpoint create --region wuhan network admin http://controller:9696
+
+openstack service create --name nova --description "OpenStack Compute" compute
+openstack endpoint create --region wuhan compute public http://controller:8774/v2.1/%\(tenant_id\)s
+openstack endpoint create --region wuhan compute admin http://controller:8774/v2.1/%\(tenant_id\)s
+openstack endpoint create --region wuhan compute internal http://controller:8774/v2.1/%\(tenant_id\)s
+
+openstack service create --name ironic --description  "Ironic baremetal provisioning service" baremetal
+openstack endpoint create --region wuhan baremetal public http://controller:6385
+openstack endpoint create --region wuhan baremetal internal http://controller:6385
+openstack endpoint create --region wuhan baremetal admin http://controller:6385
+
+openstack role create admin
+openstack role create service
+openstack role create domain_admin
+openstack role create project_admin
+openstack role create guest
+openstack role create member
+
+export DEFAULT_DOMAIN_ID=`openstack domain create default | grep -w id | awk '{print $4}'`
+openstack-config --set /etc/keystone/keystone.conf identity default_domain_id $DEFAULT_DOMAIN_ID
+unset DEFAULT_DOMAIN_ID
+systemctl restart httpd
+
+openstack project create --domain default --description "Admin Project" admin
+openstack project create --domain default --description "Service Project" service
+
+openstack user create --domain default --project admin --project-domain default --password admin admin
+openstack role add --domain default --user admin --project-domain default --user-domain default admin \
+    --inherited
+openstack role add --project admin --user admin --project-domain default --user-domain default admin
+
+openstack user create --domain default --project service --project-domain default --password glance glance
+openstack role add --project service --user glance --project-domain default --user-domain default admin
+
+openstack user create --domain default --project service --project-domain default --password neutron \
+    neutron
+openstack role add --project service --user neutron --project-domain default --user-domain default admin
+
+openstack user create --domain default --project service --project-domain default --password nova nova
+openstack role add --project service --user nova --project-domain default --user-domain default admin
+
+openstack user create --domain default --project service --project-domain default --password ironic ironic
+openstack role add --project service --user ironic --project-domain default --user-domain default admin
+
+unset OS_TOKEN OS_URL
+unset OS_URL
+unset OS_IDENTITY_API_VERSION
+
+cat >/root/keystone_admin_v3<<EOF
+export OS_PROJECT_DOMAIN_NAME=default
+export OS_USER_DOMAIN_NAME=default
+export OS_PROJECT_NAME=admin
+export OS_TENANT_NAME=admin
+export OS_USERNAME=admin
+export OS_PASSWORD=admin
+export OS_AUTH_URL=http://controller:35357/v3
+export OS_IDENTITY_API_VERSION=3
+export OS_IMAGE_API_VERSION=2
+export OS_ENDPOINT_TYPE=internal
+export OS_INTERFACE=internal
+export PS1='[\u@\h \W(keystone_admin_v3)]$ '
+EOF
+\end{code-block}

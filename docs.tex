@@ -1,0 +1,139 @@
+% openany可以去除章节之间的空白页
+\documentclass[openany,twoside]{book}
+\usepackage{xeCJK}
+\usepackage{indentfirst}
+\usepackage{fancyhdr}
+\usepackage{minted}
+\usepackage{mdframed}
+\usepackage{pifont}
+\usepackage{geometry}
+% hyphens用于处理过长url，如果和hyperref一起使用，一定要放在
+% hyperref之前
+\usepackage[hyphens]{url}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage[utf8]{inputenc}
+\usepackage[dvipsnames,table]{xcolor}
+\usepackage{caption}
+\usepackage{tabularx}
+\usepackage[tikz]{bclogo,rotating}
+\usepackage{tikz}
+
+\usetikzlibrary{calc}
+\DeclareGraphicsRule{.mps}{eps}{.mps}{}
+
+\definecolor{lbcolor}{rgb}{0.9,0.9,0.9}
+\usemintedstyle{tango}
+\hypersetup{%
+    bookmarks=true,
+    % 设置文档属性的标题
+    pdftitle={OpenStack 综合手册},
+    % 设置文档属性的作者
+    pdfauthor={北京海云捷迅科技有限公司},
+    pdfborder = {0 0 0},
+    colorlinks = true,
+    linkcolor=cyan,
+    citecolor=green,
+    filecolor=green,
+    urlcolor=cyan!50!black!90
+}
+
+% 设置字体
+\setCJKmainfont{SimSun}
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+% 修改Figure为图
+\renewcommand{\figurename}{图}
+\renewcommand{\tablename}{表}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[RE,LO]{OpenStack 综合手册}
+\fancyhead[LE,RO]{\includegraphics[scale=0.02]{cloud.png}}
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\footrulewidth}{0.5pt}
+\cfoot{\thepage}
+
+% 设置chapter章节页的页眉页脚
+\fancypagestyle{plain}{
+    \fancyhf{}
+    \fancyhead[RE,LO]{OpenStack 综合手册}
+    \fancyhead[LE,RO]{\includegraphics[scale=0.02]{cloud.png}}
+	\renewcommand{\headrulewidth}{0.5pt}
+	\renewcommand{\footrulewidth}{0.5pt}
+    \cfoot{\thepage}
+}
+
+% 设置代码段格式。只使用minted，会出现代码过长无法显示，也会出现代码无法分页的情况
+% 配合mdframed则不会出现这些问题
+% breaklines表示自动换行
+\newenvironment{code-block}[1]
+ {\VerbatimEnvironment
+  \begin{mdframed}[topline=true, bottomline=true, leftline=true, rightline=true, backgroundcolor=lbcolor, userdefinedwidth=\textwidth]
+  \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true]{#1}}
+ {\end{minted}\end{mdframed}}
+
+% 设置警示表格
+\newenvironment{warning}
+  {\par\begin{mdframed}[linewidth=2pt,linecolor=black]%
+    \begin{list}{}{\leftmargin=1cm
+                   \labelwidth=\leftmargin}\item[\color{red} \Large\ding{43}]}
+  {\end{list}\end{mdframed}\par}
+
+% 设置另外一种警示框模式
+\newenvironment{attention}
+{\par\medskip\noindent
+\begin{tikzpicture}
+  \node[inner sep = 0pt] (box) \bgroup
+  \begin{minipage}[t]{.99\textwidth}
+    \begin{minipage}{.3\textwidth}
+    \centering
+    \tikz[scale = 5]\node[scale = 3, rotate = 30]{\bclampe};
+    \end{minipage}%
+    \begin{minipage}{.65\textwidth}
+    \surroundwithmdframed{}}
+    {\end{minipage}\hfill
+  \end{minipage}
+  \egroup;
+  \draw[black,line width=3pt]
+    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
+  \draw[black,line width=3pt]
+    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
+\end{tikzpicture}
+\par\medskip}
+
+\begin{document}
+
+\begin{titlepage}
+	\centering{
+	{\fontsize{40}{48}\selectfont OpenStack 综合手册} }\\
+	\vspace{\fill}
+	\centering{\Large{北京海云捷迅科技有限公司}}\\
+	\vspace{80mm}
+\end{titlepage}
+
+\newpage
+% 去除目录前后的空白页
+\let\cleardoublepage\clearpage
+\frontmatter
+{
+  \renewcommand*\contentsname{目录}
+  \tableofcontents%
+  % 不在目录页显示页眉页脚
+  \thispagestyle{empty}
+}
+
+% 页码从正文开始计算，不从目录开始
+\mainmatter
+
+\part{KeyStone篇}
+\include{keystone_install}
+\include{keystone_federation}
+\part{Glance篇}
+\include{glance_install}
+\part{Ironic篇}
+\include{ironic_introduction}
+\include{ironic_install}
+\include{ironic_develop}
+\include{ironic_architecture}
+
+\end{document}
