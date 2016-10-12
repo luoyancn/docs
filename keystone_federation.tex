@@ -494,7 +494,9 @@ from glanceclient import Client
 auth = v3.Password(auth_url='http://172.16.1.63:5000/v3',
                    username='admin',
                    password='admin',
-                   user_domain_name='default')
+                   user_domain_name='default',
+                   project_name='admin',
+                   project_domain_name='admin')
 password_session = session.Session(auth=auth, verify=False)
 
 password_session.auth.get_auth_ref(password_session)
