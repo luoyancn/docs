@@ -474,6 +474,7 @@ def main():
 if __name__ == "__main__":
     main()
 \end{code-block}
+
 将以上的内容名为为k2k.py文件，然后执行，如果出现如图 \nameref{fig:k2k_result}的输出，就证明keystone federation
 配置成功了。
 \begin{figure}[H]
@@ -536,6 +537,140 @@ servers = nova_client.servers.list()
 for server in servers:
     print server.to_dict()
 \end{code-block}
+
+\section{KeyStone Federation工作流程}
+Keystone Federation的工作与单独的keystone的工作流程区别比较大，主要分为如下几个步骤：
+\begin{enumerate}
+  \item 获取idp的unscope token
+  \item 通过unscope token获取idp端的scope token
+  \item 通过scope token获取saml断言
+  \item 在sp端校验saml断言，并返回cookie
+  \item 使用cookie获取sp端的unscope token
+  \item 通过sp端的unscope token获取可用的scope token
+  \item 使用sp端的scope token访问sp端的服务，获取资源
+\end{enumerate}
+
+\subsection{IdP用户获取unscoped token}
+\begin{code-block}{bash}
+cat >unscope.json<<EOF
+{
+    "auth": {
+        "identity": {
+            "methods": [
+                "password"
+            ],
+            "password": {
+                "user": {
+                    "domain": {
+                        "name": "default"
+                    },
+                    "name": "demo",
+                    "password": "demo"
+                }
+            }
+        }
+    }
+}
+EOF
+export UNSCOPE_TOKEN=`curl -i -X POST http://172.16.1.63:5000/v3/auth/tokens -H "Content-Type: application/json" \
+    -d @unscope.json | grep X-Subject-Token | awk '{print $2}' | strings`
+\end{code-block}
+
+\subsection{IdP用户获取scoped token}
+\begin{code-block}{bash}
+cat >scope.json<<EOF
+{
+    "auth": {
+        "identity": {
+            "methods": [
+                "token"
+            ],
+            "token": {
+                "id": "$UNSCOPE_TOKEN"
+            }
+        },
+        "scope": {
+            "project": {
+                "name": "demo",
+                "domain": {
+                    "name": "default"
+                }
+            }
+        }
+    }
+}
+EOF
+export SCOPE_TOKEN=`curl -i -X POST http://172.16.1.63:5000/v3/auth/tokens -H "Content-Type: application/json" \
+    -d @scope.json | grep X-Subject-Token | awk '{print $2}' | strings`
+\end{code-block}
+
+\subsection{获取saml断言}
+\begin{code-block}{bash}
+cat >saml.json<<EOF
+{
+    "auth": {
+        "identity": {
+            "methods": [
+                "token"
+            ],
+            "token": {
+                "id": "$SCOPE_TOKEN"
+            }
+        },
+        "scope": {
+            "service_provider": {
+                "id": "keystone-sp"
+            }
+        }
+    }
+}
+EOF
+curl -X POST http://172.16.1.63:5000/v3/auth/OS-FEDERATION/saml2/ecp -H "Content-Type: application/json" \
+    -d @saml.json > assertion
+\end{code-block}
+
+\subsection{SP端校验saml断言}
+\begin{code-block}{bash}
+export SAML_COOKIE=`curl -X POST -i http://172.16.1.64:5000/Shibboleth.sso/SAML2/ECP \
+    -H "Content-Type: application/vnd.paos+xml" -d @assertion | grep Set-Cookie | awk '{print $2}'`
+\end{code-block}
+
+\subsection{SP端获取unscope token}
+\begin{code-block}{bash}
+export SP_UNSCOPE_TOKEN=`curl -i -X GET \
+    http://172.16.1.64:5000/v3/OS-FEDERATION/identity_providers/keystone-idp/protocols/saml2/auth \
+    -H "Content-Type: application/vnd.paos+xml"  -b $SAML_COOKIE | grep X-Subject-Token | awk '{print $2}' | strings`
+\end{code-block}
+
+\subsection{SP端获取scope token}
+\begin{code-block}{bash}
+cat >spscope.json<<EOF
+{
+    "auth": {
+        "identity": {
+            "methods": [
+                "token"
+            ],
+            "token": {
+                "id": "$SP_UNSCOPE_TOKEN"
+            }
+        },
+        "scope": {
+            "project": {
+                "name": "demo",
+                "domain": {
+                    "name": "default"
+                }
+            }
+        }
+    }
+}
+EOF
+export SP_SCOPE_TOKEN=`curl -i -X POST http://172.16.1.64:5000/v3/auth/tokens \
+    -H "Content-Type: application/json" -d @spscope.json | grep X-Subject-Token | awk '{print $2}' | strings`
+\end{code-block}
+
+经过以上几个步骤之后，使用SP\_SCOPE\_TOKEN就可以访问SP端提供的所有服务了。
 
 \section{参考文献}
 \url{http://blog.rodrigods.com/it-is-time-to-play-with-keystone-to-keystone-federation-in-kilo/}
