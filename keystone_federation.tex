@@ -572,7 +572,8 @@ cat >unscope.json<<EOF
     }
 }
 EOF
-export UNSCOPE_TOKEN=`curl -i -X POST http://172.16.1.63:5000/v3/auth/tokens -H "Content-Type: application/json" \
+export UNSCOPE_TOKEN=`curl -i -X POST http://172.16.1.63:5000/v3/auth/tokens \
+    -H "Content-Type: application/json" \
     -d @unscope.json | grep X-Subject-Token | awk '{print $2}' | strings`
 \end{code-block}
 
@@ -600,7 +601,8 @@ cat >scope.json<<EOF
     }
 }
 EOF
-export SCOPE_TOKEN=`curl -i -X POST http://172.16.1.63:5000/v3/auth/tokens -H "Content-Type: application/json" \
+export SCOPE_TOKEN=`curl -i -X POST http://172.16.1.63:5000/v3/auth/tokens \
+    -H "Content-Type: application/json" \
     -d @scope.json | grep X-Subject-Token | awk '{print $2}' | strings`
 \end{code-block}
 
@@ -625,22 +627,27 @@ cat >saml.json<<EOF
     }
 }
 EOF
-curl -X POST http://172.16.1.63:5000/v3/auth/OS-FEDERATION/saml2/ecp -H "Content-Type: application/json" \
+curl -X POST http://172.16.1.63:5000/v3/auth/OS-FEDERATION/saml2/ecp \
+    -H "Content-Type: application/json" \
     -d @saml.json > assertion
 \end{code-block}
 
 \subsection{SP端校验saml断言}
 \begin{code-block}{bash}
 export SAML_COOKIE=`curl -X POST -i http://172.16.1.64:5000/Shibboleth.sso/SAML2/ECP \
-    -H "Content-Type: application/vnd.paos+xml" -d @assertion | grep Set-Cookie | awk '{print $2}'`
+    -H "Content-Type: application/vnd.paos+xml" \
+    -d @assertion | grep Set-Cookie | awk '{print $2}'`
 \end{code-block}
 
 \subsection{SP端获取unscope token}
 \begin{code-block}{bash}
 export SP_UNSCOPE_TOKEN=`curl -i -X GET \
     http://172.16.1.64:5000/v3/OS-FEDERATION/identity_providers/keystone-idp/protocols/saml2/auth \
-    -H "Content-Type: application/vnd.paos+xml"  -b $SAML_COOKIE | grep X-Subject-Token | awk '{print $2}' | strings`
+    -H "Content-Type: application/vnd.paos+xml" \
+    -b $SAML_COOKIE | grep X-Subject-Token | awk '{print $2}' | strings`
 \end{code-block}
+
+\underline{\color{red} \textbf{\textit{特别需要说明的是，IdP和SP端的用户映射就是在这一个步骤当中完成的。}}}
 
 \subsection{SP端获取scope token}
 \begin{code-block}{bash}
@@ -667,7 +674,8 @@ cat >spscope.json<<EOF
 }
 EOF
 export SP_SCOPE_TOKEN=`curl -i -X POST http://172.16.1.64:5000/v3/auth/tokens \
-    -H "Content-Type: application/json" -d @spscope.json | grep X-Subject-Token | awk '{print $2}' | strings`
+    -H "Content-Type: application/json" \
+    -d @spscope.json | grep X-Subject-Token | awk '{print $2}' | strings`
 \end{code-block}
 
 经过以上几个步骤之后，使用SP\_SCOPE\_TOKEN就可以访问SP端提供的所有服务了。
