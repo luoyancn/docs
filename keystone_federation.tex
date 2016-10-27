@@ -490,32 +490,51 @@ from keystoneauth1.identity import v3
 from keystoneauth1.identity.v3 import k2k
 
 from glanceclient import Client
+from cinderclient.v2 import client as cinder
+from novaclient.v2 import client as nova
 
 auth = v3.Password(auth_url='http://172.16.1.63:5000/v3',
                    username='admin',
                    password='admin',
-                   user_domain_name='default',
-                   project_name='admin',
-                   project_domain_name='admin')
+                   user_domain_name='default')
 password_session = session.Session(auth=auth, verify=False)
 
 password_session.auth.get_auth_ref(password_session)
 
-k2ksession = k2k.Keystone2Keystone(password_session.auth,
+token_auth = v3.Token(auth_url=auth_url, token=unscoped_idp_token,
+                      project_name='admin',
+                      project_domain_name='default')
+token_session = session.Session(auth=token_auth, verify=False)
+try:
+    token_session.auth.get_auth_ref(token_session)
+except exceptions.http.Unauthorized as exc:
+    raise exc
+
+k2ksession = k2k.Keystone2Keystone(token_session.auth,
     'keystone-sp', project_name='federate_project',
     project_domain_name='federate_domain')
 
-access = k2ksession.get_auth_ref(password_session)
+access = k2ksession.get_auth_ref(token_session)
 
 scoped_token_id = access._auth_token
 
-image_url = k2ksession.get_endpoint(password_session,
+image_url = k2ksession.get_endpoint(token_session,
                                     service_type='image')
 
 glance = Client('2', endpoint=image_url, token=scoped_token_id)
 images = glance.images.list()
 for image in images:
     print image
+
+cinder_client = cinder.Client(session=token_session, auth=k2ksession)
+volumes = cinder_client.volumes.list()
+for vol in volumes:
+    print vol.to_dict()
+
+nova_client = nova.Client(session=token_session, auth=k2ksession)
+servers = nova_client.servers.list()
+for server in servers:
+    print server.to_dict()
 \end{code-block}
 
 \section{参考文献}
