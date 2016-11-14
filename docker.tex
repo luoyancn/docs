@@ -1,1 +1,66 @@
 \chapter{Docker}
+
+\section{通过代理拉取docker镜像}
+有的时候，docker的image repo是被墙掉的。因此，需要通过代理的方式拉取。
+一般的，代理通常有socket5和http代理，但是docker，wget之类的一般只支持http代理。
+因此，需要转换一下。
+
+\subsection{设置socket5代理}
+Socket5代理一般需要shadowsocks的支持。首先设置socket5代理，并且将socket5转换为
+http代理
+\begin{code-block}{bash}
+dnf install python-shadowsocks polipo -y
+cat >/opt/server.json<<EOF
+{
+    "server":"107.191.52.9",
+    "server_port":8964,
+    "local_address": "127.0.0.1",
+    "local_port":1080,
+    "password":"laozhang",
+    "method":"aes-256-cfb"
+}
+EOF
+sslocal -c /root/server.json
+
+cat > /etc/polipo/config<<EOF
+logSyslog = true
+daemonise = false
+pidFile = /var/run/polipo/polipo.pid
+logFile = /var/log/polipo/polipo.log
+proxyAddress = "0.0.0.0"
+allowedClients = "0.0.0.0/0"
+socksParentProxy = "localhost:1080"
+socksProxyType = socks5
+EOF
+
+polipo -c /etc/polipo/config
+\end{code-block}
+
+通过以上的方式，就可以将socket5的代理转换为http代理。
+
+\subsection{设置docker使用代理}
+\begin{code-block}{bash}
+vi /usr/lib/systemd/system/docker.service
+[Unit]
+Description=Docker Application Container Engine
+Documentation=https://docs.docker.com
+After=network.target
+[Service]
+Type=notify
+Environment="http_proxy=http://127.0.0.1:8123"
+ExecStart=/usr/bin/dockerd
+ExecReload=/bin/kill -s HUP $MAINPID
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+TimeoutStartSec=0
+Delegate=yes
+KillMode=process
+[Install]
+WantedBy=multi-user.target
+
+systemctl daemon-reload
+systemctl restart docker
+\end{code-block}
+
+通过以上的步骤，就可以实现使用代理拉取docker镜像了。
