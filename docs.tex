@@ -4,7 +4,6 @@
 \usepackage{indentfirst}
 \usepackage{fancyhdr}
 \usepackage{minted}
-\usepackage{mdframed}
 \usepackage{pifont}
 \usepackage{geometry}
 % hyphens用于处理过长url，如果和hyperref一起使用，一定要放在
@@ -17,6 +16,7 @@
 \usepackage{caption}
 \usepackage{tabularx}
 \usepackage[tikz]{bclogo,rotating}
+\usepackage{mdframed}
 \usepackage{tikz}
 
 \usetikzlibrary{calc}
@@ -27,9 +27,9 @@
 \hypersetup{%
     bookmarks=true,
     % 设置文档属性的标题
-    pdftitle={OpenStack 综合手册},
+    pdftitle={综合手册},
     % 设置文档属性的作者
-    pdfauthor={北京海云捷迅科技有限公司},
+    pdfauthor={张家龙},
     pdfborder = {0 0 0},
     pdfsubject={OpenStack},
     pdfkeywords={OpenStack, Develop, Federation},
@@ -49,8 +49,8 @@
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[RE,LO]{OpenStack 综合手册}
-\fancyhead[LE,RO]{\includegraphics[scale=0.02]{cloud.png}}
+\fancyhead[RE,LO]{综合手册}
+%\fancyhead[LE,RO]{\includegraphics[scale=0.02]{cloud.png}}
 \renewcommand{\headrulewidth}{0.5pt}
 \renewcommand{\footrulewidth}{0.5pt}
 \cfoot{\thepage}
@@ -58,8 +58,8 @@
 % 设置chapter章节页的页眉页脚
 \fancypagestyle{plain}{
     \fancyhf{}
-    \fancyhead[RE,LO]{OpenStack 综合手册}
-    \fancyhead[LE,RO]{\includegraphics[scale=0.02]{cloud.png}}
+    \fancyhead[RE,LO]{综合手册}
+    %\fancyhead[LE,RO]{\includegraphics[scale=0.02]{cloud.png}}
 	\renewcommand{\headrulewidth}{0.5pt}
 	\renewcommand{\footrulewidth}{0.5pt}
     \cfoot{\thepage}
@@ -107,9 +107,9 @@
 
 \begin{titlepage}
 	\centering{
-	{\fontsize{40}{48}\selectfont OpenStack 综合手册} }\\
+	{\fontsize{40}{48}\selectfont 综合手册} }\\
 	\vspace{\fill}
-	\centering{\Large{北京海云捷迅科技有限公司}}\\
+	\centering{\Large{张家龙}}\\
 	\vspace{80mm}
 \end{titlepage}
 
