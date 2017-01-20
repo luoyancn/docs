@@ -1,0 +1,59 @@
+\chapter{C}
+
+\section{柔性数组}
+C语言的数据和python的不一样，是一个定长的，也就是说，需要预先设定好长度。如果需要
+使用变长数组，则需要使用指针。通过指针的方式，一个一个的分配。但是，这种方式，不利于
+计算数组长度，当需要使用数据长度时，就会出现问题。柔性数组则不一样，可以当成变长
+数据使用，同时，还可以确定长度。
+
+柔性数据的定义如下
+\begin{code-block}{c}
+typedef struct _soft_array * array_ptr;
+typedef struct _soft_array{
+    size_t lenth;
+    int members[1];
+}soft_array;
+\end{code-block}
+
+柔性数组一般由2部分组成，第一个表示数组长度，第二个表示数据的元素。但是，由于
+各个c/c++编译器的不一致，第二个参数，一定要是一个数组，并且，最好这个数组的长度
+为1。在gcc当中，这个members的长度可以为0，但在clang/virsual c++当中，则可能报错。
+统一设置为1，则不会出现这个问题。
+
+柔性数组的使用
+\begin{code-block}{c}
+array_ptr init_soft_array(size_t lenth){
+    array_ptr arrays = NULL;
+    if(NULL == (arrays = malloc(
+        offsetof(soft_array, members) + sizeof(int) * lenth))){
+        printf("Cannot allocate more memory\n");
+        return NULL;
+    }
+    arrays->lenth = lenth;
+    for(size_t index = 0; index < lenth; index++){
+        arrays->members[index] = index;
+    }
+    return arrays;
+}
+\end{code-block}
+
+\section{指向指针的指针}
+指向指针的指针，通常用在需要改变指针的地方。常见的操作，就是使用指向指针的指针
+来删除单链表。
+\begin{code-block}{c}
+void delete_link(nodeptr * header, nodeptr delete_node) {
+    nodeptr * current = header;
+    nodeptr entry = NULL;
+    while(*current) {
+        entry = *current;
+        if(entry == delete_node) {
+            *current = entry -> next;
+            free(delete_node);
+            delete_node= NULL;
+            return;
+        } else {
+            current = &(entry->next);
+        }
+    }
+}
+\end{code-block}

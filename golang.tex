@@ -1,0 +1,53 @@
+\chapter{Golang}
+
+\section{代理设置}
+由于Golang是google的项目，因此，有的公用类库是依赖于google的域名解析的，导致在
+一些情况下，无法更新或者下载相关的类库代码。解决方式就是设置代理。
+Golang下载代码主要是通过go和其他一些版本控制工具进行下载的，通常的，版本控制工具
+选择的都是git。因此，设置代理的时候，需要针对go和git设置。以windows为例。
+\begin{code-block}{bash}
+set http_proxy=http://10.1.1.10:8123
+git config --global http.proxy http://10.1.1.10:8123
+# 如果是使用sock5代理，则可以使用下面的方式
+git config --global http.proxy socks5://localhost:8588
+\end{code-block}
+
+设置完成之后，即可进行go get更新和下载。Linux环境类似。
+
+\section{安装Golang的开发工具}
+只有设置好代理之后，才能正常的安装开发golang所需要使用的开发工具。
+\begin{code-block}{bash}
+go get -u -v github.com/nsf/gocode
+go get -u -v github.com/rogpeppe/godef
+go get -u -v github.com/zmb3/gogetdoc
+go get -u -v github.com/golang/lint/golint
+go get -u -v github.com/lukehoban/go-outline
+go get -u -v sourcegraph.com/sqs/goreturns
+go get -u -v golang.org/x/tools/cmd/gorename
+go get -u -v github.com/tpng/gopkgs
+go get -u -v github.com/newhook/go-symbols
+go get -u -v golang.org/x/tools/cmd/guru
+go get -u -v github.com/cweill/gotests/
+go get -u -v github.com/alecthomas/gometalinter
+gometalinter --install -u
+\end{code-block}
+
+Golang代码补齐依赖于gocode，而gocode不是一个常驻的服务，也不是一个类似于
+python或者c/c++一样的编译型的解释器。Gocode更类似于一个实时的代码分析服务器，
+需要进行补齐时，访问gocode服务器，获取返回进行代码补齐。因此，最好是把gocode做成
+一个常驻性的服务一直在后台运行，这需要对gocode的代码做部分的修改。
+\begin{code-block}{bash}
+cd go/src/github.com/nsf/gocode
+git checkout -b backend
+git revert e11212347fbcdc8a33e9955b141f250f4eb14e94
+git commit
+go build .
+cp gocode.exe go/bin/
+\end{code-block}
+
+在windows下，后台程序一般是以服务的形式运行，所以，针对windows平台，我们可以通过
+添加服务的方式添加gocode的常驻进程。
+\begin{code-block}{bash}
+sc create gocode binPath="c:\go\bin\gocode.exe"
+\end{code-block}
+然后在windows服务中，启动gocode即可。
