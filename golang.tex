@@ -30,6 +30,13 @@ go get -u -v golang.org/x/tools/cmd/guru
 go get -u -v github.com/cweill/gotests/
 go get -u -v github.com/alecthomas/gometalinter
 gometalinter --install -u
+go get -u golang.org/x/crypto
+go get -u golang.org/x/image
+go get -u golang.org/x/mobile
+go get -u golang.org/x/net
+go get -u golang.org/x/oauth2
+go get -u golang.org/x/sys
+go get -u golang.org/x/text
 \end{code-block}
 
 Golang代码补齐依赖于gocode，而gocode不是一个常驻的服务，也不是一个类似于
@@ -48,6 +55,59 @@ cp gocode.exe go/bin/
 在windows下，后台程序一般是以服务的形式运行，所以，针对windows平台，我们可以通过
 添加服务的方式添加gocode的常驻进程。
 \begin{code-block}{bash}
-sc create gocode binPath="c:\go\bin\gocode.exe"
+sc create gocode binPath="c:\go\bin\gocode.exe set propose-builtins true autobuild true close-timeout 43200"
 \end{code-block}
 然后在windows服务中，启动gocode即可。
+
+\section{模块初始化}
+每个golang的模块都有一个隐藏的方法init，用来进行模块的初始化。当然，我们还可以进行
+初始化的定制。具体就像下面一样
+\begin{code-block}{go}
+func init() {
+    fmt.Printf("OS: %s, Arch: %s", runtime.GOOS, runtime.GOARCH)
+}
+\end{code-block}
+
+\section{range的使用}
+range通常用来进行迭代列表或者字典，通常的使用规则如下表\nameref{tab:usage_of_range}
+\begin{center}
+  \rowcolors{2}{green!80!yellow!50}{green!70!yellow!40}
+  \begin{tabularx}{\textwidth}{|X|X|X|}
+  \hline
+  表达式类型& 第一返回值& 第二返回值\\ \hline
+  [n]Ele& 数组索引值& 数组元素 \\
+  string& 字符串索引& 字符数组对应的值\\
+  map[k]v& map的键 & map键对应的值\\
+  chan E & chan的元素 & - \\ \hline
+  \end{tabularx}
+  \label{tab:usage_of_range}
+\end{center}
+
+具体的使用如下
+\begin{code-block}{go}
+ints := []int{1, 2, 3, 4, 5, 6}
+for index, value := range ints {
+    fmt.Printf("%d: %d\n", index, value)
+}
+for index := range ints {
+    fmt.Printf("%d: %d\n", index, ints[index])
+}
+dict := map[string]int{"lucifer": 18, "titans": 24, "garuda": 36}
+for key, value := range dict {
+    fmt.Printf("key is %s and value is %d\n", key, value)
+}
+\end{code-block}
+
+\section{goto的使用}
+goto的用法和c/c++当中的一样，也可以用来实现for循环，具体如下。
+\begin{code-block}{go}
+func goto_loop() {
+    index := 0
+loop:
+    if index < 10 {
+        fmt.Printf("index: \t%d\n", index)
+        index++
+        goto loop
+    }
+}
+\end{code-block}
