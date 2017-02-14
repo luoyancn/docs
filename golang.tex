@@ -111,3 +111,28 @@ loop:
     }
 }
 \end{code-block}
+
+\section{Golang的继承}
+Golang和c一样，并没有类的概念，因此没有继承。但是，由于golang有结构体的存在，因此，
+可以使用组合的方式来实现继承。
+\begin{code-block}{go}
+type User struct{
+    name string
+    age uint
+    address string
+}
+
+func (this *User) GetName() string{
+    return this.name
+}
+
+type Student struct{
+    User
+    class string
+    score uint
+    order uint
+}
+\end{code-block}
+
+在上边的例子中，Student结构内嵌了一个User结构，其结果就是Student结构也存在name，age
+address等等属性，并且，GetName方法同样对Student结构是适用的。
