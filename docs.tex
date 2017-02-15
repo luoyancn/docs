@@ -18,6 +18,9 @@
 \usepackage[tikz]{bclogo,rotating}
 \usepackage{mdframed}
 \usepackage{tikz}
+\usepackage{enumerate}
+\usepackage{outlines}
+\usepackage{enumitem}
 
 \usetikzlibrary{calc}
 \DeclareGraphicsRule{.mps}{eps}{.mps}{}
@@ -70,9 +73,20 @@
 % breaklines表示自动换行
 \newenvironment{code-block}[1]
  {\VerbatimEnvironment
-  \begin{mdframed}[topline=true, bottomline=true, leftline=true, rightline=true, backgroundcolor=lbcolor, userdefinedwidth=\textwidth]
+  \begin{mdframed}[topline=true, bottomline=true, leftline=true,
+                   rightline=true, backgroundcolor=lbcolor,
+                   userdefinedwidth=\textwidth]
   \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true]{#1}}
  {\end{minted}\end{mdframed}}
+
+\newenvironment{code-in-enumerate}[1]
+ {\VerbatimEnvironment
+  \par\parshape0 \linewidth\textwidth
+  \begin{mdframed}[topline=true, bottomline=true, leftline=true,
+                   rightline=true, backgroundcolor=lbcolor,
+                   userdefinedwidth=\textwidth]
+  \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true]{#1}}
+ {\end{minted}\end{mdframed}\par}
 
 % 设置警示表格
 \newenvironment{warning}

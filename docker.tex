@@ -64,3 +64,123 @@ systemctl restart docker
 \end{code-block}
 
 通过以上的步骤，就可以实现使用代理拉取docker镜像了。
+
+\section{自定义镜像}
+Docker的repo中已经提供了比较多的可用镜像，但是，总有一些镜像是需要我们自己进行定制的。
+如何从零开始定制呢？主要有几种方式：
+\begin{itemize}
+  \item 通过kickstart创建docker镜像
+  \item 从虚拟机制作镜像。
+\end{itemize}
+
+\subsection{从虚拟机制作镜像}
+从虚拟机制作镜像适用于任何linux操作系统，但是，制作出来的镜像由于包含kernel，man
+手册等相关于docker无关的文件，因此，文件体积较大。好处在于非常通用。
+\begin{outline}[enumerate]
+  \1 安装一个minimal vm
+  \1 修改操作系统的部分设置和属性
+\begin{code-in-enumerate}{bash}
+dnf erase NetworkManager NetworkManager-glib NetworkManager-config-server -y
+cat >>/etc/sysconfig/network-scripts/ifcfg-eth0<<-EOF
+TYPE=Ethernet
+BOOTPROTO=dhcp
+NAME=eth0
+ONBOOT=yes
+DEVICE=eth0
+EOF
+sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
+systemctl stop firewalld
+dnf clean all
+\end{code-in-enumerate}
+
+  \1 打包相关文件
+\begin{code-in-enumerate}{bash}
+tar --numeric-owner --exclude=/proc --exclude=/sys --exclude=/mnt \
+    --exclude=/var/cache --exclude=/usr/share/{foomatic,backgrounds,perl5,\
+    fonts,cups,qt4,groff,kde4,icons,pixmaps,emacs,gnome-background-properties,\
+    sounds,gnome,games,desktop-directories}  \
+    --exclude=/var/log -zcvf /mnt/rhel7.tar.gz.tar.gz /
+\end{code-in-enumerate}
+
+  \1 导入docker repo
+\begin{code-in-enumerate}{bash}
+cat rhel7.tar.gz | docker import - rhel7
+\end{code-in-enumerate}
+
+\end{outline}
+
+\subsection{通过kickstart创建docker镜像}
+Kickstart创建的docker镜像文件体积小，启动迅速，比较适合。但是，他有一个比较糟糕的缺点，
+就是redhat的宿主机只能制作redhat的docker镜像，无法制作ubuntu的镜像；如果需要制作ubuntu的
+docker镜像，则需要切换到ubuntu的宿主机上。下面的例子以fedora宿主机为例。
+\begin{outline}[enumerate]
+  \1 安装制作docker镜像的依赖
+\begin{code-in-enumerate}{bash}
+dnf install libguestfs-tools-c appliance-tools libguestfs-tools-c -y
+\end{code-in-enumerate}
+
+  \1 编写一个kickstart文件
+\par{\parshape0 \linewidth\textwidth
+\begin{mdframed}[topline=true, bottomline=true, leftline=true,
+                 rightline=true, backgroundcolor=lbcolor,
+                 userdefinedwidth=\textwidth]
+\inputminted[fontsize=\scriptsize,linenos=false,
+             breaklines=true]{bash}{init.ks}
+\end{mdframed}
+\par}
+
+  \1 创建docker的image文件
+\begin{code-in-enumerate}{bash}
+appliance-creator -c init.ks -d -v -t /tmp -o /tmp/Fedora24 \
+      --name "Fedora24" --release 24 --format=qcow2
+\end{code-in-enumerate}
+
+  \1 导入镜像到docker repo当中
+\begin{code-in-enumerate}{bash}
+virt-tar-out -a /tmp/Fedora24/Fedora24/Fedora24-sda.qcow2 / - | docker import - fedora24
+\end{code-in-enumerate}
+\end{outline}
+
+虽然kickstart文件不能完全跨平台，但是在fedora上，我们可以通过kickstart制作redhat的docker镜像。
+具体过程如上，不再赘述。而redhat的kickstart文件如下：
+\begin{mdframed}[topline=true, bottomline=true, leftline=true,
+                 rightline=true, backgroundcolor=lbcolor,
+                 userdefinedwidth=\textwidth]
+  \inputminted[fontsize=\scriptsize,linenos=false,
+               breaklines=true]{bash}{cern.ks}
+\end{mdframed}
+
+\subsection{添加daemon支持}
+通常的，docker服务都是单独的运行一个程序，无法在docker内部执行systemctl等命令，更没办法
+登录的docker容器之后，通过init或者systemd的方式启动一个服务的守护进程。但有的时候，我们
+需要将docker当作一个虚拟机使用，这就要求docker容器内部支持init或者systemcd。我们可以使用
+自定义的镜像达成我们的目的。但是，我们需要先行build一个支持daemon的docker image。
+Docker File 如下：
+\begin{code-block}{bash}
+FROM fedora
+RUN dnf update --y;dnf install git git-review -y;dnf clean all
+RUN echo "root:luoyan" | chpasswd
+RUN ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key
+RUN ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key
+RUN (cd /lib/systemd/system/sysinit.target.wants/; \
+for i in *; do [ $i == systemd-tmpfiles-setup.service ] || rm -f $i; done); \
+rm -f /lib/systemd/system/multi-user.target.wants/*;\
+rm -f /etc/systemd/system/*.wants/*;\
+rm -f /lib/systemd/system/local-fs.target.wants/*; \
+rm -f /lib/systemd/system/sockets.target.wants/*udev*; \
+rm -f /lib/systemd/system/sockets.target.wants/*initctl*; \
+rm -f /lib/systemd/system/basic.target.wants/*;\
+rm -f /lib/systemd/system/anaconda.target.wants/*;
+
+RUN systemctl enable sshd.service
+EXPOSE 22 80 3306 5000 5672 6379 8000 8080 8773 8774 8775 8776 8888 9000 9292 9696 9999 11211 15672 35357 55672
+
+CMD ["/usr/sbin/init"]
+\end{code-block}
+
+使用上述的docker file创建一个支持daemon的镜像之后，我们就可以创建一个类似于虚拟机的容器，
+然后像使用虚拟机一样的使用docker容器。
+\begin{code-block}{bash}
+docker run -tdi --privileged -v /opt/shared/:/root -v /opt/build/:/root/rpmbuild \
+    -p 60072:22 --name rpmbuild --hostname rpmbuild cern-latest
+\end{code-block}
