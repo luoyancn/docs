@@ -136,3 +136,26 @@ type Student struct{
 
 在上边的例子中，Student结构内嵌了一个User结构，其结果就是Student结构也存在name，age
 address等等属性，并且，GetName方法同样对Student结构是适用的。
+
+\section{Golang的命令行参数}
+和Python一样，golang提供了命令行处理的类库。比较常用的就是flag。
+例子如下：
+\begin{code-block}{go}
+var (
+    flag_name = flag.String("name", "demo", "The name of user. String value")
+    flag_age  = flag.Int("age", 18, "The age of user. Int value")
+)
+
+func show_usage() {
+    fmt.Fprintf(os.Stderr, "Usage: %s [-name] [-age]\n\n", os.Args[0])
+    fmt.Fprintf(os.Stderr, "Flags:\n")
+    flag.PrintDefaults()
+}
+
+func main(){
+    flag.Usage = show_usage
+    flag.Parse()
+    fmt.Println(*flag_name)
+    fmt.Println(*flag_age)
+}
+\end{code-block}
