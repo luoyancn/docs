@@ -57,3 +57,85 @@ void delete_link(nodeptr * header, nodeptr delete_node) {
     }
 }
 \end{code-block}
+
+\section{二叉树的简单实现}
+通常的，二叉树都是有序的二叉树，因此，插入时，一般都应当对其进行排序操作。
+\begin{code-block}{c}
+typedef struct _tnode * tree;
+typedef void (*visit_func)(tree * root);
+
+typedef struct _tnode{
+    tree leftchild;
+    tree rightchild;
+    int value;
+}tnode;
+
+void insert_tree(tree *root, int value){
+    if(NULL == *root){
+        *root = MALLOC(1, tnode);
+        if(NULL == *root){
+            printf("Cannot allocate more memory for tree\n");
+            return;
+        }
+        (*root)->value = value;
+        (*root)->leftchild = NULL;
+        (*root)->rightchild = NULL;
+        return;
+    }
+    if((*root)->value > value){
+        insert_tree(&((*root)->leftchild), value);
+    }else{
+        insert_tree(&((*root)->rightchild), value);
+    }
+}
+\end{code-block}
+
+对于二叉树而言，最重要的操作莫过于遍历。所有的二叉树操作都是基于遍历进行的。
+二叉树的遍历操作通常有3种：前序，中序和后序。其中，最重要的，就是后序遍历。
+
+\begin{code-block}{c}
+// 前序遍历
+void visit_tree_root_first(tree root, visit_func visit){
+    if(NULL == root){
+        return;
+    }
+    visit(&root);
+    visit_tree_root_first(root->leftchild, visit);
+    visit_tree_root_first(root->rightchild, visit);
+}
+
+// 中序遍历
+void visit_tree_root_second(tree root, visit_func visit){
+    if(NULL == root){
+        return;
+    }
+    visit_tree_root_second(root->leftchild, visit);
+    visit(&root);
+    visit_tree_root_second(root->rightchild, visit);
+}
+
+// 后续遍历
+void visit_tree_root_last(tree *root, visit_func visit){
+    if(NULL == *root){
+        return;
+    }
+    visit_tree_root_last(&((*root)->leftchild), visit);
+    visit_tree_root_last(&((*root)->rightchild), visit);
+    visit(root);
+}
+\end{code-block}
+
+二叉树其他的操作，基本上也是根据遍历操作来实现的。比如，一颗二叉树的销毁。
+\begin{code-block}{c}
+static void _destroy_tree(tree * root){
+    (*root)->leftchild = NULL;
+    (*root)->rightchild = NULL;
+    free(*root);
+    *root = NULL;
+}
+
+void destroy_tree(tree *root){
+    visit_func visit = _destroy_tree;
+    visit_tree_root_last(root, visit);
+}
+\end{code-block}
