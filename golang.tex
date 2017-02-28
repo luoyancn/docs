@@ -29,6 +29,7 @@ go get -u -v github.com/newhook/go-symbols
 go get -u -v golang.org/x/tools/cmd/guru
 go get -u -v github.com/cweill/gotests/
 go get -u -v github.com/alecthomas/gometalinter
+go get -u -v github.com/jstemmer/gotags
 gometalinter --install -u
 go get -u golang.org/x/crypto
 go get -u golang.org/x/image
@@ -37,6 +38,7 @@ go get -u golang.org/x/net
 go get -u golang.org/x/oauth2
 go get -u golang.org/x/sys
 go get -u golang.org/x/text
+go get -u github.com/satori/go.uuid
 \end{code-block}
 
 Golang代码补齐依赖于gocode，而gocode不是一个常驻的服务，也不是一个类似于
@@ -58,6 +60,19 @@ cp gocode.exe go/bin/
 sc create gocode binPath="c:\go\bin\gocode.exe set propose-builtins true autobuild true close-timeout 43200"
 \end{code-block}
 然后在windows服务中，启动gocode即可。
+
+\begin{attention}
+在windows当中，针对golang需要设置2个系统变量，一个是GOROOT，一个是GOPATH。在1.6
+之前，GOROOT和GOPATH可以是同一个路径，但是，在1.8之后，GOROOT和GOPATH必须是不同的路径。
+因此，如果执行go get命令，则下载的代码不会放到GOROOT当中，也就是说不能被go识别。
+因此，如果一旦go get了第三方的代码，需要在自己的代码当中使用，则必须修改自己的GOPATH。
+以windows为例，假设GOROOT=C:\textbackslash GO，GOPATH=C:\textbackslash GOLiberty，则自己的代码的GOPATH则需要修改为如下：
+\begin{mdframed}[topline=false, bottomline=false, leftline=false, rightline=false, backgroundcolor=lbcolor]
+\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true]{bash}
+set GOPATH=%GOPATH%;%cd%
+\end{minted}
+\end{mdframed}
+\end{attention}
 
 \section{模块初始化}
 每个golang的模块都有一个隐藏的方法init，用来进行模块的初始化。当然，我们还可以进行
