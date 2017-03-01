@@ -174,3 +174,66 @@ func main(){
     fmt.Println(*flag_age)
 }
 \end{code-block}
+
+\section{Golang的Json处理}
+同其他语言一样，golang也提供了json的处理，但是和python有不同。Python通常是将json和
+字典（dict）进行相互转换，但是，golang只能是将struct对象转换为json，以及将json转换为
+golang的映射（map，也即是python的字典）或者对象。另外，由于golang的struct的大小写规则，
+如果struct的属性设置为小写，则无法被转换，这时候，需要用到大量的struct tag属性。
+具体如下的例子。
+\begin{code-block}{go}
+import(
+    "encoding/json"
+)
+type User struct {
+    Id     string `json:"id"`
+    Name   string `json:"name"`
+    Active bool   `json:"active"`
+    // omitempty表示该项如果有值就输出，否则隐藏
+    // about表示该键在转换为json时，Bio键被转换为about键
+    Bio       string `json:"about,omitempty"`
+    Admin     bool   `json:"-"`  // -表示不输出该值
+    AdminRole bool   `json:"-,"` // -,表示该键输出为-
+}
+
+func ConstomJson() {
+    user := &User{Id: uuid.NewV4().String(), Name: "zhangjl",
+                  Active: true, Bio: "luoyan", Admin: true, AdminRole: false}
+    user_json, _ := json.Marshal(user)
+    fmt.Printf("%v\n", string(user_json))
+
+    user = &User{Id: uuid.NewV4().String(), Name: "zhangjl",
+                 Active: true, Admin: true, AdminRole: true}
+    // 将对象格式化为json数据
+    user_json, _ = json.Marshal(user)
+    fmt.Printf("%v\n", string(user_json))
+    fmt.Printf("%s\n", user_json)
+    // json.Marshal转换的结果是byte数组，将其转换为string
+    fmt.Printf("%s\n", bytes.NewBuffer(user_json).String())
+
+    json_str := `{"id":"7722a662-ceeb-41d4-9de7-f7132da3f985",
+                  "name":"zhangjl","active":true,"-":false}`
+
+    var f interface{}
+    // 将json格式的字符串转换
+    err := json.Unmarshal([]byte(json_str), &f)
+    if err != nil {
+        return
+    }
+    fmt.Printf("%v\n", f)
+
+    // 转换为map结构
+    m := f.(map[string]interface{})
+    fmt.Printf("%v\n", m)
+    fmt.Printf("%t\n", m["active"])
+    fmt.Printf("%t\n", m["-"])
+
+    var user_ User
+    // 转换为golang定义的对象
+    err = json.Unmarshal([]byte(json_str), &user_)
+    if err != nil {
+        return
+    }
+    fmt.Printf("%v\n", user_)
+}
+\end{code-block}
