@@ -1,0 +1,111 @@
+\chapter{Linux}
+
+\section{启用RC的启动方式}
+在redhat/centos 7及其以上版本，rc.local的启动方式已经被废除，这导致一些我们自定义的
+服务无法正常使用。但是，redhat/centos 7以及fedora（> 22）提供了一种方式，可以启用rc.local
+的启动方式。
+\begin{code-block}{bash}
+cat >>/etc/rc.d/rc.local<<EOF
+#! /bin/bash
+mysql -e  "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%'IDENTIFIED BY 'luoyan' WITH GRANT OPTION" mysql
+EOF
+chmod+x /etc/rc.d/rc.local
+cat >>/usr/lib/systemd/system/rc-local.service<<EOF
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable rc-local.service
+\end{code-block}
+
+\section{设置ssh的kownhosts}
+\begin{code-block}{bash}
+cd ~/.ssh
+cat>config<<EOF
+Host *
+    StrictHostKeyChecking no
+    UserKnownHostsFile=/dev/null
+EOF
+\end{code-block}
+
+\section{安装windows字体}
+在/usr/share/fonts目录下新建一个目录，目录名随意，以zh\_CN为例；将Windows系统文件夹中的Fonts文件夹下的以“sim”开头的文件和tahoma.ttf,verdana.ttf,verdanab.ttf,verdanaz.ttf,tahomabd.ttf,
+verdanai.ttf,MSY*等文件复制到新建的目录中，并修改权限为755。
+\begin{code-block}{bash}
+cd /usr/share/fonts/zh_CN
+mkfontscale
+mkfontdir
+fc-cache -fv
+\end{code-block}
+
+\section{Sphinx制作中文的pdf}
+Sphinx支持pdf制作，但是需要texlive的支持。另外，sphinx默认不支持中文pdf的制作，需要进行相关修改。
+\begin{code-block}{bash}
+vi /usr/lib/python2.7/site-packages/sphinx/writers/latex.py +231
+            if builder.config.language == 'zh_CN':
+                self.elements['babel'] = ''
+                self.elements['inputenc'] = ''
+                self.elements['utf8extra'] = ''
+vi /usr/lib/python2.7/site-packages/sphinx/texinputs/Makefile
+%.pdf: %.tex
+        xelatex $(LATEXOPTS) '$<'
+        xelatex $(LATEXOPTS) '$<'
+        xelatex $(LATEXOPTS) '$<'
+        -makeindex -s python.ist '$(basename $<).idx'
+        xelatex $(LATEXOPTS) '$<'
+        xelatex $(LATEXOPTS) '$<'
+\end{code-block}
+
+然后，在使用sphinx生成的doc文档的conf.py文件中，做如下的修改：
+\begin{code-block}{python}
+language = 'zh_CN'
+latex_elements = {
+# The paper size ('letterpaper' or 'a4paper').
+#'papersize': 'letterpaper',
+# The font size ('10pt', '11pt' or '12pt').
+#'pointsize': '10pt',
+# Additional stuff for the LaTeX preamble.
+'preamble': r'''
+     \usepackage{xeCJK}
+     \setCJKmainfont{SimSun}
+     \XeTeXlinebreaklocale "zh"
+     \XeTeXlinebreakskip = 0pt plus 1pt
+     \setcounter{tocdepth}{4}  #设置生成的pdf的目录的最深层级
+''',
+}
+\end{code-block}
+
+如果需要修改sphinx的页眉样式，可以做如下的修改：
+\begin{code-block}{bash}
+vi /usr/lib/python2.7/site-packages/sphinx/texinputs/sphinx.sty +122
+\fancyhead[LE,RO]{{\py@HeaderFamily \@title}}
+\end{code-block}
+
+如果还需要删除release信息，则可以如下修改：
+\begin{code-block}{python}
+vi /usr/lib/python2.7/site-packages/sphinx/writers/latex.py +192
+'releasename':  _(' '),
+\end{code-block}
+
+\section{Latex制作中文的pdf}
+同样的，latex默认也是不支持中文的，因此需要做部分的修改。
+\begin{code-block}{bash}
+vi /usr/share/texlive/texmf-dist/web2c/texmf.cnf
+OSFONTDIR = /usr/share/fonts
+vi /usr/share/texmf-dist/tex/latex/ctex/fontset/ctex-xecjk-winfonts.def
+:%s/\[SIMKAI.TTF\]/KaiTi/g
+:%s/\[SIMFANG.TTF\]/FangSong/g
+\end{code-block}
+
+\section{OpenStack社区的git设置}
+由于各种原因，如果使用ssh的方式，社区的gerrit是无法正常连接的。但是，社区的gerrit
+提供了https的连接方式，可以使用这种方式绕开相关的限制。首先，需要登录review.openstack.org，
+然后在Settings -> HTTP Password里，生成一个HTTP密码，应该是一个大小写加数字的随机字符串。
+最后，再在git当中做如下的设置即可。
+\begin{code-block}{python}
+git config user.name zhangjl
+git config user.email zhangjl@awcloud.com
+git config gitreview.scheme https
+git config gitreview.port 443
+git remote add gerrit https://zhangjl:g2oF+4RFNTtW@review.openstack.org/openstack/nova.git
+git review -s
+\end{code-block}
