@@ -34,10 +34,13 @@ Ironic部署需要2类镜像：1是deploy的镜像，这类镜像当中安装有
 制作deploy镜像
 \begin{code-block}{bash}
 yum install diskimage-builder -y
+# ubuntu下则是 apt-get install python-diskimage-builder -y
 export DIB_DEV_USER_PASSWORD="awcloud"
 export DIB_DEV_USER_PWDLESS_SUDO="yes"
 export DIB_DEV_USER_USERNAME="awcloud"
 export DIB_REPOREF_ironic_agent="stable/mitaka"
+# 针对在ubuntu下制作centos的镜像，有可能需要设置一些额外的参数
+# export DIB_RELEASE="GenericCloud"
 disk-image-create ironic-agent enable-serial-console devuser source-repositories centos7 -o centos7-deploy
 \end{code-block}
 镜像制作完毕之后，应该如下面所示：
