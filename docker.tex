@@ -1,5 +1,28 @@
 \chapter{Docker}
 
+\section{Docker的repo源}
+Docker目前分为社区版和企业版（>1.13），而生产环境中特别是centos，还是建议使用以前
+的老版本，这样不会损失太多的功能。
+\begin{code-block}{bash}
+# cenos的repo源
+# 需要注意的是，在centos上安装docker时，一定要指定版本号
+# yum install docker-engine-1.13.1-1.el7.centos docker-engine-selinux-1.13.1-1.el7.centos -y
+[docker]
+name=Docker
+baseurl=https://yum.dockerproject.org/repo/main/centos/$releasever
+enabled=1
+gpgcheck=1
+gpgkey=https://yum.dockerproject.org/gpg
+
+# fedora的repo源
+[docker]
+name=Docker
+baseurl=https://yum.dockerproject.org/repo/main/fedora/$releasever
+enabled=1
+gpgcheck=1
+gpgkey=https://yum.dockerproject.org/gpg
+\end{code-block}
+
 \section{通过代理拉取docker镜像}
 有的时候，docker的image repo是被墙掉的。因此，需要通过代理的方式拉取。
 一般的，代理通常有socket5和http代理，但是docker，wget之类的一般只支持http代理。
