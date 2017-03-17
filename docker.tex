@@ -142,15 +142,16 @@ docker镜像，则需要切换到ubuntu的宿主机上。下面的例子以fedor
 dnf install libguestfs-tools-c appliance-tools libguestfs-tools-c -y
 \end{code-in-enumerate}
 
-  \1 编写一个kickstart文件
-\par{\parshape0 \linewidth\textwidth
-\begin{mdframed}[topline=true, bottomline=true, leftline=true,
-                 rightline=true, backgroundcolor=lbcolor,
-                 userdefinedwidth=\textwidth]
-\inputminted[fontsize=\scriptsize,linenos=false,
-             breaklines=true]{bash}{init.ks}
-\end{mdframed}
-\par}
+  \1 编写一个kickstart文件如附件
+\textattachfile{init.ks}{\textcolor{blue}{init.ks}}
+%\par{\parshape0 \linewidth\textwidth
+%\begin{mdframed}[topline=true, bottomline=true, leftline=true,
+%                 rightline=true, backgroundcolor=lbcolor,
+%                 userdefinedwidth=\textwidth]
+%\inputminted[fontsize=\scriptsize,linenos=false,
+%             breaklines=true]{bash}{init.ks}
+%\end{mdframed}
+%\par}
 
   \1 创建docker的image文件
 \begin{code-in-enumerate}{bash}
@@ -165,13 +166,14 @@ virt-tar-out -a /tmp/Fedora24/Fedora24/Fedora24-sda.qcow2 / - | docker import - 
 \end{outline}
 
 虽然kickstart文件不能完全跨平台，但是在fedora上，我们可以通过kickstart制作redhat的docker镜像。
-具体过程如上，不再赘述。而redhat的kickstart文件如下：
-\begin{mdframed}[topline=true, bottomline=true, leftline=true,
-                 rightline=true, backgroundcolor=lbcolor,
-                 userdefinedwidth=\textwidth]
-  \inputminted[fontsize=\scriptsize,linenos=false,
-               breaklines=true]{bash}{cern.ks}
-\end{mdframed}
+具体过程如上，不再赘述。而redhat的kickstart文件如附件：
+\textattachfile{cern.ks}{\textcolor{blue}{cern.ks}}
+%\begin{mdframed}[topline=true, bottomline=true, leftline=true,
+%                 rightline=true, backgroundcolor=lbcolor,
+%                 userdefinedwidth=\textwidth]
+%  \inputminted[fontsize=\scriptsize,linenos=false,
+%               breaklines=true]{bash}{cern.ks}
+%\end{mdframed}
 
 \subsection{添加daemon支持}
 通常的，docker服务都是单独的运行一个程序，无法在docker内部执行systemctl等命令，更没办法
@@ -206,4 +208,40 @@ CMD ["/usr/sbin/init"]
 \begin{code-block}{bash}
 docker run -tdi --privileged -v /opt/shared/:/root -v /opt/build/:/root/rpmbuild \
     -p 60072:22 --name rpmbuild --hostname rpmbuild cern-latest
+\end{code-block}
+
+\section{搭建Docker的私有源}
+目前，搭建docker的私有源，一般使用vmware的harbor进行。本例亦是如此。
+\begin{code-block}{bash}
+wget https://github.com/vmware/harbor/releases/download/0.5.0/harbor-offline-installer-0.5.0.tgz \
+    -O /opt/harbor-offline-installer-0.5.0.tgz
+cd /opt/
+tar -zxvf harbor-offline-installer-0.5.0.tgz
+
+cd /opt/harbor
+vi harbor.cfg
+hostname = 10.1.1.16
+ui_url_protocol = http
+email_server = smtp.exmail.qq.com
+email_server_port = 465
+email_username = notify@awcloud.com
+email_password = r00tawcloud.
+email_from = admin notify@awcloud.com
+email_ssl = true
+harbor_admin_password = luoyan
+db_password = luoyan
+sed -i -e 's/80:80/5000:80/g' -e 's/443:443/9999:443/g' docker-compose.yml
+sed -i 's/$ui_url/$ui_url:5000/g' common/templates/registry/config.yml
+./install.sh
+\end{code-block}
+
+然后使用浏览器，登录http://10.1.1.16:5000即可。
+
+将网络上的公开的repo作为自己私有repo的镜像时，需要做如下的操作：
+\begin{code-block}{bash}
+docker pull rhel7/pod-infrastructure:latest
+docker login -u admin -p luoyan http://10.1.1.16:5000
+docker tag rhel7/pod-infrastructure:latest 10.1.1.16:5000/rhel7/pod-infrastructure:latest
+# push 之前，需要保证10.1.1.16上有rhel7这个project存在
+docker push 10.1.1.16:5000/rhel7/pod-infrastructure:latest
 \end{code-block}

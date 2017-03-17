@@ -20,6 +20,6 @@ help:
 	@echo "  latexpdf   to make LaTeX files and run them through xelatex"
 
 clean:
-	rm -rf *.aux *.bbl *.blg *.log *.out *.pyg *.toc
+	rm -rf *.aux *.bbl *.blg *.log *.out *.pyg *.toc *.atfi
 
 

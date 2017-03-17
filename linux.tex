@@ -109,3 +109,15 @@ git config gitreview.port 443
 git remote add gerrit https://zhangjl:g2oF+4RFNTtW@review.openstack.org/openstack/nova.git
 git review -s
 \end{code-block}
+
+\section{禁用ipv6}
+\begin{code-block}{python}
+cat >> /etc/sysctl.conf <<EOF
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+EOF
+vi /etc/default/grub
+GRUB_CMDLINE_LINUX="ipv6.disable=1 rd.lvm.lv=rhel/root vconsole.keymap=us vconsole.font=latarcyrheb-sun16 rhgb quiet"
+grub2-mkconfig -o /boot/grub2/grub.cfg
+reboot
+\end{code-block}
