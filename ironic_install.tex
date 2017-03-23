@@ -89,7 +89,7 @@ drwxr-xr-x. 3 root root         34 Aug 19 11:38 centos7.d
 配置的却是xfs格式。这会导致操作系统无法启动。因此，如果忘记设置FS\_TYPE，镜像制作完毕之后，
 还需要进行相关的修改。
 \begin{mdframed}[topline=false, bottomline=false, leftline=false, rightline=false, backgroundcolor=lbcolor]
-\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true]{bash}
+\begin{minted}[fontsize=\tiny,linenos=false,breaklines=true]{bash}
 export FS=`virt-filesystems -a centos7.raw`
 guestmount -a centos7.raw -m $FS /mnt
 sed -i 's/xfs/ext4/g' /mnt/etc/fstab

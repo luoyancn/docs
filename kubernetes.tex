@@ -54,6 +54,7 @@ sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
 cat >> /etc/sysctl.conf <<EOF
 net.ipv6.conf.all.disable_ipv6 = 1
 net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv4.ip_forward = 1
 EOF
 
 # 加载内核模块
@@ -205,10 +206,10 @@ KUBELET_PORT="--kubelet-port=10250"
 # Comma separated list of nodes in the etcd cluster
 KUBE_ETCD_SERVERS="--etcd-servers=http://10.1.1.16:2379"
 # Address range to use for services
-KUBE_SERVICE_ADDRESSES="--service-cluster-ip-range=108.8.0.0/16"
+# service cluster ip一定不能和etcd的ip range冲突！！
+KUBE_SERVICE_ADDRESSES="--service-cluster-ip-range=108.36.0.0/16"
 # default admission control policies
-KUBE_ADMISSION_CONTROL="--admission-control=NamespaceLifecycle,\\
-    NamespaceExists,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota"
+KUBE_ADMISSION_CONTROL="--admission-control=NamespaceLifecycle,NamespaceExists,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota"
 KUBE_API_ARGS="--client-ca-file=/etc/kubernetes/credentials/ca.crt \\
                --tls-private-key-file=/etc/kubernetes/credentials/server.key \\
                --tls-cert-file=/etc/kubernetes/credentials/server.crt"
@@ -454,4 +455,20 @@ kubectl create -f k8s-dashboard-svc.yaml
 [root@k8smon ~]# kubectl get svc --namespace kube-system
 NAME                   CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
 kubernetes-dashboard   100.1.133.196   <nodes>       80:30000/TCP   26m
+\end{code-block}
+
+\section{Commands of Kubernetes}
+\begin{code-block}{bash}
+# 查询deployments
+kubectl get --namespace kube-system deployments
+
+# 查询单个的deployment
+kubectl get --namespace kube-system deployments nginx-ingress-controller
+
+# 显示单个的deployment
+kubectl describe --namespace kube-system deployments nginx-ingress-controller
+
+# 进入pods的container
+kubectl exec -it pods --container container1 -- /bin/bash
+
 \end{code-block}

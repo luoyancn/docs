@@ -245,3 +245,19 @@ docker tag rhel7/pod-infrastructure:latest 10.1.1.16:5000/rhel7/pod-infrastructu
 # push 之前，需要保证10.1.1.16上有rhel7这个project存在
 docker push 10.1.1.16:5000/rhel7/pod-infrastructure:latest
 \end{code-block}
+
+\section{查看远端Docker源的镜像列表}
+查看远端的docker镜像有一个前提条件，就是远端也运行了docker，并且将2375端口开放给所有的网段进行访问。
+\begin{code-block}{bash}
+# 192.168.138.250 表示远端的docker地址
+docker --host 192.168.138.250:2375 images
+\end{code-block}
+
+如果是查询registry的镜像，则需要使用api进行查询。
+\begin{code-block}{bash}
+# 查看registry中的仓库名
+curl http://192.168.138.225:5000/v2/_catalog |python -m json.tool
+
+查看mysql这个仓库的tags列表
+curl http://192.168.138.225:5000/v2/mysql/tags/list |python -m json.tool
+\end{code-block}
