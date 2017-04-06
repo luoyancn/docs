@@ -209,7 +209,8 @@ KUBE_ETCD_SERVERS="--etcd-servers=http://10.1.1.16:2379"
 # service cluster ip一定不能和etcd的ip range冲突！！
 KUBE_SERVICE_ADDRESSES="--service-cluster-ip-range=108.36.0.0/16"
 # default admission control policies
-KUBE_ADMISSION_CONTROL="--admission-control=NamespaceLifecycle,NamespaceExists,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota"
+KUBE_ADMISSION_CONTROL=\
+"--admission-control=NamespaceLifecycle,NamespaceExists,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota"
 KUBE_API_ARGS="--client-ca-file=/etc/kubernetes/credentials/ca.crt \\
                --tls-private-key-file=/etc/kubernetes/credentials/server.key \\
                --tls-cert-file=/etc/kubernetes/credentials/server.crt"

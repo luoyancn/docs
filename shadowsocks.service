@@ -1,0 +1,11 @@
+[Unit]
+Description=shadowsocks
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/sslocal -d start -c /etc/shadowsocks/config.json --pid-file /var/run/shadowsocks.pid --log-file /var/log/shadowsocks/shadow.log
+ExecStop=/usr/bin/sslocal  -d stop -c /etc/shadowsocks/config.json --pid-file /var/run/shadowsocks.pid --log-file /var/log/shadowsocks/shadow.log
+ExecReload=/usr/bin/sslocal -d reload -c /etc/shadowsocks/config.json --pid-file /var/run/shadowsocks.pid --log-file /var/log/shadowsocks/shadow.log
+
+[Install]
+WantedBy=multi-user.target
