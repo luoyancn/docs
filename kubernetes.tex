@@ -96,6 +96,9 @@ systemctl enable etcd;systemctl start etcd
 # 验证安装
 etcdctl --endpoints http://10.1.1.16:2379 member list
 \end{code-in-enumerate}
+如果考虑高可用，etcd可以使用集群模式。使用集群模式时，需要相关节点做ssh互信。ssh互信的配置不再赘述。
+配置etcd的集群可以使用附件当中的脚本\textattachfile{etcd-cluster.sh}{\textcolor{blue}{etcd-cluster.sh}}进行自动化的配置。
+
 
   \1 设置flanneld使用的网段
 
@@ -120,6 +123,8 @@ etcdctl mk /kubs/network/config \
 # K8SMON 表示kubernetes mon的地址
 sed -i 's/127.0.0.1/10.1.1.16/g' /etc/sysconfig/flanneld
 sed -i 's/atomic.io/k8s/g' /etc/sysconfig/flanneld
+# 如果需要使用etcd，则配置有部分的区别
+# FLANNEL_ETCD_ENDPOINTS="http://10.1.1.16:2379,http://10.1.1.17:2379,http://10.1.1.18:2379"
 systemctl enable flanneld;systemctl start flanneld;systemctl start docker
 \end{code-in-enumerate}
 
@@ -204,6 +209,8 @@ KUBE_API_PORT="--port=8080"
 # Port minions listen on
 KUBELET_PORT="--kubelet-port=10250"
 # Comma separated list of nodes in the etcd cluster
+# 如果etcd使用的是集群模式，则需要做部分的修改
+# KUBE_ETCD_SERVERS="--etcd-servers=http://10.1.1.16:2379,http://10.1.1.17:2379,http://10.1.1.18:2379"
 KUBE_ETCD_SERVERS="--etcd-servers=http://10.1.1.16:2379"
 # Address range to use for services
 # service cluster ip一定不能和etcd的ip range冲突！！
