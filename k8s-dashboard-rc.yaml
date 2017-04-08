@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: kubernetes-dashboard
-        image: 10.1.1.16:5000/gcr.io/google_containers/kubernetes-dashboard-amd64:v1.4.0
+        image: 10.1.1.16:5000/gcr.io/kubernetes-dashboard-amd64:v1.4.0
         resources:
           # keep request = limit to keep this container in guaranteed class
           limits:
@@ -39,3 +39,4 @@ spec:
           timeoutSeconds: 30
         args:
         - --apiserver-host=http://10.1.1.16:8080
+        - --heapster-host=http://heapster

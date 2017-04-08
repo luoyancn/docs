@@ -443,27 +443,36 @@ EOF
 kubectl create -f kube-system-ns.yaml
 \end{code-block}
 
-k8s的基础有了之后，可以进行进一步的操作，所使用的yaml文件如附件：\textattachfile{k8s-dashboard-rc.yaml}{\textcolor{blue}{k8s-dashboard-rc.yaml}}和
-\textattachfile{k8s-dashboard-svc.yaml}{\textcolor{blue}{k8s-dashboard-svc.yaml}}
+k8s的基础有了之后，可以进行进一步的操作，所使用的yaml文件如附件：\textattachfile{influxdb-grafana-rc.yaml}{\textcolor{blue}{influxdb-grafana-rc.yaml}}，
+\textattachfile{grafana-svc.yaml}{\textcolor{blue}{grafana-svc.yaml}}，
+\textattachfile{heapster-rc.yaml}{\textcolor{blue}{heapster-rc.yaml}}，
+\textattachfile{heapster-svc.yaml}{\textcolor{blue}{heapster-svc.yaml}}，
+\textattachfile{k8s-dashboard-rc.yaml}{\textcolor{blue}{k8s-dashboard-rc.yaml}}和
+\textattachfile{k8s-dashboard-svc.yaml}{\textcolor{blue}{k8s-dashboard-svc.yaml}}，
+\textattachfile{influxdb-svc.yaml}{\textcolor{blue}{influxdb-svc.yaml}}。
 \begin{code-block}{bash}
-# 创建一个rc
+# 创建 influxdb-grafana-rc
+kubectl create -f influxdb-grafana-rc.yaml
+
+# 创建 influxdb-svc 和 grafana-svc
+kubectl create -f influxdb-svc.yaml
+kubectl create -f grafana-svc.yaml
+
+# 创建heapster-rc
+kubectl create -f heapster-rc.yaml
+
+# 创建 heapster-svc
+kubectl create -f heapster-svc.yaml
+
+# 创建 k8s-dashboard-rc
 kubectl create -f k8s-dashboard-rc.yaml
-[root@k8smon ~]# kubectl get rc --namespace kube-system
-NAME                          DESIRED   CURRENT   READY     AGE
-kubernetes-dashboard-v1.4.0   3         3         3         32m
 
-[root@k8smon ~]# kubectl get pods --namespace kube-system
-NAME                                READY     STATUS    RESTARTS   AGE
-kubernetes-dashboard-v1.4.0-2h729   1/1       Running   0          34m
-kubernetes-dashboard-v1.4.0-30qlt   1/1       Running   1          34m
-kubernetes-dashboard-v1.4.0-v6xl8   1/1       Running   0          34m
-
-# 创建一个service
+# 创建k8s-dashboard-svc
 kubectl create -f k8s-dashboard-svc.yaml
-[root@k8smon ~]# kubectl get svc --namespace kube-system
-NAME                   CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
-kubernetes-dashboard   100.1.133.196   <nodes>       80:30000/TCP   26m
 \end{code-block}
+
+至此，kubernets的环境搭建完成。需要注意的是，heapster是用于kubernetes的监控，
+使用kubernetes实现hpa（水平自动扩展）的时候，这是必须的组件，否则是不会生效的。
 
 \section{Commands of Kubernetes}
 \begin{code-block}{bash}
