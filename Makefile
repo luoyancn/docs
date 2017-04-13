@@ -20,6 +20,6 @@ help:
 	@echo "  latexpdf   to make LaTeX files and run them through xelatex"
 
 clean:
-	rm -rf *.aux *.bbl *.blg *.log *.out *.pyg *.toc *.atfi
+	rm -rf *.aux *.bbl *.blg *.log *.out *.pyg *.toc *.atfi _minted-docs
 
 
