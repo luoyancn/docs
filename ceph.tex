@@ -1,0 +1,185 @@
+\chapter{Ceph}
+
+\begin{outline}[enumerate]
+  \1 安装ceph
+\begin{code-in-enumerate}{bash}
+yum install ceph -y
+\end{code-in-enumerate}
+
+  \1 配置ceph monitor 集群
+\begin{code-in-enumerate}{bash}
+cat /etc/ceph/ceph.conf
+[global]
+fsid = a7f64266-0894-4f1e-a635-d0aeaca0e993
+public network = 10.2.2.0/24
+cluster network = 10.2.2.0/24
+auth cluster required = cephx
+auth service required = cephx
+auth client required = cephx
+filestore xattr use omap = true
+osd pool default size = 2
+osd pool default min size = 1
+osd pool default pg num = 333
+osd pool default pgp num = 333
+osd crush chooseleaf type = 1
+mon osd full ratio = .80
+mon osd nearfull ratio = .70
+debug lockdep = 0/0
+debug context = 0/0
+debug crush = 0/0
+debug buffer = 0/0
+debug timer = 0/0
+debug journaler = 0/0
+debug osd = 0/0
+debug optracker = 0/0
+debug objclass = 0/0
+debug filestore = 0/0
+debug journal = 0/0
+debug ms = 0/0
+debug monc = 0/0
+debug tp = 0/0
+debug auth = 0/0
+debug finisher = 0/0
+debug heartbeatmap = 0/0
+debug perfcounter = 0/0
+debug asok = 0/0
+debug throttle = 0/0
+[mon]
+mon initial members = controller, compute1, compute2
+mon host = 10.2.2.4:6789, 10.2.2.5:6789, 10.2.2.6:6789
+[mon.controller]
+host = controller
+mon addr = 10.2.2.4:6789
+mon data = /var/lib/ceph/mon/ceph-controller
+[mon.compute1]
+host = compute1
+mon addr = 10.2.2.5:6789
+mon data = /var/lib/ceph/mon/ceph-compute1
+[mon.compute2]
+host = compute2
+mon addr = 10.2.2.6:6789
+mon data = /var/lib/ceph/mon/ceph-compute2
+[osd]
+osd journal size = 1024
+osd data = /var/lib/ceph/osd/$cluster-$id
+osd journal = /var/lib/ceph/osd/$cluster-$id/journal
+[osd.0]
+osd host = controller
+public addr = 10.2.2.4
+cluster addr = 10.2.2.4
+[osd.1]
+osd host = compute1
+public addr = 10.2.2.5
+cluster addr = 10.2.2.5
+[osd.2]
+osd host = compute2
+public addr = 10.2.2.6
+cluster addr = 10.2.2.6
+
+ceph-authtool --create-keyring /etc/ceph/ceph.mon.keyring --gen-key -n mon. --cap mon 'allow *'
+ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key \
+    -n client.admin --set-uid=0 --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow'
+ceph-authtool /etc/ceph/ceph.mon.keyring \
+    --import-keyring /etc/ceph/ceph.client.admin.keyring
+monmaptool --create --add controller 10.2.2.4 --add compute1 10.2.2.5 \
+    --add compute2 10.2.2.6  --fsid a7f64266-0894-4f1e-a635-d0aeaca0e993 /tmp/monmap
+
+# 拷贝必要的文件到其他的ceph节点
+scp -r /etc/ceph/* root@compute1:/etc/ceph
+scp -r /etc/ceph/* root@compute2:/etc/ceph
+\end{code-in-enumerate}
+
+  \1 配置ceph monitor 节点
+\begin{code-in-enumerate}{bash}
+# 在controller执行
+mkdir -p /var/lib/ceph/mon/ceph-controller
+ceph-mon --mkfs -i controller --monmap /etc/ceph/monmap \
+    --keyring /etc/ceph/ceph.mon.keyring
+service ceph start mon
+
+# 在compute1 执行
+mkdir -p /var/lib/ceph/mon/ceph-compute1
+ceph-mon --mkfs -i compute1 --monmap /etc/ceph/monmap \
+    --keyring /etc/ceph/ceph.mon.keyring
+service ceph start mon
+
+# 在compute2 执行
+mkdir -p /var/lib/ceph/mon/ceph-compute2
+ceph-mon --mkfs -i compute2 --monmap /etc/ceph/monmap \
+    --keyring /etc/ceph/ceph.mon.keyring
+service ceph start mon
+\end{code-in-enumerate}
+
+  \1 配置ceph osd
+\begin{code-in-enumerate}{bash}
+# controller
+mkdir -p /var/lib/ceph/osd/ceph-0
+ceph-disk prepare --cluster ceph --cluster-uuid \
+    a7f64266-0894-4f1e-a635-d0aeaca0e993 --fs-type xfs  /dev/vdb
+ceph-disk activate /dev/vdb1
+chkconfig ceph on
+
+# compute1
+mkdir -p /var/lib/ceph/osd/ceph-1
+ceph-disk prepare --cluster ceph --cluster-uuid \
+    a7f64266-0894-4f1e-a635-d0aeaca0e993 --fs-type xfs  /dev/vdb
+ceph-disk activate /dev/vdb1
+chkconfig ceph on
+
+# compute2
+mkdir -p /var/lib/ceph/osd/ceph-2
+ceph-disk prepare --cluster ceph --cluster-uuid \
+    a7f64266-0894-4f1e-a635-d0aeaca0e993 --fs-type xfs  /dev/vdb
+ceph-disk activate /dev/vdb1
+chkconfig ceph on
+\end{code-in-enumerate}
+
+  \1 针对openstack设置
+\begin{code-in-enumerate}{bash}
+# 删除默认pool
+ceph osd pool delete data  data --yes-i-really-really-mean-it
+ceph osd pool delete metadata metadata --yes-i-really-really-mean-it
+ceph osd pool delete images images --yes-i-really-really-mean-it
+
+# 创建openstack需要的pool
+ceph osd pool create images 3 3
+ceph osd pool create volumes 3 3
+ceph osd pool set volumes pg_num 64  # 根据具体情况调节
+ceph osd pool set volumes pgp_num 64 # 根据具体情况调节
+
+# 创建openstack需要的用户
+ceph auth get-or-create client.awcloud mon 'allow r' osd \
+    'allow class-read object_prefix rbd_children, allow rwx pool=volumes'
+ceph auth get-or-create client.glance mon 'allow r' osd \
+    'allow class-read object_prefix rbd_children, allow rwx pool=images'
+
+# 生成需要的keyring文件
+ceph auth get-or-create client.awcloud | tee /etc/ceph/ceph.client.awcloud.keyring
+ceph auth get-or-create client.glance | tee /etc/ceph/ceph.client.glance.keyring
+
+# 分发到其他的节点
+scp /etc/ceph/ceph.client.awcloud.keyring root@compute1:/etc/ceph
+scp /etc/ceph/ceph.client.glance.keyring root@compute1:/etc/ceph
+
+scp /etc/ceph/ceph.client.awcloud.keyring root@compute2:/etc/ceph
+scp /etc/ceph/ceph.client.glance.keyring root@compute2:/etc/ceph
+\end{code-in-enumerate}
+
+  \1 针对libvirt的设置
+\begin{code-in-enumerate}{bash}
+cd /opt
+export secret_id=a7f64266-0894-4f1e-a635-d0aeaca0e993
+cat > secret.xml <<EOF
+    <secret ephemeral='no' private='no'>
+      <uuid>$secret_id</uuid>
+      <usage type='ceph'>
+        <name>client.awcloud</name>
+      </usage>
+    </secret>
+EOF
+virsh secret-define --file secret.xml
+ceph auth get-key client.awcloud | tee client.awcloud.key
+virsh secret-set-value --secret $secret_id --base64 $(cat client.awcloud.key)
+\end{code-in-enumerate}
+
+\end{outline}

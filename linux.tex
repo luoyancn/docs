@@ -101,7 +101,7 @@ vi /usr/share/texmf-dist/tex/latex/ctex/fontset/ctex-xecjk-winfonts.def
 提供了https的连接方式，可以使用这种方式绕开相关的限制。首先，需要登录review.openstack.org，
 然后在Settings -> HTTP Password里，生成一个HTTP密码，应该是一个大小写加数字的随机字符串。
 最后，再在git当中做如下的设置即可。
-\begin{code-block}{python}
+\begin{code-block}{bash}
 git config user.name zhangjl
 git config user.email zhangjl@awcloud.com
 git config gitreview.scheme https
@@ -111,7 +111,7 @@ git review -s
 \end{code-block}
 
 \section{禁用ipv6}
-\begin{code-block}{python}
+\begin{code-block}{bash}
 cat >> /etc/sysctl.conf <<EOF
 net.ipv6.conf.all.disable_ipv6 = 1
 net.ipv6.conf.default.disable_ipv6 = 1
@@ -120,4 +120,19 @@ vi /etc/default/grub
 GRUB_CMDLINE_LINUX="ipv6.disable=1 rd.lvm.lv=rhel/root vconsole.keymap=us vconsole.font=latarcyrheb-sun16 rhgb quiet"
 grub2-mkconfig -o /boot/grub2/grub.cfg
 reboot
+\end{code-block}
+
+\section{rabbitmq设置}
+\begin{code-block}{bash}
+yum install rabbitmq-server -y
+systemctl enable rabbitmq-server
+systemctl start rabbitmq-server
+rabbitmq-plugins enable rabbitmq_management
+mv /etc/rabbitmq/rabbitmq.config /etc/rabbitmq/rabbitmq.config_bak
+cat >/etc/rabbitmq/rabbitmq.config<<EOF
+[
+{rabbit, [{loopback_users, []}]}
+].
+EOF
+systemctl restart rabbitmq-server
 \end{code-block}
