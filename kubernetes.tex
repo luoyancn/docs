@@ -85,19 +85,40 @@ systemctl enable docker
 
   \1 配置etcd
 \begin{code-in-enumerate}{bash}
-# K8SMON 表示kubernetes mon的地址
-sed -i \
-    's/ETCD_LISTEN_CLIENT_URLS="http:\/\/localhost:2379"/ETCD_LISTEN_CLIENT_URLS="http:\/\/0.0.0.0:2379"/g' \
-    /etc/etcd/etcd.conf
-sed -i \
-    's/ETCD_ADVERTISE_CLIENT_URLS="http:\/\/localhost:2379"/ETCD_ADVERTISE_CLIENT_URLS="http:\/\/10.1.1.16:2379"/g' \
-    /etc/etcd/etcd.conf
+cat >/opt/etcd_cluster.sh<<EOF
+#!/usr/bin/env bash
+set -e
+# set the IP of each member of etcd cluster.
+etcd1=10.1.1.16
+etcd2=10.1.1.17
+etcd3=10.1.1.18
+
+etcd_initial_cluster="etcd1=http://${etcd1}:2380,etcd2=http://${etcd2}:2380,etcd3=http://${etcd3}:2380"
+etcd_cluster_name="etcd-cluster-k8s"
+for etcd_name in etcd1 etcd2 etcd3; do
+    curr_host_ip=${!etcd_name}
+    ssh ${curr_host_ip} -o StrictHostKeyChecking=no "
+    sed -i -r \
+        -e 's|.*(ETCD_NAME=).*|\1\"'${etcd_name}'\"|' \
+        -e 's|.*(ETCD_DATA_DIR=).*|\1\"/var/lib/etcd/'${etcd_name}'\"|' \
+        -e 's|.*(ETCD_LISTEN_PEER_URLS=).*|\1\"http://'${curr_host_ip}':2380\"|' \
+        -e 's|.*(ETCD_LISTEN_CLIENT_URLS=).*|\1\"http://'${curr_host_ip}':2379,http://127.0.0.1:2379\"|' \
+        -e 's|.*(ETCD_INITIAL_ADVERTISE_PEER_URLS=).*|\1\"http://'${curr_host_ip}':2380\"|' \
+        -e 's|.*(ETCD_INITIAL_CLUSTER=).*|\1\"'${etcd_initial_cluster}'\"|' \
+        -e 's|.*(ETCD_INITIAL_CLUSTER_STATE=).*|\1\"new\"|' \
+        -e 's|.*(ETCD_INITIAL_CLUSTER_TOKEN=).*|\1\"'${etcd_cluster_name}'\"|' \
+        -e 's|.*(ETCD_ADVERTISE_CLIENT_URLS=).*|\1\"http://'${curr_host_ip}':2379\"|' \
+        /etc/etcd/etcd.conf
+"
+done
+EOF
 systemctl enable etcd;systemctl start etcd
 # 验证安装
-etcdctl --endpoints http://10.1.1.16:2379 member list
+etcdctl member list
+etcdctl cluster-health
 \end{code-in-enumerate}
-如果考虑高可用，etcd可以使用集群模式。使用集群模式时，需要相关节点做ssh互信。ssh互信的配置不再赘述。
-配置etcd的集群可以使用附件当中的脚本\textattachfile{etcd-cluster.sh}{\textcolor{blue}{etcd-cluster.sh}}进行自动化的配置。
+注意，该配置默认使用集群模式，需要相关节点做ssh互信。ssh互信的配置不再赘述。
+配置etcd的集群也可以使用附件当中的脚本\textattachfile{etcd-cluster.sh}{\textcolor{blue}{etcd-cluster.sh}}进行自动化的配置。
 
 
   \1 设置flanneld使用的网段
@@ -120,11 +141,10 @@ etcdctl mk /kubs/network/config \
 
   \1 配置flanneld
 \begin{code-in-enumerate}{bash}
-# K8SMON 表示kubernetes mon的地址
-sed -i 's/127.0.0.1/10.1.1.16/g' /etc/sysconfig/flanneld
 sed -i 's/atomic.io/k8s/g' /etc/sysconfig/flanneld
-# 如果需要使用etcd，则配置有部分的区别
-# FLANNEL_ETCD_ENDPOINTS="http://10.1.1.16:2379,http://10.1.1.17:2379,http://10.1.1.18:2379"
+sed -i \
+    's/http:\/\/127.0.0.1:2379/http:\/\/10.1.1.16:2379,http:\/\/10.1.1.17:2379,http:\/\/10.1.1.18:2379/g' \
+    /etc/sysconfig/flanneld
 systemctl enable flanneld;systemctl start flanneld;systemctl start docker
 \end{code-in-enumerate}
 
@@ -209,9 +229,7 @@ KUBE_API_PORT="--port=8080"
 # Port minions listen on
 KUBELET_PORT="--kubelet-port=10250"
 # Comma separated list of nodes in the etcd cluster
-# 如果etcd使用的是集群模式，则需要做部分的修改
-# KUBE_ETCD_SERVERS="--etcd-servers=http://10.1.1.16:2379,http://10.1.1.17:2379,http://10.1.1.18:2379"
-KUBE_ETCD_SERVERS="--etcd-servers=http://10.1.1.16:2379"
+KUBE_ETCD_SERVERS="--etcd-servers=http://10.1.1.16:2379,http://10.1.1.17:2379,http://10.1.1.18:2379"
 # Address range to use for services
 # service cluster ip一定不能和etcd的ip range冲突！！
 KUBE_SERVICE_ADDRESSES="--service-cluster-ip-range=108.36.0.0/16"
@@ -354,8 +372,7 @@ KUBELET_HOSTNAME="--hostname-override="
 # location of the api-server
 KUBELET_API_SERVER="--api-servers=http://10.1.1.16:8080"
 # pod infrastructure container
-KUBELET_POD_INFRA_CONTAINER="\
-    --pod-infra-container-image=10.1.1.16:5000/rhel7/pod-infrastructure:latest"
+KUBELET_POD_INFRA_CONTAINER="--pod-infra-container-image=10.1.1.16:5000/rhel7/pod-infrastructure:latest"
 # Add your own!
 KUBELET_ARGS="--cluster-dns=10.1.1.16 --cluster-domain=k8s.centos.me"
 EOF

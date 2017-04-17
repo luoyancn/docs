@@ -136,3 +136,20 @@ cat >/etc/rabbitmq/rabbitmq.config<<EOF
 EOF
 systemctl restart rabbitmq-server
 \end{code-block}
+
+\section{修改操作系统连接数}
+\begin{code-block}{bash}
+cat>>/etc/security/limits.conf<<EOF
+*               soft    nproc           65535
+*               hard    nproc           65535
+*               soft    nofile          655350
+*               hard    nofile          655350
+*               soft    core            unlimited
+*               hard    core            unlimited
+EOF
+
+cat>>/etc/security/limits.d/20-nproc.conf<<EOF
+*          soft    nproc     65535
+root       soft    nproc     unlimited
+EOF
+\end{code-block}
