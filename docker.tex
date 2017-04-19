@@ -177,6 +177,35 @@ virt-tar-out -a /tmp/Fedora24/Fedora24/Fedora24-sda.qcow2 / - | docker import - 
 %               breaklines=true]{bash}{cern.ks}
 %\end{mdframed}
 
+\subsection{通过yum/dnf创建docker镜像}
+由于kickstart需要依赖于qemu-img及其它虚拟化的支持，有的时候，可能创建失败。因此，
+我们可以采取更加通用的方式，来创建docker的镜像。以在centos7上制作cern的镜像为例。
+\begin{code-block}{bash}
+export cern=/tmp/cern
+mkdir -p ${cern}/var/lib/rpm
+rpm --root $cern --initdb
+rpm --root ${cern} -ivh \
+    http://linuxsoft.cern.ch/cern/centos/7/os/x86_64/Packages/centos-release-7-3.1611.el7.centos.x86_64.rpm
+cp cern.repo ${cern}/etc/yum.repos.d/
+yum -y --installroot=${cern} install yum rpm systemd
+rm -rf ${cern}/var/cache/*
+rm -rf ${cern}/usr/lib/locale/*
+rm -rf ${cern}/usr/share/locale/*
+rm -rf ${cern}/var/lib/yum/*
+# 导入docker
+tar -C cern -c . | docker import - cern
+
+# 可以制作成tar包，提供给其他操作系统使用
+# tar -cf cern.tar cern
+# 以下操作在新节点执行
+# tar -xv cern.tar
+# tar -C cern -c . | docker import - cern
+\end{code-block}
+
+这种方式不会出现问题，只是占用的空间稍大（1-5\%）；但是，这种方式要求比较严格，
+只能制作和当前操作系统一致的镜像，即不能在redhat上创建fedora的image；ubunt和redhat
+系列的也无法相互制作。
+
 \subsection{添加daemon支持}
 通常的，docker服务都是单独的运行一个程序，无法在docker内部执行systemctl等命令，更没办法
 登录的docker容器之后，通过init或者systemd的方式启动一个服务的守护进程。但有的时候，我们
@@ -185,7 +214,7 @@ virt-tar-out -a /tmp/Fedora24/Fedora24/Fedora24-sda.qcow2 / - | docker import - 
 Docker File 如下：
 \begin{code-block}{bash}
 FROM fedora
-RUN dnf update --y;dnf install git git-review -y;dnf clean all
+RUN dnf update -y;dnf install git git-review -y;dnf clean all
 RUN echo "root:luoyan" | chpasswd
 RUN ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key
 RUN ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key

@@ -19,10 +19,8 @@ zerombr
 clearpart --all
 part / --size 1024 --fstype=ext4
 # Repositories
-repo --name=fedora \
-    --mirrorlist=https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch
-repo --name=fedora-updates \
-    --mirrorlist=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f$releasever&arch=$basearch
+repo --name=fedora --mirrorlist=https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch
+repo --name=fedora-updates --mirrorlist=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f$releasever&arch=$basearch
 reboot
 # Package list.
 %packages --excludedocs

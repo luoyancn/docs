@@ -153,3 +153,15 @@ cat>>/etc/security/limits.d/20-nproc.conf<<EOF
 root       soft    nproc     unlimited
 EOF
 \end{code-block}
+
+\section{kdump调试分析}
+通常的，当一个操作系统崩溃之后，可以使用kdump对crash的原因进行分析，以规避问题。
+由于kdump是内核的转存文件，因此需要安装kernel的debug软件包。另外，kernel-debug一定
+要和kernel的版本一致，否则是分析不出来的。
+\begin{code-block}{bash}
+yum install kernel-debuginfo crash gdb -y
+cd /var/crash/xxx
+crash /usr/lib/debug/lib/modules/3.10.0-327.18.2.el7.x86_64/vmlinux vmcore
+\end{code-block}
+
+通过以上的命令，即可分析core dump的问题根源。
