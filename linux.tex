@@ -165,3 +165,17 @@ crash /usr/lib/debug/lib/modules/3.10.0-327.18.2.el7.x86_64/vmlinux vmcore
 \end{code-block}
 
 通过以上的命令，即可分析core dump的问题根源。
+
+\section{常用命令}
+\begin{outline}[enumerate]
+\1 递归比较文件夹
+\begin{code-in-enumerate}{bash}
+diff -ruNa nova-2.2/ nova-2.3 > update
+\end{code-in-enumerate}
+
+\1 查看rpm的changelog
+\begin{code-in-enumerate}{bash}
+rpm -q openstack-nova-compute --changelog
+\end{code-in-enumerate}
+
+\end{outline}

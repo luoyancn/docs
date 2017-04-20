@@ -467,6 +467,7 @@ k8s的基础有了之后，可以进行进一步的操作，所使用的yaml文�
 \textattachfile{k8s-dashboard-rc.yaml}{\textcolor{blue}{k8s-dashboard-rc.yaml}}和
 \textattachfile{k8s-dashboard-svc.yaml}{\textcolor{blue}{k8s-dashboard-svc.yaml}}，
 \textattachfile{influxdb-svc.yaml}{\textcolor{blue}{influxdb-svc.yaml}}。
+\label{heapster}
 \begin{code-block}{bash}
 # 创建 influxdb-grafana-rc
 kubectl create -f influxdb-grafana-rc.yaml
@@ -506,3 +507,460 @@ kubectl describe --namespace kube-system deployments nginx-ingress-controller
 kubectl exec -it pods --container container1 -- /bin/bash
 
 \end{code-block}
+
+\section{Usage of Kubernetes}
+\begin{outline}[enumerate]
+\1 创建namespace
+\begin{code-in-enumerate}{bash}
+cat >zhangjl-ns.yaml<<EOF
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zhangjl-ns
+EOF
+kubectl create -f zhangjl-ns.yaml
+\end{code-in-enumerate}
+
+\1 为namespace的资源设置限制
+\begin{code-in-enumerate}{bash}
+cat >zhangjl-ns-limits.yaml<<EOF
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: zhangjl-ns-limits
+  namespace: zhangjl-ns
+spec:
+  limits:
+  - max:
+      cpu: "2"
+      memory: 1Gi
+    min:
+      cpu: 200m
+      memory: 6Mi
+    type: Pod
+  - default:
+      cpu: 300m
+      memory: 200Mi
+    defaultRequest:
+      cpu: 200m
+      memory: 100Mi
+    max:
+      cpu: "2"
+      memory: 1Gi
+    min:
+      cpu: 100m
+      memory: 3Mi
+    type: Container
+EOF
+kubectl create -f zhangjl-ns-limits.yaml
+\end{code-in-enumerate}
+但是需要注意，这个限制是作用在pod和container上的，并不是限制整个的namespace资源使用。
+也就是说，如果在这个namespace当中创建pod，每个pod的最大cpu占用不能超过2颗，最大mem
+占用不能超过1G。
+
+\1 为namespace设置资源限制
+\begin{code-in-enumerate}{bash}
+cat >zhangjl-ns-quota.yaml<<EOF
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: zhangjl-ns-quota
+  namespace: zhangjl-ns
+spec:
+  hard:
+    cpu: "8"
+    memory: 4Gi
+    persistentvolumeclaims: "10"
+    pods: "10"
+    replicationcontrollers: "20"
+    resourcequotas: "1"
+    secrets: "10"
+    services: "5"
+EOF
+kubectl create -f zhangjl-ns-quota.yaml
+\end{code-in-enumerate}
+这里的资源限制，才是针对整个namespace的限制。限制了namespace只能占用8个cpu，4G的内存，
+在这个namespace当中，最多只能创建10个pod，10个secrets，5个services。
+
+\1 创建自定义的secret
+\begin{code-in-enumerate}{bash}
+cat>zhangjl-secret.yaml<<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: zhangjl-secret
+  namespace: zhangjl-ns
+  annotations:
+    kubernetes.io/service-account.name: zhangjl-user
+type: kubernetes.io/service-account-token
+EOF
+
+kubectl create -f zhangjl-secret.yaml
+\end{code-in-enumerate}
+
+\1 创建自定义的用户
+\begin{code-in-enumerate}{bash}
+cat>zhangjl-user.yaml<<EOF
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zhangjl-user
+  namespace: zhangjl-ns
+imagePullSecrets:
+- name: zhangjl-secret
+EOF
+
+kubectl create -f zhangjl-secret.yaml
+\end{code-in-enumerate}
+
+\1 配置自定义的context
+\begin{code-in-enumerate}{bash}
+kubectl config set-context zhangjl-ctx --namespace zhangjl-ns --user zhangjl-user
+\end{code-in-enumerate}
+
+\1 切换自定义的context
+\begin{code-in-enumerate}{bash}
+kubectl config use-context zhangjl-ctx
+\end{code-in-enumerate}
+
+\1 退出自定义的context
+\begin{code-in-enumerate}{bash}
+kubectl config unset current-context
+\end{code-in-enumerate}
+
+\1 创建deployments
+\begin{code-in-enumerate}{bash}
+cat >zhangjl-ns-deployments<<EOF
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+  generation: 1
+  labels:
+    run: nginx-1.10.3
+    image: nginx-1.10.3
+  name: zhangjl-nginx-deployment
+  namespace: zhangjl-ns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: nginx-1.10.3
+      image: nginx-1.10.3
+  template:
+    metadata:
+      labels:
+        run: nginx-1.10.3
+        image: nginx-1.10.3
+    spec:
+      containers:
+      - image: 10.1.1.16:5000/library/nginx:1.10.3
+        imagePullPolicy: IfNotPresent
+        name: zhangjl-nginx-deployment
+EOF
+
+kubectl create -f zhangjl-ns-deployments.yaml
+\end{code-in-enumerate}
+Kubernetes的deployments和service比较类似。删除deployments的时候，并不会删除deployments
+所创建的replication sets以及pods。创建deployments的时候，如果deployments需要的
+replication sets和pods不存在，则会自动创建相关的资源；如果相关资源已经存在，则会自动关联，不会重新创建。
+但是，kubernets的rc和rs被删除的时候，对应的资源是会被删除的。
+
+\1 创建水平自动扩展
+
+自动扩展要求有监控服务的存在，因此，\nameref{heapster}的安装是必不可少的。另外，自动扩展针对的对象
+是deployments，并且，deployments当中的每个资源使用都有限制，才可以进行自动扩展和收缩。
+由于我们已经限定了namespace的quota和limits，因此，可以不用添加其他参数。但是，如果
+namespace当中没有设置limits，则需要在创建deployments时，需要指定参数--requests=cpu=xxx。
+另外，目前，自动扩展的监控指标只能根据cpu的监控值，无法通过内存的使用进行自动扩展。
+\begin{code-in-enumerate}{bash}
+kubectl autoscale deployment zhangjl-nginx-deployment --cpu-percent=10 --min=1 --max=4
+
+# 也可以通过yaml文件创建hpa
+cat >zhangjl-ns-deployment-hpa<<EOF
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: zhangjl-nginx-deployment-hpa
+  namespace: zhangjl-ns
+spec:
+  maxReplicas: 4
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: extensions/v1beta1
+    kind: Deployment
+    name: zhangjl-nginx-deployment
+  targetCPUUtilizationPercentage: 10
+EOF
+kubectl create -f zhangjl-ns-deployment-hpa.yaml
+
+\end{code-in-enumerate}
+上面的命令表示创建了一个水平自动扩展（hap），即当pod的cpu占用超过10\%之后，开始进行弹性扩展，
+但是，最多扩展到4个pod；扩展完毕之后，如果pod的cpu占用比开始下降，并且下降到10%以下，则开始
+进行弹性收缩，最后只保留一个pod。
+
+\1 滚动升级
+
+目前，官网上的滚动升级只是针对rc的，暂时没有看到针对deployment或者rs的滚动升级。
+滚动升级的方式分为2种：直接指定image以及通过yaml文件滚动升级。
+\begin{code-in-enumerate}{bash}
+# 直接指定image的方式
+# nginx-rc-v1为可选的参数，表示滚动升级之后，rc的名称需要进行变化。
+# 如果不需要变化名称，则无需指定nginx-rc-v1
+kubekubectl rolling-update nginx-rc nginx-rc-v1 --image=10.1.1.16:5000/library/nginx:1.11.10
+
+# 通过yaml文件进行滚动升级
+cat >zhangjl-ns-rc-v2.yaml<<EOF
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: nginx-rc-v2
+  namespace: zhangjl-ns
+  labels:
+    app: nginx-rc-v2
+    kubernetes.io/cluster-service: "true"
+spec:
+  replicas: 1
+  selector:
+    app: nginx-rc-v2
+  template:
+    metadata:
+      labels:
+        app: nginx-rc-v2
+        kubernetes.io/cluster-service: "true"
+    spec:
+      containers:
+      - name: nginx-rc-v2
+        image: 10.1.1.16:5000/library/nginx:1.11.10
+EOF
+
+kubectl rolling-update nginx-rc -f zhangjl-ns-rc-v2.yaml
+\end{code-in-enumerate}
+
+\1 指定节点调度pod
+
+Kubernetes目前支持指定节点调度pod。调度的依据是根据pod包含的container的nodeselector选择器
+以及kubernetes node的label进行。
+\begin{code-in-enumerate}{bash}
+# 查看node的label
+kubectl get nodes --show-labels
+#NAME       STATUS    AGE       LABELS
+#k8smon     Ready     3d        beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=k8smon
+#k8snode1   Ready     3d        beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=k8snode1
+#k8snode2   Ready     3d        beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/hostname=k8snode2
+
+cat >zhangjl-ns-deployment-with-associated-node.yaml<<EOF
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+  generation: 1
+  labels:
+    targetNode: k8snode2
+  name: zhangjl-nginx-deployment-with-node-associated
+  namespace: zhangjl-ns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      targetNode: k8snode2
+  template:
+    metadata:
+      labels:
+        targetNode: k8snode2
+    spec:
+      containers:
+      - image: 10.1.1.16:5000/library/nginx:1.10.3
+        imagePullPolicy: IfNotPresent
+        name: zhangjl-nginx-deployment-with-node-associated
+      nodeSelector:
+        kubernetes.io/hostname: k8snode2
+EOF
+
+kubectl create -f zhangjl-ns-deployment-with-associated-node.yaml
+\end{code-in-enumerate}
+
+\1 升级现有的deployments
+\begin{code-in-enumerate}{bash}
+cat >zhangjl-ns-deployments-update.yaml<<EOF
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+  generation: 1
+  labels:
+    run: nginx-1.10.3
+    image: nginx-1.10.3
+  name: zhangjl-nginx-deployment
+  namespace: zhangjl-ns
+spec:
+  replicas: 2 # 修改pod的数量
+  selector:
+    matchLabels:
+      run: nginx-1.10.3
+      image: nginx-1.10.3
+  template:
+    metadata:
+      labels:
+        run: nginx-1.10.3
+        image: nginx-1.10.3
+    spec:
+      containers:
+      - image: 20.30.40.8:5000/library/nginx:1.10.3 # 修改镜像版本
+        imagePullPolicy: IfNotPresent
+        name: zhangjl-nginx-deployment
+EOF
+# 使用replace和apply效果都是一样的。
+# kubectl replace -f zhangjl-ns-deployments-update.yaml
+kubectl apply -f zhangjl-ns-deployments-update.yaml
+\end{code-in-enumerate}
+Deployment的update有一个问题，目前看起来可能算一个bug：如果删除了原有的rs，则会
+导致一些pod被删除。因此，升级deployment之后，最好不要删除以前的rs。
+
+\1 Deployments的滚动升级和回滚
+\begin{code-in-enumerate}{bash}
+kubectl apply -f zhangjl-ns-deployments-update.yaml
+# 查看升级的历史
+kubectl rollout history deployment/zhangjl-nginx-deployment
+
+# 查看单独一个升级的详细信息
+kubectl rollout history deployment/zhangjl-nginx-deployment --revision=3
+
+# 回退到指定的一个升级
+kubectl rollout undo deployment/zhangjl-nginx-deployment --to-revision=2
+\end{code-in-enumerate}
+需要注意的是，deployment的滚动升级只针对变更image镜像，对于replica的变更，通常
+采用的是scall out。
+
+\1 使用ceph作为kubernetes的volume
+\begin{code-in-enumerate}{bash}
+cat >zhangjl-ns-ceph.yaml<<EOF
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+  generation: 1
+  labels:
+    app: nginx-ceph
+    image: nginx
+    storage: ceph
+  name: zhangjl-deployment-ceph
+  namespace: zhangjl-ns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-ceph
+      image: nginx
+      storage: ceph
+  template:
+    metadata:
+      labels:
+        app: nginx-ceph
+        image: nginx
+        storage: ceph
+    spec:
+      containers:
+      - image: 20.30.40.8:5000/library/nginx:1.10.3
+        imagePullPolicy: IfNotPresent
+        name: zhangjl-deployment-ceph
+        volumeMounts:
+        - mountPath: /opt
+          name: cinder-ceph
+      volumes:
+      - name: cinder-ceph
+        rbd:
+          monitors:
+          - 30.40.50.7:6789
+          - 30.40.50.4:6789
+          - 30.40.50.14:6789
+          pool: volumes
+          image: volume-a6dd0f9f-9a35-43c8-9b7a-e773fbeea58a
+          user: awcloud
+          keyring: /etc/ceph/ceph.client.awcloud.keyring
+          fsType: ext4
+          readOnly: false
+EOF
+
+kubectl create -f zhangjl-ns-ceph.yaml
+
+# 验证是否挂载了rbd的磁盘
+mount | grep kub
+\end{code-in-enumerate}
+需要注意的是，如果使用ceph作为kubernetes的volume，则需要在kubernetes的主机上安装
+ceph-mon，并且，配置文件和keyring文件需要和ceph节点的一致（/etc/ceph/）。
+
+\1 导入ceph的secret到kubernetes
+\begin{code-in-enumerate}{bash}
+export ceph_secret=`grep key /etc/ceph/ceph.client.awcloud.keyring |awk '{printf "%s", $NF}'|base64`
+cat >zhangjl-ns-ceph-secret.yaml<<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ceph-secret
+  namespace: zhangjl-ns
+type: "kubernetes.io/rbd"
+data:
+key: $ceph_secret
+EOF
+kubectl create -f zhangjl-ns-ceph-secret.yaml
+\end{code-in-enumerate}
+导入ceph的secret之后，使用在kubernetes当中使用ceph可以替换为下列的方式。
+\begin{code-in-enumerate}{bash}
+cat >zhangjl-ns-ceph-with-secret.yaml<<EOF
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+  generation: 1
+  labels:
+    app: nginx-ceph
+    image: nginx
+    storage: ceph
+  name: zhangjl-deployment-ceph
+  namespace: zhangjl-ns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-ceph
+      image: nginx
+      storage: ceph
+  template:
+    metadata:
+      labels:
+        app: nginx-ceph
+        image: nginx
+        storage: ceph
+    spec:
+      containers:
+      - image: 20.30.40.8:5000/library/nginx:1.10.3
+        imagePullPolicy: IfNotPresent
+        name: zhangjl-deployment-ceph
+        volumeMounts:
+        - mountPath: /opt
+          name: cinder-ceph
+      volumes:
+      - name: cinder-ceph
+        rbd:
+          monitors:
+          - 30.40.50.7:6789
+          - 30.40.50.4:6789
+          - 30.40.50.14:6789
+          pool: volumes
+          image: volume-a6dd0f9f-9a35-43c8-9b7a-e773fbeea58a
+          user: awcloud
+          secretRef:
+            name: ceph-secret
+          fsType: ext4
+          readOnly: false
+EOF
+kubectl create -f zhangjl-ns-ceph-with-secrete.yaml
+\end{code-in-enumerate}
+
+\end{outline}

@@ -2,4 +2,18 @@
 虚拟化当中，计算存储和网络，网络始终处于核心。只有有了网络，虚拟化才有意义。本章节
 着重讲解网络及其延伸的内容。
 
+\section{Openvswitch的部分问题}
+在新版本的openvswitch当中，ovs的设备设置为static模式之后，可能无法联通网络，此时，
+需要做部分的修改。
+\begin{code-block}{bash}
+DEVICE=br-ex
+DEVICETYPE=ovs
+TYPE=OVSBridge
+ONBOOT=yes
+OVSBOOTPROTO=dhcp
+OVSDHCPINTERFACES=eth0
+MACADDR=fa:16:3e:ef:91:ec
+OVS_EXTRA="set bridge br-ex other-config:hwaddr=$MACADDR"
+\end{code-block}
+
 
