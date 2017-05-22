@@ -1,6 +1,7 @@
 \chapter{Mitaka部署安装}
 
 \section{配置操作系统}
+\label{section:system_configuration}
 \begin{outline}[enumerate]
 
 \1 关闭selinux
@@ -119,6 +120,7 @@ reboot
 \end{outline}
 
 \section{安装Ceph}
+\label{section:ceph_configuration}
 \begin{outline}[enumerate]
 
 \1 安装ceph软件
@@ -234,6 +236,7 @@ scp /etc/ceph/ceph.client.glance.keyring root@compute2:/etc/ceph
 \end{outline}
 
 \section{Rabbitmq安装配置}
+\label{section:rabbitmq_configuration}
 \begin{code-block}{bash}
 yum install rabbitmq-server -y
 

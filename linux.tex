@@ -108,6 +108,10 @@ git config gitreview.scheme https
 git config gitreview.port 443
 git remote add gerrit https://zhangjl:g2oF+4RFNTtW@review.openstack.org/openstack/nova.git
 git review -s
+
+# 如果需要通过代理
+# git config --global http.proxy http://localhost:8123
+# git config --global http.sslVerify false
 \end{code-block}
 
 \section{禁用ipv6}
