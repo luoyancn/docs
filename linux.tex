@@ -163,6 +163,15 @@ EOF
 由于kdump是内核的转存文件，因此需要安装kernel的debug软件包。另外，kernel-debug一定
 要和kernel的版本一致，否则是分析不出来的。
 \begin{code-block}{bash}
+# 开启kdump
+vi /etc/default/grub
+#GRUB_CMDLINE_LINUX="rd.lvm.lv=rhel/swap crashkernel=auto rd.lvm.lv=rhel/root rhgb quiet"
+GRUB_CMDLINE_LINUX="rd.lvm.lv=rhel/swap crashkernel=2048M rd.lvm.lv=rhel/root rhgb quiet"
+
+grub2-mkconfig -o /boot/grub2/grub.cfg
+reboot
+systemctl enable kdump;systemctl start kdump
+
 yum install kernel-debuginfo crash gdb -y
 cd /var/crash/xxx
 crash /usr/lib/debug/lib/modules/3.10.0-327.18.2.el7.x86_64/vmlinux vmcore
@@ -180,6 +189,11 @@ diff -ruNa nova-2.2/ nova-2.3 > update
 \1 查看rpm的changelog
 \begin{code-in-enumerate}{bash}
 rpm -q openstack-nova-compute --changelog
+\end{code-in-enumerate}
+
+\1 挂载iso
+\begin{code-in-enumerate}{bash}
+mount -o loop cloudbase-init.iso /mnt/
 \end{code-in-enumerate}
 
 \end{outline}

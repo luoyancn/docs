@@ -23,10 +23,8 @@ go get -u -v github.com/zmb3/gogetdoc
 go get -u -v github.com/golang/lint/golint
 go get -u -v github.com/lukehoban/go-outline
 go get -u -v github.com/sqs/goreturns
-go get -u -v golang.org/x/tools/cmd/gorename
 go get -u -v github.com/tpng/gopkgs
 go get -u -v github.com/newhook/go-symbols
-go get -u -v golang.org/x/tools/cmd/guru
 go get -u -v github.com/cweill/gotests/
 go get -u -v github.com/alecthomas/gometalinter
 go get -u -v github.com/jstemmer/gotags
@@ -34,15 +32,14 @@ go get -u -v github.com/klauspost/asmfmt/cmd/asmfmt
 go get -u -v github.com/fatih/motion
 go get -u -v github.com/fatih/gomodifytags
 go get -u -v github.com/josharian/impl
+go get -u -v github.com/dominikh/go-tools/cmd/keyify
+go get -u -v github.com/kisielk/errcheck
+go get -u -v github.com/sparrc/gdm
+go get -u -v github.com/tylerb/gotype-live
+go get -u -v golang.org/x/tools/cmd/guru
+go get -u -v golang.org/x/tools/cmd/gorename
+go get -u -v golang.org/x/tools/cmd/goimports
 gometalinter --install -u
-go get -u golang.org/x/crypto
-go get -u golang.org/x/image
-go get -u golang.org/x/mobile
-go get -u golang.org/x/net
-go get -u golang.org/x/oauth2
-go get -u golang.org/x/sys
-go get -u golang.org/x/text
-go get -u github.com/satori/go.uuid
 \end{code-block}
 
 Golang代码补齐依赖于gocode，而gocode不是一个常驻的服务，也不是一个类似于
@@ -240,4 +237,30 @@ func ConstomJson() {
     }
     fmt.Printf("%v\n", user_)
 }
+\end{code-block}
+
+\section{Golang交叉编译}
+Go是一门编译型语言，所以在不同平台上，需要编译生成不同格式的二进制包。
+编译时候只需要指定两个参数：GOOS和GOARCH即可。
+\begin{code-block}{bash}
+# 编译到 linux 64bit
+GOOS=linux GOARCH=amd64 go build
+# 或者可以使用 -o 选项指定生成二进制文件名字
+GOOS=linux GOARCH=amd64 go build -o app.linux
+
+# 编译到 linux 32bit
+GOOS=linux GOARCH=386 go build
+
+# 编译到 windows 64bit
+GOOS=windows GOARCH=amd64 go build
+
+# 编译到 windows 32bit
+GOOS=windows GOARCH=386 go build
+\end{code-block}
+
+如果是在windows上进行交叉编译，则操作有部分差别。
+\begin{code-block}{bash}
+set GOOS=linux
+set GOARCH=amd64
+go build
 \end{code-block}

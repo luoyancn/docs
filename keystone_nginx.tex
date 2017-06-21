@@ -16,6 +16,7 @@ yum install nginx uwsgi uwsgi-plugin-python
 mv /etc/uwsgi.ini /etc/uwsgi.ini_bak
 mkdir -p /var/log/uwsgi
 cat >/etc/uwsgi.ini<<EOF
+[uwsgi]
 uid = root
 gid = root
 socket = /var/run/uwsgi/uwsgi.socket
