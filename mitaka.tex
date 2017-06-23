@@ -254,107 +254,12 @@ systemctl restart rabbitmq-server
 \end{code-block}
 
 \section{Keystone安装配置}
-\begin{code-block}{bash}
-# 安装软件包
-yum install openstack-keystone openstack-utils httpd mod_wsgi python-keystone \
-    python-openstackclient -y
-
-mysql
-CREATE DATABASE keystone;
-GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'keystone';
-GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'keystone';
-GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'controller' IDENTIFIED BY 'keystone';
-
-# 修改配置文件
-openstack-config --set /etc/keystone/keystone.conf database connection \
-    mysql+pymysql://keystone:keystone@controller/keystone
-openstack-config --set /etc/keystone/keystone.conf token provider fernet
-openstack-config --set /etc/keystone/keystone.conf DEFAULT admin_token ADMIN_TOKEN
-openstack-config --set /etc/keystone/keystone.conf DEFAULT debug true
-
-# 同步数据库
-keystone-manage db_sync
-# 创建加密和认证证书
-keystone-manage fernet_setup --keystone-user keystone --keystone-group keystone
-
-# Mitaka版本不需要这一步
-# keystone-manage credential_setup --keystone-user keystone --keystone-group keystone
-
-# 修改文件所有者
-chown -R keystone:keystone /etc/keystone /var/lib/keystone /var/log/keystone
-
-# 创建http启动的wsgi文件
-cp /usr/share/keystone/wsgi-keystone.conf /etc/httpd/conf.d/wsgi-keystone.conf
-
-# 使用httpd 启动keystone
-systemctl enable httpd
-systemctl start httpd
-
-# 设置初始的环境变量
-export OS_TOKEN=ADMIN_TOKEN
-export OS_URL=http://controller:35357/v3
-export OS_IDENTITY_API_VERSION=3
-
-# 创建服务
-openstack service create --name keystone --description "OpenStack Identity" identity
-openstack endpoint create --region wuhan identity public http://controller:5000/v3
-openstack endpoint create --region wuhan identity internal http://controller:5000/v3
-openstack endpoint create --region wuhan identity admin http://controller:35357/v3
-
-# 创建角色
-openstack role create admin
-openstack role create service
-openstack role create domain_admin
-openstack role create project_admin
-openstack role create guest
-openstack role create member
-
-# 创建default domain，并重启服务
-export DEFAULT_DOMAIN_ID=`openstack domain create default | grep -w id | awk '{print $4}'`
-openstack-config --set /etc/keystone/keystone.conf identity default_domain_id \
-    $DEFAULT_DOMAIN_ID
-unset DEFAULT_DOMAIN_ID
-systemctl restart httpd
-
-# 创建project和用户，并对用户赋权
-openstack project create --domain default --description "Admin Project" admin
-openstack project create --domain default --description "Service Project" service
-
-openstack user create --domain default --project admin --project-domain default \
-    --password admin admin
-openstack role add --domain default --user admin --project-domain default \
-    --user-domain default admin --inherited
-openstack role add --project admin --user admin --project-domain default \
-    --user-domain default admin
-
-# 取消环境变量
-unset OS_TOKEN OS_URL
-unset OS_URL
-unset OS_IDENTITY_API_VERSION
-
-# 创建环境变量文件
-cat >/root/keystone_admin_v3<<EOF
-export OS_PROJECT_DOMAIN_NAME=default
-export OS_USER_DOMAIN_NAME=default
-export OS_PROJECT_NAME=admin
-export OS_USERNAME=admin
-export OS_PASSWORD=admin
-export OS_AUTH_URL=http://controller:35357/v3
-export OS_IDENTITY_API_VERSION=3
-export OS_IMAGE_API_VERSION=2
-export OS_ENDPOINT_TYPE=internal
-export OS_INTERFACE=internal
-export PS1='[\u@\h \W(keystone_admin_v3)]$ '
-EOF
-
-# 使用环境变量文件
-source /root/keystone_admin_v3
-
-# 校验环境是否正常
-openstack token issue
-\end{code-block}
+\input{keystone_install}
+\input{keystone_federation}
+\input{keystone_nginx}
 
 \section{Glance安装配置}
+\label{glance_install}
 \begin{code-block}{bash}
 yum install openstack-glance python-glance openstack-utils -y
 

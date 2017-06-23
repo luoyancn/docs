@@ -1,7 +1,7 @@
-\chapter{KeyStone普通安装}
+\subsection{KeyStone普通安装}
 \label{keystone_install}
 
-\section{MySQL配置}
+\subsubsection{MySQL配置}
 
 创建KeyStone使用的数据库，并赋予相关的权限
 \begin{code-block}{mysql}
@@ -10,7 +10,7 @@ GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'keys
 GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'keystone';
 \end{code-block}
 
-\section{KeyStone安装配置}
+\subsubsection{KeyStone安装配置}
 \begin{code-block}{bash}
 yum install httpd openstack-keystone openstack-utils python-keystone python-openstackclient -y
 
@@ -23,7 +23,8 @@ openstack-config --set /etc/keystone/keystone.conf database connection \
 openstack-config --set /etc/keystone/keystone.conf token provider fernet
 
 keystone-manage db_sync
-keystone-manage pki_setup --keystone-user keystone --keystone-group keystone
+# mitaka版本无需该操作, ocata需要
+# keystone-manage credential_setup --keystone-user keystone --keystone-group keystone
 keystone-manage fernet_setup --keystone-user keystone --keystone-group keystone
 
 chown -R keystone:keystone /etc/keystone/ /var/log/keystone/

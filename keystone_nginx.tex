@@ -1,4 +1,4 @@
-\chapter{Nginx+uWsgi+KeyStone的部署模式}
+\subsection{Nginx+uWsgi+KeyStone的部署模式}
 
 通常的情况下，KeyStone一般使用httpd或者本身的wsgi脚本进行启动。不过，在生产环境中，
 为了追求高性能，一般采用httpd的方式，将KeyStone挂载到httpd，复用httpd的高性能，从而
@@ -6,12 +6,12 @@
 Httpd的mod\_wsgi插件在实际的使用过程中，会出现KeyStone占用的内存没有释放。为了解决
 这个问题，可以在某些情况下，采用Nginx+uWsgi的方式来部署KeyStone，解决内存泄漏的问题。
 
-\section{安装相关的依赖}
+\subsubsection{安装相关的依赖}
 \begin{code-block}{bash}
 yum install nginx uwsgi uwsgi-plugin-python
 \end{code-block}
 
-\section{配置uWsgi主进程}
+\subsubsection{配置uWsgi主进程}
 \begin{code-block}{bash}
 mv /etc/uwsgi.ini /etc/uwsgi.ini_bak
 mkdir -p /var/log/uwsgi
@@ -29,7 +29,7 @@ logto = /var/log/uwsgi/uwsgi-emperor.log
 EOF
 \end{code-block}
 
-\section{设置uWsgi的keystone脚本}
+\subsubsection{设置uWsgi的keystone脚本}
 \begin{code-block}{bash}
 cat >/etc/uwsgi.d/keystone-admin.ini<<EOF
 [uwsgi]
@@ -54,7 +54,7 @@ wsgi-file = /usr/bin/keystone-wsgi-public
 EOF
 \end{code-block}
 
-\section{校验uWsgi加载KeyStone}
+\subsubsection{校验uWsgi加载KeyStone}
 \begin{code-block}{bash}
 systemctl start uwsgi
 systemctl status uwsgi
@@ -68,7 +68,7 @@ systemctl status uwsgi
   \label{fig:uwsgi}
 \end{figure}
 
-\section{配置Nginx}
+\subsubsection{配置Nginx}
 添加KeyStone的Nginx支持
 \begin{code-block}{bash}
 cat >/etc/nginx/conf.d/keystone.conf<<EOF
@@ -99,7 +99,7 @@ EOF
 systemctl start nginx
 \end{code-block}
 
-\section{校验KeyStone配置完成}
+\subsubsection{校验KeyStone配置完成}
 \begin{code-block}{bash}
 openstack token issue
 \end{code-block}

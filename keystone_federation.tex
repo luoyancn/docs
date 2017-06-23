@@ -1,6 +1,6 @@
-\chapter{KeyStone Federation}
+\subsection{KeyStone Federation}
 
-\section{Federation简介}
+\subsubsection{Federation简介}
 KeyStone Federation实质上是不同的keystone之间的互信，因此，需要多个keystone实例。
 Keystone Federation的现象就是，用户A在keystone1中存在，在keystone2中不存在，但是，
 却依然能够通过keystone2的认证，并且访问keystone2所管理的服务。其工作的大致流程如
@@ -17,7 +17,7 @@ Keystone Federation的现象就是，用户A在keystone1中存在，在keystone2
 其中，keystone1就是认证提供者-Identity Provider（IdP），keystone2就是服务提供者-
 Service Provider（SP）。
 
-\section{Federation环境}
+\subsubsection{Federation环境}
 IdP：172.16.1.63
 
 SP： 172.16.1.64
@@ -26,7 +26,7 @@ SP： 172.16.1.64
 
 KeyStone版本：Mitaka
 
-\section{IdP设置}
+\subsubsection{IdP设置}
 
 \begin{code-block}{bash}
 yum install xmlsec1-openssl python-pysaml2 xmlsec1 shibboleth -y
@@ -58,7 +58,7 @@ openstack service provider create keystone-sp --auth-url \
     --service-provider-url http://172.16.1.64:5000/Shibboleth.sso/SAML2/ECP
 \end{code-block}
 
-\section{SP设置}
+\subsubsection{SP设置}
 
 \begin{code-block}{bash}
 yum install xmlsec1-openssl python-pysaml2 xmlsec1 shibboleth -y
@@ -315,7 +315,7 @@ openstack mapping create k2k --rules /root/mapping.json
 openstack federation protocol create saml2 --identity-provider keystone-idp --mapping k2k
 \end{code-block}
 
-\section{校验Federation}
+\subsubsection{校验Federation}
 \begin{code-block}{python}
 import json
 import os
@@ -538,7 +538,7 @@ for server in servers:
     print server.to_dict()
 \end{code-block}
 
-\section{KeyStone Federation工作流程}
+\subsubsection{KeyStone Federation工作流程}
 Keystone Federation的工作与单独的keystone的工作流程区别比较大，主要分为如下几个步骤：
 \begin{enumerate}
   \item 获取idp的unscope token
@@ -550,7 +550,7 @@ Keystone Federation的工作与单独的keystone的工作流程区别比较大�
   \item 使用sp端的scope token访问sp端的服务，获取资源
 \end{enumerate}
 
-\subsection{IdP用户获取unscoped token}
+\paragraph{IdP用户获取unscoped token}
 \begin{code-block}{bash}
 cat >unscope.json<<EOF
 {
@@ -577,7 +577,7 @@ export UNSCOPE_TOKEN=`curl -i -X POST http://172.16.1.63:5000/v3/auth/tokens \
     -d @unscope.json | grep X-Subject-Token | awk '{print $2}' | strings`
 \end{code-block}
 
-\subsection{IdP用户获取scoped token}
+\paragraph{IdP用户获取scoped token}
 \begin{code-block}{bash}
 cat >scope.json<<EOF
 {
@@ -606,7 +606,7 @@ export SCOPE_TOKEN=`curl -i -X POST http://172.16.1.63:5000/v3/auth/tokens \
     -d @scope.json | grep X-Subject-Token | awk '{print $2}' | strings`
 \end{code-block}
 
-\subsection{获取saml断言}
+\paragraph{获取saml断言}
 \begin{code-block}{bash}
 cat >saml.json<<EOF
 {
@@ -632,14 +632,14 @@ curl -X POST http://172.16.1.63:5000/v3/auth/OS-FEDERATION/saml2/ecp \
     -d @saml.json > assertion
 \end{code-block}
 
-\subsection{SP端校验saml断言}
+\paragraph{SP端校验saml断言}
 \begin{code-block}{bash}
 export SAML_COOKIE=`curl -X POST -i http://172.16.1.64:5000/Shibboleth.sso/SAML2/ECP \
     -H "Content-Type: application/vnd.paos+xml" \
     -d @assertion | grep Set-Cookie | awk '{print $2}'`
 \end{code-block}
 
-\subsection{SP端获取unscope token}
+\paragraph{SP端获取unscope token}
 \begin{code-block}{bash}
 export SP_UNSCOPE_TOKEN=`curl -i -X GET \
     http://172.16.1.64:5000/v3/OS-FEDERATION/identity_providers/keystone-idp/protocols/saml2/auth \
@@ -649,7 +649,7 @@ export SP_UNSCOPE_TOKEN=`curl -i -X GET \
 
 \underline{\color{red} \textbf{\textit{特别需要说明的是，IdP和SP端的用户映射就是在这一个步骤当中完成的。}}}
 
-\subsection{SP端获取scope token}
+\paragraph{SP端获取scope token}
 \begin{code-block}{bash}
 cat >spscope.json<<EOF
 {
@@ -680,7 +680,7 @@ export SP_SCOPE_TOKEN=`curl -i -X POST http://172.16.1.64:5000/v3/auth/tokens \
 
 经过以上几个步骤之后，使用SP\_SCOPE\_TOKEN就可以访问SP端提供的所有服务了。
 
-\section{参考文献}
+\subsubsection{参考文献}
 \url{http://blog.rodrigods.com/it-is-time-to-play-with-keystone-to-keystone-federation-in-kilo/}
 
 \url{http://wsfdl.com/openstack/2016/01/14/Keystone-Federation-Identity-with-SAML2.html}
