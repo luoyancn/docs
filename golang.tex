@@ -36,6 +36,7 @@ go get -u -v github.com/dominikh/go-tools/cmd/keyify
 go get -u -v github.com/kisielk/errcheck
 go get -u -v github.com/sparrc/gdm
 go get -u -v github.com/tylerb/gotype-live
+go get -u -v github.com/spf13/cobra/cobra
 go get -u -v golang.org/x/tools/cmd/guru
 go get -u -v golang.org/x/tools/cmd/gorename
 go get -u -v golang.org/x/tools/cmd/goimports
@@ -264,3 +265,20 @@ set GOOS=linux
 set GOARCH=amd64
 go build
 \end{code-block}
+
+\section{Golang的坑爹问题}
+Go毕竟还只是发展阶段的语言，存在一些问题是有可能的。下面记录一些实际当中遇到的
+golang的坑.
+\begin{outline}[enumerate]
+
+  \1 ioutil ReadAll导致程序hang住
+
+  Ioutil的ReadAll方法，在某些情况下，会导致程序被卡住，多见于在http请求时候，读取
+  返回的body。一般发生在windows环境上，linux环境较少出现。解决的方法比较另类：设置
+  http的keepalive参数为false即可。
+\begin{code-in-enumerate}{go}
+transport := &http.Transport{DisableKeepAlives: true}
+client := &http.Client{Transport: transport}
+\end{code-in-enumerate}
+
+\end{outline}
