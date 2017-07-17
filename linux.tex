@@ -196,4 +196,12 @@ rpm -q openstack-nova-compute --changelog
 mount -o loop cloudbase-init.iso /mnt/
 \end{code-in-enumerate}
 
+\1 解压ramdisk文件
+\begin{code-in-enumerate}{bash}
+mkdir tmp
+mv ramdisk tmp
+cd tmp
+zcat /boot/initrd-2.6.18-164.6.1.el5.img | cpio -idmv
+\end{code-in-enumerate}
+
 \end{outline}
