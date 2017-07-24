@@ -204,4 +204,9 @@ cd tmp
 zcat /boot/initrd-2.6.18-164.6.1.el5.img | cpio -idmv
 \end{code-in-enumerate}
 
+\1 xargs的for循环
+\begin{code-in-enumerate}{bash}
+neutron agent-list | grep xxx | awk '{print $2}' | xargs -I {} neutron agent-show {}
+\end{code-in-enumerate}
+
 \end{outline}
