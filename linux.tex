@@ -158,6 +158,19 @@ root       soft    nproc     unlimited
 EOF
 \end{code-block}
 
+\section{google-chrome-stable}
+\begin{code-block}{bash}
+cat << EOF > /etc/yum.repos.d/google-chrome.repo
+[google-chrome]
+name=google-chrome - \$basearch
+baseurl=http://dl.google.com/linux/chrome/rpm/stable/\$basearch
+enabled=1
+gpgcheck=1
+gpgkey=https://dl-ssl.google.com/linux/linux_signing_key.pub
+EOF
+dnf install google-chrome-stable -y
+\end{code-block}
+
 \section{kdump调试分析}
 通常的，当一个操作系统崩溃之后，可以使用kdump对crash的原因进行分析，以规避问题。
 由于kdump是内核的转存文件，因此需要安装kernel的debug软件包。另外，kernel-debug一定
@@ -207,6 +220,11 @@ zcat /boot/initrd-2.6.18-164.6.1.el5.img | cpio -idmv
 \1 xargs的for循环
 \begin{code-in-enumerate}{bash}
 neutron agent-list | grep xxx | awk '{print $2}' | xargs -I {} neutron agent-show {}
+\end{code-in-enumerate}
+
+\1 解压rpm文件
+\begin{code-in-enumerate}{bash}
+rpm2cpio mysql-community-common-5.6.28-2.el7.x86_64.rpm | cpio -idmv
 \end{code-in-enumerate}
 
 \end{outline}
