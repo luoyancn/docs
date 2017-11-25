@@ -37,6 +37,8 @@ go get -u -v github.com/kisielk/errcheck
 go get -u -v github.com/sparrc/gdm
 go get -u -v github.com/tylerb/gotype-live
 go get -u -v github.com/spf13/cobra/cobra
+go get -v -u github.com/derekparker/delve/cmd/dlv
+go get -u -v github.com/davidrjenni/reftools/cmd/fillstruct
 go get -u -v golang.org/x/tools/cmd/guru
 go get -u -v golang.org/x/tools/cmd/gorename
 go get -u -v golang.org/x/tools/cmd/goimports
@@ -282,3 +284,18 @@ client := &http.Client{Transport: transport}
 \end{code-in-enumerate}
 
 \end{outline}
+
+\section{TimeFormat}
+Go的时间格式化是比较蛋疼的，一般使用标准的格式化字符串是会有其他的字符出现的，
+比如时区之类的。如果想格式化为YYYY-mm-dd HH:MM:SS或者中文时间格式，则需要使用
+另外的方式。额外提示，一般的语言，包括c/c++，java以及python等等，默认的初始时间
+是从1970年开始计算的，但是golang的初始时间点是2006-01-02 15:04:05.999999999 -0700 MST
+\begin{code-block}{go}
+const ENS_TIME_LAYOR = "2006-01-02 15:04:05"
+const CHS_TIME_LAYOR = "2006年01月02日 15:04:05"
+fmt.Println(time.Now().Format(ENS_TIME_LAYOR))
+fmt.Println(time.Now().Format(CHS_TIME_LAYOR))
+# 输出结果如下：
+# 2017-08-03 15:18:15
+# 2017年08月03日 15:18:16
+\end{code-block}

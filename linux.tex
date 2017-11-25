@@ -179,6 +179,59 @@ crash /usr/lib/debug/lib/modules/3.10.0-327.18.2.el7.x86_64/vmlinux vmcore
 
 通过以上的命令，即可分析core dump的问题根源。
 
+\section{kvm嵌套虚拟化}
+\begin{code-block}{bash}
+# 升级kernel到4.10以上版本
+vi /etc/default/grub
+GRUB_CMDLINE_LINUX="rd.lvm.lv=rhel/swap crashkernel=2048M rd.lvm.lv=rhel/root rhgb quiet kvm-intel.nested=1"
+
+grub2-mkconfig -o /boot/grub2/grub.cfg
+
+# 或者直接修改grub文件
+vi /boot/grub2/grub.cfg
+linux16 /vmlinuz-4.12.3-1.el7.elrepo.x86_64 root=/dev/mapper/system-lv_root ro rd.lvm.lv=system/lv_root \
+    rhgb quiet LANG=en_US.UTF-8 kvm-intel.nested=1
+
+# 或者修改启动参数
+cat << EOF > /etc/modprobe.d/kvm_intel.conf
+options kvm-intel nested=1
+options kvm-intel enable_shadow_vmcs=1
+options kvm-intel enable_apicv=1
+options kvm-intel ept=1
+EOF
+
+# 另外，为了与嵌套的VM通信，需要禁用反向路径过滤，否则RHEL将丢弃任何网络数据包，以防止不对称路由
+cat << EOF > /etc/sysctl.d/98-rp-filter.conf
+net.ipv4.conf.default.rp_filter = 0
+net.ipv4.conf.all.rp_filter = 0
+EOF
+
+# 然后重启服务器
+reboot
+
+# 检查嵌套虚拟化是否生效
+systool -m kvm_intel -v   | grep -i nested
+cat /sys/module/kvm_intel/parameters/nested
+# 如果都显示Y，则说明成功
+
+# 创建支持嵌套虚拟化的虚拟机
+#可以使用这种
+  <cpu mode='custom' match='exact'>
+    <model fallback='allow'>core2duo</model>
+    <feature policy='require' name='vmx'/>
+  </cpu>
+#这种方式为虚拟机定义需要模拟的CPU类型"core2duo",并且为虚拟机添加"vmx"特性
+
+#也可以使用这种
+  <cpu mode='host-model'>
+    <model fallback='allow'/>
+  </cpu>
+#或者这样
+ <cpu mode='host-passthrough'>
+    <topology sockets='2' cores='2' threads='2'/>
+ </cpu>
+\end{code-block}
+
 \section{常用命令}
 \begin{outline}[enumerate]
 \1 递归比较文件夹
@@ -207,6 +260,7 @@ zcat /boot/initrd-2.6.18-164.6.1.el5.img | cpio -idmv
 \1 xargs的for循环
 \begin{code-in-enumerate}{bash}
 neutron agent-list | grep xxx | awk '{print $2}' | xargs -I {} neutron agent-show {}
+nova list | grep cirros | awk '{print $2}'| xargs -I {} nova reset-state {} --active
 \end{code-in-enumerate}
 
 \end{outline}

@@ -47,7 +47,7 @@ sslocal -c /root/server.json
 
 cat > /etc/polipo/config<<EOF
 logSyslog = true
-daemonise = false
+daemonise = true
 pidFile = /var/run/polipo/polipo.pid
 logFile = /var/log/polipo/polipo.log
 proxyAddress = "0.0.0.0"
@@ -56,7 +56,8 @@ socksParentProxy = "localhost:1080"
 socksProxyType = socks5
 EOF
 
-polipo -c /etc/polipo/config
+systemctl enable polipo
+systemctl start polipo
 \end{code-block}
 
 和polipo相同，shadowsocks也可以作为daemon运行。具体可以参考\textattachfile{shadowsocks.service}{\textcolor{blue}{shadowsocks.service}}
