@@ -106,7 +106,7 @@ git config user.name zhangjl
 git config user.email zhangjl@awcloud.com
 git config gitreview.scheme https
 git config gitreview.port 443
-git remote add gerrit https://zhangjl:g2oF+4RFNTtW@review.openstack.org/openstack/nova.git
+git remote add gerrit https://zhangjl:******@review.openstack.org/openstack/nova.git
 git review -s
 
 # 如果需要通过代理
@@ -285,5 +285,14 @@ rpm2cpio mysql-community-common-5.6.28-2.el7.x86_64.rpm | cpio -idmv
 \begin{code-in-enumerate}{bash}
 xz -k -d xxx.xz
 \end{code-in-enumerate}
+
+\1 通过qemu-guest-agent执行命令
+\begin{code-in-enumerate}{bash}
+# 获取agent支持的命令列表
+virsh qemu-agent-command 25 '{"execute":"guest-info"}' --pretty
+# 获取monitor支持的命令列表
+virsh qemu-monitor-command 25 '{"execute":"query-commands"}' --pretty
+\end{code-in-enumerate}
+
 
 \end{outline}
