@@ -1,0 +1,961 @@
+\chapter{Kubernets-latest}
+Kubernetes是Google开源的容器集群管理软件，可以方便的管理容器以及容器集群。
+
+\section{部署的架构}
+Kubernetes可以使用单节点部署，但这种模式一般只用于测试环境。而在实际的生产环境中，
+必须使用多节点的方式安装。Kubernetes的最小集群需要3台节点：3个monitor，3个nodes，每个节点的角色相同。
+此次部署，针对与kubernetes1.8版本及其以上，并且网络采用calico，不再使用flannel。
+现在假设3台节点的ip为20.30.40.16-18。
+
+\section{通用安装}
+
+\begin{outline}[enumerate]
+  \1 配置yum源（\textattachfile{cern.repo}{\textcolor{blue}{cern.repo}}和\textattachfile{docker.repo}{\textcolor{blue}{docker.repo}}，如附件）和安装通用软件
+\begin{code-in-enumerate}{bash}
+cp cern.repo /etc/yum.repos.d
+cp docker.repo /etc/yum.repos.d
+yum install etcd docker-engine-1.12.6-1.el7.centos.x86_64 \
+    docker-engine-selinux-1.12.6-1.el7.centos -y
+# 防止update的时候，用community版本的docker-engine替换相关的软件包
+mv docker.repo docker.repo_bak
+reboot
+\end{code-in-enumerate}
+
+  \1 修改系统参数
+\begin{code-in-enumerate}{bash}
+# 修改主机名
+echo $HOSTNAME > /etc/hostname
+# 关闭并禁用防火墙
+systemctl disable firewalld;systemctl stop firewalld
+# 禁用selinux
+sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
+
+# 修改内核参数
+cat >> /etc/sysctl.conf <<EOF
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv4.ip_forward = 1
+EOF
+
+# 加载内核模块
+echo "overlay" > /etc/modules-load.d/overlay.conf
+reboot
+\end{code-in-enumerate}
+
+  \1 配置docker
+\begin{code-in-enumerate}{bash}
+vi /usr/lib/systemd/system/docker.service
+[Unit]
+Description=Docker Application Container Engine
+Documentation=https://docs.docker.com
+After=network.target
+
+[Service]
+Type=notify
+# the default is not to use systemd for cgroups because the delegate issues still
+# exists and systemd currently does not support the cgroup feature set required
+# for containers run by docker
+
+#Environment="HTTP_PROXY=http://192.168.8.254:18888/"
+
+ExecStart=/usr/bin/dockerd \
+    --host=unix:///var/run/docker.sock \
+    --host=tcp://0.0.0.0:2375 \
+    --graph=/var/lib/docker \
+    --ip-forward=true \
+    --log-driver=json-file \
+    --log-level=debug \
+    --storage-driver=overlay2 \
+    --selinux-enabled=false \
+    --registry-mirror=https://docker.mirrors.ustc.edu.cn
+
+ExecReload=/bin/kill -s HUP $MAINPID
+# Having non-zero Limit*s causes performance problems due to accounting overhead
+# in the kernel. We recommend using cgroups to do container-local accounting.
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+# Uncomment TasksMax if your systemd version supports it.
+# Only systemd 226 and above support this version.
+#TasksMax=infinity
+TimeoutStartSec=0
+# set delegate yes so that systemd does not reset the cgroups of docker containers
+Delegate=yes
+# kill only the docker process, not all processes in the cgroup
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
+\end{code-in-enumerate}
+
+  \1 准备对应的二进制文件
+需要的二进制文件主要包含了网络（calico），安全（cfssl），kubernetes以及其他插件。
+\begin{center}
+  \rowcolors{2}{green!80!yellow!50}{green!70!yellow!40}
+  \begin{tabularx}{\textwidth}{|l|X|}
+  \hline
+  Binary & Download URL\\ \hline
+  calico & https://github.com/projectcalico/cni-plugin/releases/download/v2.0.0/calico\\
+  calicoctl & https://github.com/projectcalico/calicoctl/releases/download/v2.0.0/calicoctl \\
+  calico-ipam & https://github.com/projectcalico/cni-plugin/releases/download/v2.0.0/calico-ipam \\
+  kube-controllers & https://github.com/projectcalico/kube-controllers/releases/download/v2.0.0/kube-controllers-linux-amd64 \\
+  cnitool & https://github.com/containernetworking/plugins/releases/download/v0.6.0/cni-plugins-amd64-v0.6.0.tgz \\
+  loopback & https://github.com/containernetworking/cni/releases/download/v0.6.0/cni-amd64-v0.6.0.tgz \\
+  kubernetes & https://github.com/kubernetes \\
+  cfssl & https://pkg.cfssl.org/ \\
+  \hline
+  \end{tabularx}
+  \label{tab:Binary files}
+\end{center}
+将以上所有二进制文件拷贝到主机的/usr/local/bin目录下即可。
+注意，该配置默认使用集群模式，需要相关节点做ssh互信。ssh互信的配置不再赘述。
+
+  \1 设置安全证书
+准备对应的目录
+\begin{code-in-enumerate}{bash}
+mkdir -p /etc/etcd/ssl /etc/kubernetes/ssl /var/log/kubernetes/ /var/lib/kubelet/ /etc/cni/net.d
+\end{code-in-enumerate}
+准备对应的ssl内容文件
+\begin{code-in-enumerate}{bash}
+vi /etc/kubernetes/ssl/ca-csr.json
+{
+    "CN": "Kubernetes",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "CN",
+            "ST": "Beijing",
+            "L": "Beijing",
+            "O": "k8s",
+            "OU": "System"
+        }
+    ]
+}
+
+vi /etc/kubernetes/ssl/ca-config.json
+{
+    "signing": {
+        "default": {
+            "expiry": "87600h"
+        },
+        "profiles": {
+            "kubernetes": {
+                "usages": [
+                    "signing",
+                    "key encipherment",
+                    "server auth",
+                    "client auth"
+                ],
+                "expiry": "87600h"
+            }
+        }
+    }
+}
+
+vi /etc/kubernetes/ssl/admin-csr.json
+{
+    "CN": "admin",
+    "hosts": [],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "CN",
+            "ST": "Beijing",
+            "L": "Beijing",
+            "O": "system:masters",
+            "OU": "System"
+        }
+    ]
+}
+
+vi /etc/kubernetes/ssl/kube-proxy-csr.json
+{
+    "CN": "kubernetes",
+    "hosts": [
+        "10.20.0.1",
+        "20.30.40.16",
+        "20.30.40.17",
+        "20.30.40.18",
+        "127.0.0.1",
+        "kubernetes",
+        "kubernetes.default",
+        "kubernetes.default.svc",
+        "kubernetes.default.svc.k8s",
+        "kubernetes.default.svc.k8s.zhangjl",
+        "kubernetes.default.svc.k8s.zhangjl.me"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "CN",
+            "ST": "Beijing",
+            "L": "Beijing",
+            "O": "k8s",
+            "OU": "System"
+        }
+    ]
+}
+
+vi /etc/kubernetes/ssl/kubernetes-csr.json
+{
+    "CN": "system:kube-proxy",
+    "hosts": [],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "CN",
+            "ST": "Beijing",
+            "L": "Beijing",
+            "O": "k8s",
+            "OU": "System"
+        }
+    ]
+}
+\end{code-in-enumerate}
+生成对应的证书，并分发至各个节点
+\begin{code-in-enumerate}{bash}
+cd /etc/kubernets/ssl
+cfssl gencert -initca ca-csr.json |cfssljson -bare ca
+cfssl gencert \
+      -ca=ca.pem \
+      -ca-key=ca-key.pem \
+      -config=ca-config.json \
+      -profile=kubernetes \
+      admin-csr.json |cfssljson -bare admin
+cfssl gencert \
+      -ca=ca.pem \
+      -ca-key=ca-key.pem \
+      -config=ca-config.json \
+      -profile=kubernetes \
+      kube-proxy-csr.json |cfssljson -bare kube-proxy
+cfssl gencert \
+      -ca=ca.pem \
+      -ca-key=ca-key.pem \
+      -config=ca-config.json \
+      -profile=kubernetes \
+      kubernetes-csr.json |cfssljson -bare kubernetes
+
+cp /etc/kubernetes/ssl/* /etc/etcd/ssl
+\end{code-in-enumerate}
+
+  \1 设置kubernetes的context
+\begin{code-in-enumerate}{bash}
+kubectl config set-cluster kubernetes \
+        --embed-certs=true \
+        --certificate-authority=/etc/kubernetes/ssl/ca.pem \
+        --server=https://20.30.40.16:5443
+
+kubectl config set-credentials admin \
+        --embed-certs=true \
+        --client-certificate=/etc/kubernetes/ssl/admin.pem \
+        --client-key=/etc/kubernetes/ssl/admin-key.pem
+
+kubectl config set-context kubernetes \
+        --cluster=kubernetes \
+        --user=admin
+
+kubectl config use-context kubernetes
+\end{code-in-enumerate}
+将生成的context文件同步到其他的节点
+\begin{code-in-enumerate}{bash}
+scp /root/.kube/config root@k8snode2:/root/.kube/config
+\end{code-in-enumerate}
+
+  \1 设置kubelet的context
+\begin{code-in-enumerate}{bash}
+BOOTSTRAP_TOKEN="$(head -c 16 /dev/urandom |od -An -t x |tr -d ' ')"
+cat > /etc/kubernetes/token.csv <<EOF
+${BOOTSTRAP_TOKEN},kubelet-bootstrap,10001,"system:kubelet-bootstrap"
+EOF
+
+kubectl config set-cluster kubernetes \
+        --embed-certs=true \
+        --server=https://20.30.40.16:5443 \
+        --certificate-authority=/etc/kubernetes/ssl/ca.pem \
+        --kubeconfig=/etc/kubernetes/kubelet-bootstrap.kubeconfig
+
+kubectl config set-credentials kubelet-bootstrap \
+        --token=${BOOTSTRAP_TOKEN} \
+        --kubeconfig=/etc/kubernetes/kubelet-bootstrap.kubeconfig
+
+kubectl config set-context default \
+        --cluster=kubernetes \
+        --user="kubelet-bootstrap" \
+        --kubeconfig=/etc/kubernetes/kubelet-bootstrap.kubeconfig
+
+kubectl config use-context default \
+        --kubeconfig=/etc/kubernetes/kubelet-bootstrap.kubeconfig
+
+kubectl config set-cluster kubernetes \
+        --embed-certs=true \
+        --server=https://20.30.40.16:5443 \
+        --certificate-authority=/etc/kubernetes/ssl/ca.pem \
+        --kubeconfig=/etc/kubernetes/kube-proxy.kubeconfig
+
+kubectl config set-credentials kube-proxy \
+        --embed-certs=true \
+        --client-certificate=/etc/kubernetes/ssl/kube-proxy.pem \
+        --client-key=/etc/kubernetes/ssl/kube-proxy-key.pem \
+        --kubeconfig=/etc/kubernetes/kube-proxy.kubeconfig
+
+kubectl config set-context default \
+        --cluster=kubernetes \
+        --user="kube-proxy" \
+        --kubeconfig=/etc/kubernetes/kube-proxy.kubeconfig
+
+kubectl config use-context default \
+        --kubeconfig=/etc/kubernetes/kube-proxy.kubeconfig
+\end{code-in-enumerate}
+将生成的context文件同步到其他的节点
+\begin{code-in-enumerate}{bash}
+scp /etc/kubernetes/* root@k8snode2:/etc/kubernetes/
+\end{code-in-enumerate}
+
+  \1 配置etcd集群
+\begin{code-in-enumerate}{bash}
+# k8s1 node, 20.30.40.16
+vi /etc/etcd/etcd.conf
+ETCD_NAME="k8s1"
+ETCD_DATA_DIR="/var/lib/etcd/k8s1"
+ETCD_LISTEN_PEER_URLS="https://20.30.40.16:2380"
+ETCD_LISTEN_CLIENT_URLS="https://20.30.40.16:2379,https://127.0.0.1:2379"
+ETCD_INITIAL_ADVERTISE_PEER_URLS="https://20.30.40.16:2380"
+ETCD_INITIAL_CLUSTER="k8s1=https://20.30.40.16:2380,k8s2=https://20.30.40.17:2380,k8s3=https://20.30.40.18:2380"
+ETCD_INITIAL_CLUSTER_STATE="new"
+ETCD_INITIAL_CLUSTER_TOKEN="k8s-cluster-token"
+ETCD_ADVERTISE_CLIENT_URLS="https://20.30.40.16:2379"
+ETCD_AUTO_COMPACTION_RETENTION="1"
+ETCD_CLIENT_CERT_AUTH="true"
+ETCD_CERT_FILE="/etc/etcd/ssl/kubernetes.pem"
+ETCD_KEY_FILE="/etc/etcd/ssl/kubernetes-key.pem"
+ETCD_TRUSTED_CA_FILE="/etc/etcd/ssl/ca.pem"
+ETCD_PEER_CLIENT_CERT_AUTH="true"
+ETCD_PEER_CERT_FILE="/etc/etcd/ssl/kubernetes.pem"
+ETCD_PEER_KEY_FILE="/etc/etcd/ssl/kubernetes-key.pem"
+ETCD_PEER_TRUSTED_CA_FILE="/etc/etcd/ssl/ca.pem"
+ETCD_DEBUG="true"
+ETCD_LOG_PACKAGE_LEVELS="DEBUG"
+
+# k8s2 node, 20.30.40.17
+vi /etc/etcd/etcd.conf
+ETCD_NAME="k8s2"
+ETCD_DATA_DIR="/var/lib/etcd/k8s2"
+ETCD_LISTEN_PEER_URLS="https://20.30.40.17:2380"
+ETCD_LISTEN_CLIENT_URLS="https://20.30.40.17:2379,https://127.0.0.1:2379"
+ETCD_INITIAL_ADVERTISE_PEER_URLS="https://20.30.40.17:2380"
+ETCD_INITIAL_CLUSTER="k8s1=https://20.30.40.16:2380,k8s2=https://20.30.40.17:2380,k8s3=https://20.30.40.18:2380"
+ETCD_INITIAL_CLUSTER_STATE="new"
+ETCD_INITIAL_CLUSTER_TOKEN="k8s-cluster-token"
+ETCD_ADVERTISE_CLIENT_URLS="https://20.30.40.17:2379"
+ETCD_AUTO_COMPACTION_RETENTION="1"
+ETCD_CLIENT_CERT_AUTH="true"
+ETCD_CERT_FILE="/etc/etcd/ssl/kubernetes.pem"
+ETCD_KEY_FILE="/etc/etcd/ssl/kubernetes-key.pem"
+ETCD_TRUSTED_CA_FILE="/etc/etcd/ssl/ca.pem"
+ETCD_PEER_CLIENT_CERT_AUTH="true"
+ETCD_PEER_CERT_FILE="/etc/etcd/ssl/kubernetes.pem"
+ETCD_PEER_KEY_FILE="/etc/etcd/ssl/kubernetes-key.pem"
+ETCD_PEER_TRUSTED_CA_FILE="/etc/etcd/ssl/ca.pem"
+ETCD_DEBUG="true"
+ETCD_LOG_PACKAGE_LEVELS="DEBUG"
+
+# k8s3 node, 20.30.40.18
+vi /etc/etcd/etcd.conf
+ETCD_NAME="k8s3"
+ETCD_DATA_DIR="/var/lib/etcd/k8s3"
+ETCD_LISTEN_PEER_URLS="https://20.30.40.18:2380"
+ETCD_LISTEN_CLIENT_URLS="https://20.30.40.18:2379,https://127.0.0.1:2379"
+ETCD_INITIAL_ADVERTISE_PEER_URLS="https://20.30.40.18:2380"
+ETCD_INITIAL_CLUSTER="k8s1=https://20.30.40.16:2380,k8s2=https://20.30.40.17:2380,k8s3=https://20.30.40.18:2380"
+ETCD_INITIAL_CLUSTER_STATE="new"
+ETCD_INITIAL_CLUSTER_TOKEN="k8s-cluster-token"
+ETCD_ADVERTISE_CLIENT_URLS="https://20.30.40.18:2379"
+ETCD_AUTO_COMPACTION_RETENTION="1"
+ETCD_CLIENT_CERT_AUTH="true"
+ETCD_CERT_FILE="/etc/etcd/ssl/kubernetes.pem"
+ETCD_KEY_FILE="/etc/etcd/ssl/kubernetes-key.pem"
+ETCD_TRUSTED_CA_FILE="/etc/etcd/ssl/ca.pem"
+ETCD_PEER_CLIENT_CERT_AUTH="true"
+ETCD_PEER_CERT_FILE="/etc/etcd/ssl/kubernetes.pem"
+ETCD_PEER_KEY_FILE="/etc/etcd/ssl/kubernetes-key.pem"
+ETCD_PEER_TRUSTED_CA_FILE="/etc/etcd/ssl/ca.pem"
+ETCD_DEBUG="true"
+ETCD_LOG_PACKAGE_LEVELS="DEBUG"
+
+systemctl enable etcd
+systemctl start etcd
+
+vi /root/.bashrc
+export DATASTORE_TYPE=kubernetes
+export KUBECONFIG=/root/.kube/config
+alias etcdctl='etcdctl --endpoints=https://20.30.40.16:2379,https://20.30.40.17:2379,https://20.30.40.18:2379 \
+    --ca-file=/etc/etcd/ssl/ca.pem --cert-file=/etc/etcd/ssl/kubernetes.pem  \
+    --key-file=/etc/etcd/ssl/kubernetes-key.pem'
+
+# 校验etcd工作状态
+source /root/.bashrc
+etcdctl ls
+etcdctl member list
+\end{code-in-enumerate}
+
+  \1 配置docker
+由于docker在overlay2的存储上性能最佳，因此，最好是单独给docker配置存储
+\begin{code-in-enumerate}{bash}
+mkfs.xfs -n ftype=1 -f /dev/vdb
+mount /dev/vdb /var/lib/docker
+
+# 准备之后所需要的docker image镜像
+docker pull gcr.io/google_containers/pause:3.0
+docker pull quay.io/calico/node:v2.6.4
+docker pull quay.io/calico/node:v2.6.2
+for id in {0..2};do docker pull quay.io/calico/cni:v1.11.$id;done
+for id in {0..2};do docker pull quay.io/calico/kube-controllers:v1.0.$id;done
+docker pull gcr.io/kubernetes-helm/tiller:v2.6.0
+for id in {4,5,6,7};do docker pull gcr.io/google-containers/k8s-dns-kube-dns-amd64:1.14.$id;done
+for id in {4,5,6,7};do docker pull gcr.io/google-containers/k8s-dns-dnsmasq-nanny-amd64:1.14.$id; docker pull gcr.io/google-containers/k8s-dns-sidecar-amd64:1.14.$id;done
+for id in {1,3};do docker pull gcr.io/google-containers/heapster-influxdb-amd64:v1.$id.$id;done
+for id in {v4.0.2,v4.2.0,v4.4.1,v4.4.3};do docker pull gcr.io/google-containers/heapster-grafana-amd64:$id;done
+for id in {v1.4.1,v1.4.2,v1.4.3,v1.5.0};do docker pull gcr.io/google-containers/heapster-amd64:$id;done
+for id in {1.7,1.8.0,1.8.1};do docker pull gcr.io/google-containers/addon-resizer:$id;done
+for id in {v1.6.1,v1.8.1};do docker pull gcr.io/google-containers/kubernetes-dashboard-amd64:$id;done
+for id in {1.23,1.24};do docker pull gcr.io/google-containers/fluentd-elasticsearch:$id;done
+for id in {v4.6.1-1,v5.4.0};do docker pull gcr.io/google-containers/kibana:$id;done
+for id in {0..4};do docker pull gcr.io/google-containers/defaultbackend:1.$id;done
+docker pull gcr.io/google-containers/nginx-ingress-controller:0.9.0-beta.15
+\end{code-in-enumerate}
+
+  \1 配置kubernetes controller服务
+kubernetes的controller服务主要包含如下的几个部分：kube-apiserver, kube-controller-manager和kube-scheduler。
+\begin{code-in-enumerate}{bash}
+# k8s1, 20.30.40.16
+vi /usr/lib/systemd/system/kube-apiserver.service
+[Unit]
+Description=Kubernetes API Server
+Documentation=https://github.com/kubernetes/kubernetes
+After=network.target
+
+[Service]
+User=root
+
+ExecStart=/usr/local/bin/kube-apiserver \
+    --admission-control=DefaultStorageClass,LimitRanger,NamespaceLifecycle,NodeRestriction,ResourceQuota,ServiceAccount \
+    --advertise-address=20.30.40.16 \
+    --allow-privileged=true \
+    --apiserver-count=3 \
+    --authorization-mode=RBAC,Node \
+    --bind-address=20.30.40.16 \
+    --client-ca-file=/etc/kubernetes/ssl/ca.pem \
+    --cloud-config= \
+    --cloud-provider= \
+    --enable-swagger-ui=true --etcd-cafile=/etc/kubernetes/ssl/ca.pem \
+    --etcd-certfile=/etc/kubernetes/ssl/kubernetes.pem \
+    --etcd-keyfile=/etc/kubernetes/ssl/kubernetes-key.pem \
+    --etcd-prefix=/kubernetes \
+    --etcd-servers=https://20.30.40.16:2379,https://20.30.40.17:2379,https://20.30.40.18:2379 \
+    --event-ttl=1h \
+    --experimental-bootstrap-token-auth \
+    --insecure-bind-address=20.30.40.16 \
+    --insecure-port=7070 \
+    --kubelet-https=true \
+    --log-dir=/var/log/kubernetes \
+    --log-flush-frequency=5s \
+    --logtostderr=false \
+    --runtime-config=rbac.authorization.k8s.io/v1beta1,networking.k8s.io/v1 \
+    --secure-port=5443 \
+    --service-account-key-file=/etc/kubernetes/ssl/ca-key.pem \
+    --service-cluster-ip-range=10.20.0.0/16\
+    --service-node-port-range=30000-32767 \
+    --tls-cert-file=/etc/kubernetes/ssl/kubernetes.pem \
+    --tls-private-key-file=/etc/kubernetes/ssl/kubernetes-key.pem \
+    --token-auth-file=/etc/kubernetes/token.csv \
+    --v=3
+
+Restart=on-failure
+RestartSec=5
+Type=notify
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+# k8s2, 20.30.40.17
+vi /usr/lib/systemd/system/kube-apiserver.service
+[Unit]
+Description=Kubernetes API Server
+Documentation=https://github.com/kubernetes/kubernetes
+After=network.target
+
+[Service]
+User=root
+
+ExecStart=/usr/local/bin/kube-apiserver \
+    --admission-control=DefaultStorageClass,LimitRanger,NamespaceLifecycle,NodeRestriction,ResourceQuota,ServiceAccount \
+    --advertise-address=20.30.40.17 \
+    --allow-privileged=true \
+    --apiserver-count=3 \
+    --authorization-mode=RBAC,Node \
+    --bind-address=20.30.40.17 \
+    --client-ca-file=/etc/kubernetes/ssl/ca.pem \
+    --cloud-config= \
+    --cloud-provider= \
+    --enable-swagger-ui=true --etcd-cafile=/etc/kubernetes/ssl/ca.pem \
+    --etcd-certfile=/etc/kubernetes/ssl/kubernetes.pem \
+    --etcd-keyfile=/etc/kubernetes/ssl/kubernetes-key.pem \
+    --etcd-prefix=/kubernetes \
+    --etcd-servers=https://20.30.40.16:2379,https://20.30.40.17:2379,https://20.30.40.18:2379 \
+    --event-ttl=1h \
+    --experimental-bootstrap-token-auth \
+    --insecure-bind-address=20.30.40.17 \
+    --insecure-port=7070 \
+    --kubelet-https=true \
+    --log-dir=/var/log/kubernetes \
+    --log-flush-frequency=5s \
+    --logtostderr=false \
+    --runtime-config=rbac.authorization.k8s.io/v1beta1,networking.k8s.io/v1 \
+    --secure-port=5443 \
+    --service-account-key-file=/etc/kubernetes/ssl/ca-key.pem \
+    --service-cluster-ip-range=10.20.0.0/16\
+    --service-node-port-range=30000-32767 \
+    --tls-cert-file=/etc/kubernetes/ssl/kubernetes.pem \
+    --tls-private-key-file=/etc/kubernetes/ssl/kubernetes-key.pem \
+    --token-auth-file=/etc/kubernetes/token.csv \
+    --v=3
+
+Restart=on-failure
+RestartSec=5
+Type=notify
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+# k8s3, 20.30.40.18
+vi /usr/lib/systemd/system/kube-apiserver.service
+[Unit]
+Description=Kubernetes API Server
+Documentation=https://github.com/kubernetes/kubernetes
+After=network.target
+
+[Service]
+User=root
+
+ExecStart=/usr/local/bin/kube-apiserver \
+    --admission-control=DefaultStorageClass,LimitRanger,NamespaceLifecycle,NodeRestriction,ResourceQuota,ServiceAccount \
+    --advertise-address=20.30.40.18 \
+    --allow-privileged=true \
+    --apiserver-count=3 \
+    --authorization-mode=RBAC,Node \
+    --bind-address=20.30.40.18 \
+    --client-ca-file=/etc/kubernetes/ssl/ca.pem \
+    --cloud-config= \
+    --cloud-provider= \
+    --enable-swagger-ui=true --etcd-cafile=/etc/kubernetes/ssl/ca.pem \
+    --etcd-certfile=/etc/kubernetes/ssl/kubernetes.pem \
+    --etcd-keyfile=/etc/kubernetes/ssl/kubernetes-key.pem \
+    --etcd-prefix=/kubernetes \
+    --etcd-servers=https://20.30.40.16:2379,https://20.30.40.17:2379,https://20.30.40.18:2379 \
+    --event-ttl=1h \
+    --experimental-bootstrap-token-auth \
+    --insecure-bind-address=20.30.40.18 \
+    --insecure-port=7070 \
+    --kubelet-https=true \
+    --log-dir=/var/log/kubernetes \
+    --log-flush-frequency=5s \
+    --logtostderr=false \
+    --runtime-config=rbac.authorization.k8s.io/v1beta1,networking.k8s.io/v1 \
+    --secure-port=5443 \
+    --service-account-key-file=/etc/kubernetes/ssl/ca-key.pem \
+    --service-cluster-ip-range=10.20.0.0/16\
+    --service-node-port-range=30000-32767 \
+    --tls-cert-file=/etc/kubernetes/ssl/kubernetes.pem \
+    --tls-private-key-file=/etc/kubernetes/ssl/kubernetes-key.pem \
+    --token-auth-file=/etc/kubernetes/token.csv \
+    --v=3
+
+Restart=on-failure
+RestartSec=5
+Type=notify
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+# 所有节点的kube-controller-manager.service文件全部一致
+vi /usr/lib/systemd/system/kube-controller-manager.service
+[Unit]
+Description=Kubernetes Controller Manager
+Documentation=https://github.com/kubernetes/kubernetes
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/kube-controller-manager \
+    --address=127.0.0.1 \
+    --allocate-node-cidrs=false \
+    --alsologtostderr \
+    --cloud-config= \
+    --cloud-provider= \
+    --cluster-cidr=10.10.0.0/16 \
+    --cluster-name=kubernetes \
+    --cluster-signing-cert-file=/etc/kubernetes/ssl/ca.pem \
+    --cluster-signing-key-file=/etc/kubernetes/ssl/ca-key.pem \
+    --configure-cloud-routes=false \
+    --controller-start-interval=0 \
+    --leader-elect=true \
+    --leader-elect-lease-duration=15s \
+    --leader-elect-renew-deadline=10s \
+    --leader-elect-retry-period=2s \
+    --log-dir=/var/log/kubernetes \
+    --log-flush-frequency=5s \
+    --logtostderr=false \
+    --master=http://20.30.40.16:7070 \
+    --node-cidr-mask-size=20 \
+    --port=10252 \
+    --root-ca-file=/etc/kubernetes/ssl/ca.pem \
+    --service-account-private-key-file=/etc/kubernetes/ssl/ca-key.pem \
+    --service-cluster-ip-range=10.20.0.0/16 \
+    --v=3
+Restart=on-failure
+RestartSec=5
+Type=simple
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+# 所有节点的kube-scheduler.service文件全部一致
+vi /usr/lib/systemd/system/kube-scheduler.service
+[Unit]
+Description=Kubernetes Scheduler Plugin
+Documentation=https://github.com/kubernetes/kubernetes
+After=network.target
+
+[Service]
+User=root
+
+ExecStart=/usr/local/bin/kube-scheduler \
+    --address=127.0.0.1 \
+    --algorithm-provider=DefaultProvider \
+    --alsologtostderr \
+    --leader-elect=true \
+    --leader-elect-lease-duration=15s \
+    --leader-elect-renew-deadline=10s \
+    --leader-elect-retry-period=2s \
+    --log-dir=/var/log/kubernetes \
+    --log-flush-frequency=5s \
+    --logtostderr=false \
+    --master=http://20.30.40.16:7070 \
+    --port=10251 \
+    --v=3
+
+Restart=on-failure
+RestartSec=5
+Type=simple
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+for id in kube-{apiserver,controller-manager,scheduler};do systemctl enable $id;systemctl start $id;done
+\end{code-in-enumerate}
+
+  \1 配置kubernetes node服务
+kubernetes的node服务主要包含如下的几个部分：kubelet和kube-proxy。
+\begin{code-in-enumerate}{bash}
+# 每个节点增加calico的配置文件
+vi /etc/cni/net.d/calico-node.conf
+{
+    "name": "calico-k8s-network",
+    "cniVersion": "0.1.0",
+    "type": "calico",
+    "log_level": "info",
+    "ipam": {
+        "type": "calico-ipam"
+    }
+}
+# 增加kubelet.service
+# k8s1, 20.30.40.16
+vi /usr/lib/systemd/system/kubelet.service
+[Unit]
+Description=Kubernetes Kubelet Server
+Documentation=https://github.com/kubernetes/kubernetes
+After=docker.service
+Requires=docker.service
+
+[Service]
+User=root
+
+WorkingDirectory=/var/lib/kubelet
+
+ExecStart=/usr/local/bin/kubelet \
+    --address=20.30.40.16 \
+    --allow-privileged=true \
+    --bootstrap-kubeconfig=/etc/kubernetes/kubelet-bootstrap.kubeconfig \
+    --cadvisor-port=4194 \
+    --cert-dir=/etc/kubernetes/ssl \
+    --cni-bin-dir=/usr/local/bin \
+    --cni-conf-dir=/etc/cni/net.d \
+    --cloud-config= \
+    --cloud-provider= \
+    --cluster-dns=10.20.0.2 \
+    --cluster-domain=k8s.zhangjl.suse\
+    --fail-swap-on=false \
+    --healthz-port=10248 \
+    --hostname-override= \
+    --kubeconfig=/etc/kubernetes/kubelet.kubeconfig \
+    --log-dir=/var/log/kubernetes \
+    --log-flush-frequency=5s \
+    --logtostderr=false \
+    --network-plugin=cni \
+    --pod-infra-container-image=gcr.io/google_containers/pause:3.0 \
+    --port=10250 \
+    --read-only-port=10255 \
+    --register-node=true \
+    --v=3
+
+Restart=on-failure
+RestartSec=5
+Type=simple
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+# k8s2, 20.30.40.17
+vi /usr/lib/systemd/system/kubelet.service
+[Unit]
+Description=Kubernetes Kubelet Server
+Documentation=https://github.com/kubernetes/kubernetes
+After=docker.service
+Requires=docker.service
+
+[Service]
+User=root
+
+WorkingDirectory=/var/lib/kubelet
+
+ExecStart=/usr/local/bin/kubelet \
+    --address=20.30.40.17 \
+    --allow-privileged=true \
+    --bootstrap-kubeconfig=/etc/kubernetes/kubelet-bootstrap.kubeconfig \
+    --cadvisor-port=4194 \
+    --cert-dir=/etc/kubernetes/ssl \
+    --cni-bin-dir=/usr/local/bin \
+    --cni-conf-dir=/etc/cni/net.d \
+    --cloud-config= \
+    --cloud-provider= \
+    --cluster-dns=10.20.0.2 \
+    --cluster-domain=k8s.zhangjl.suse\
+    --fail-swap-on=false \
+    --healthz-port=10248 \
+    --hostname-override= \
+    --kubeconfig=/etc/kubernetes/kubelet.kubeconfig \
+    --log-dir=/var/log/kubernetes \
+    --log-flush-frequency=5s \
+    --logtostderr=false \
+    --network-plugin=cni \
+    --pod-infra-container-image=gcr.io/google_containers/pause:3.0 \
+    --port=10250 \
+    --read-only-port=10255 \
+    --register-node=true \
+    --v=3
+
+Restart=on-failure
+RestartSec=5
+Type=simple
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+# k8s3, 20.30.40.18
+vi /usr/lib/systemd/system/kubelet.service
+[Unit]
+Description=Kubernetes Kubelet Server
+Documentation=https://github.com/kubernetes/kubernetes
+After=docker.service
+Requires=docker.service
+
+[Service]
+User=root
+
+WorkingDirectory=/var/lib/kubelet
+
+ExecStart=/usr/local/bin/kubelet \
+    --address=20.30.40.18 \
+    --allow-privileged=true \
+    --bootstrap-kubeconfig=/etc/kubernetes/kubelet-bootstrap.kubeconfig \
+    --cadvisor-port=4194 \
+    --cert-dir=/etc/kubernetes/ssl \
+    --cni-bin-dir=/usr/local/bin \
+    --cni-conf-dir=/etc/cni/net.d \
+    --cloud-config= \
+    --cloud-provider= \
+    --cluster-dns=10.20.0.2 \
+    --cluster-domain=k8s.zhangjl.suse\
+    --fail-swap-on=false \
+    --healthz-port=10248 \
+    --hostname-override= \
+    --kubeconfig=/etc/kubernetes/kubelet.kubeconfig \
+    --log-dir=/var/log/kubernetes \
+    --log-flush-frequency=5s \
+    --logtostderr=false \
+    --network-plugin=cni \
+    --pod-infra-container-image=gcr.io/google_containers/pause:3.0 \
+    --port=10250 \
+    --read-only-port=10255 \
+    --register-node=true \
+    --v=3
+
+Restart=on-failure
+RestartSec=5
+Type=simple
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+# 增加kube-proxy.service
+# k8s1, 20.30.40.16
+vi /usr/lib/systemd/system/kube-proxy.service
+[Unit]
+Description=Kubernetes Kube-Proxy Server
+Documentation=https://github.com/kubernetes/kubernetes
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/kube-proxy \
+    --alsologtostderr=false \
+    --bind-address=20.30.40.16 \
+    --cluster-cidr=10.10.0.0/16 \
+    --hostname-override= \
+    --kubeconfig=/etc/kubernetes/kube-proxy.kubeconfig \
+    --log-dir=/var/log/kubernetes \
+    --log-flush-frequency=5s \
+    --logtostderr=false \
+    --proxy-mode=iptables \
+    --v=3
+Restart=on-failure
+RestartSec=5
+Type=simple
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+# k8s2, 20.30.40.17
+vi /usr/lib/systemd/system/kube-proxy.service
+[Unit]
+Description=Kubernetes Kube-Proxy Server
+Documentation=https://github.com/kubernetes/kubernetes
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/kube-proxy \
+    --alsologtostderr=false \
+    --bind-address=20.30.40.17 \
+    --cluster-cidr=10.10.0.0/16 \
+    --hostname-override= \
+    --kubeconfig=/etc/kubernetes/kube-proxy.kubeconfig \
+    --log-dir=/var/log/kubernetes \
+    --log-flush-frequency=5s \
+    --logtostderr=false \
+    --proxy-mode=iptables \
+    --v=3
+Restart=on-failure
+RestartSec=5
+Type=simple
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+# k8s3, 20.30.40.18
+vi /usr/lib/systemd/system/kube-proxy.service
+[Unit]
+Description=Kubernetes Kube-Proxy Server
+Documentation=https://github.com/kubernetes/kubernetes
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/kube-proxy \
+    --alsologtostderr=false \
+    --bind-address=20.30.40.18 \
+    --cluster-cidr=10.10.0.0/16 \
+    --hostname-override= \
+    --kubeconfig=/etc/kubernetes/kube-proxy.kubeconfig \
+    --log-dir=/var/log/kubernetes \
+    --log-flush-frequency=5s \
+    --logtostderr=false \
+    --proxy-mode=iptables \
+    --v=3
+Restart=on-failure
+RestartSec=5
+Type=simple
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+
+kubectl create clusterrolebinding kubelet-bootstrap \
+            --clusterrole=system:node-bootstrapper \
+            --user=kubelet-bootstrap
+for id in {kubelet,kube-proxy};do systemctl enable $id;systemctl start $id;done
+
+kubectl get certificatesigningrequest | awk '/Pending/{print $1}' |xargs -i kubectl certificate approve {}
+for id in k8s{1..3};do kubectl label node $id "pdmi.cn/group=developer" --overwrite;done
+kubectl label namespace kube-system ns-name=kube-system --overwrite
+
+\end{code-in-enumerate}
+  \1 配置Calico服务
+在该文档中，不再使用flannel作为容器集群的网络方案，而是使用calico。calico大部分都是容器，因此需要借助k8s本身
+来部署calico。需要使用到的k8s的部署yaml模板文件主要是\textattachfile{calico.yaml}{\textcolor{blue}{calico.yaml}}和\textattachfile{calico-rbac.yaml}{\textcolor{blue}{calico-rbac.yaml}}
+\begin{code-in-enumerate}{bash}
+# 修改模板文件内容
+sed -i -r \
+    -e "s|__CALICO_NODE_IMAGE__|quay.io/calico/node:v2.6.4|" \
+    -e "s|__CALICO_CNI_IMAGE__|quay.io/calico/cni:v1.11.2|" \
+    -e "s|__CALICO_KUBE_CONTROLLERS_IMAGE__|quay.io/calico/kube-controllers:v1.0.2|" \
+    -e "s|__CALICO_IPV4POOL_CIDR__|10.10.0.0/16|" \
+    -e "s|__CNI_BIN_DIR__|/usr/local/bin|" \
+    -e "s|__CNI_CONF_DIR__|/etc/cni/net.d|" \
+    -e "s|__DESTINATION__||" \
+    -e "s|^(  etcd_endpoints: ).*|\1\"https://20.30.40.16:2379,https://20.30.40.17:2379,https://20.30.40.18:2379\"|" \
+    /opt/calico/calico.yaml
+
+ETCD_CA_FILE_BASE64=$(base64 "/etc/kubernetes/ssl/ca.pem" |tr -d '\n')
+ETCD_CERT_FILE_BASE64=$(base64 "/etc/kubernetes/ssl/kubernetes.pem" |tr -d '\n')
+ETCD_KEY_FILE_BASE64=$(base64 "/etc/kubernetes/ssl/kubernetes-key.pem" |tr -d '\n')
+sed -i -r \
+    -e "s|^  #? *etcd-ca: .*|  etcd-ca: ${ETCD_CA_FILE_BASE64}|" \
+    -e "s|^  #? *etcd-cert: .*|  etcd-cert: ${ETCD_CERT_FILE_BASE64}|" \
+    -e "s|^  #? *etcd-key: .*|  etcd-key: ${ETCD_KEY_FILE_BASE64}|" \
+    -e "s|^(  etcd_ca: ).*|\1\"/calico-secrets/etcd-ca\"|" \
+    -e "s|^(  etcd_cert: ).*|\1\"/calico-secrets/etcd-cert\"|" \
+    -e "s|^(  etcd_key: ).*|\1\"/calico-secrets/etcd-key\"|" \
+    /opt/calico/calico.yaml
+
+# 创建calico需要的容器
+kubectl create -f /opt/calico
+
+# 备份calico的配置文件
+for id in k8s{1..3};do ssh $id mv /etc/cni/net.d/calico-node.conf /etc/cni/net.d/calico-node.conf_bak;done
+\end{code-in-enumerate}
+
+\end{outline}
