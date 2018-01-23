@@ -192,6 +192,94 @@ crash /usr/lib/debug/lib/modules/3.10.0-327.18.2.el7.x86_64/vmlinux vmcore
 
 通过以上的命令，即可分析core dump的问题根源。
 
+\section{Libvirt tls迁移}
+\begin{code-block}{bash}
+mkdir -p /etc/pki/libvirt/private;
+mkdir -p /opt/libvirttls;
+cd /opt/libvirttls
+certtool --generate-privkey > cakey.pem
+cat >ca.info<<EOF
+cn = Awcloud
+expiration_date = "2100-01-01 00:00:00"
+ca
+cert_signing_key
+EOF
+certtool --generate-self-signed --load-privkey cakey.pem --template ca.info --outfile cacert.pem
+\end{code-block}
+
+将生成的cakey.pem和cacert.pem复制到所有node节点的/etc/pki/CA下
+
+制作服务器证书
+\begin{code-block}{bash}
+cd /opt/libvirttls
+certtool --generate-privkey > serverkey.pem
+export host=`hostname`
+cat> server.info<<EOF
+organization = Awcloud
+cn = $host
+expiration_date = "2100-01-01 00:00:00"
+tls_www_server
+encryption_key
+signing_key
+EOF
+certtool --generate-certificate --load-privkey serverkey.pem \
+    --load-ca-certificate /etc/pki/CA/cacert.pem \
+    --load-ca-privkey /etc/pki/CA/cakey.pem \
+    --template server.info --outfile servercert.pem
+mv servercert.pem /etc/pki/libvirt;
+mv serverkey.pem /etc/pki/libvirt/private;
+\end{code-block}
+
+制作客户端证书
+\begin{code-block}{bash}
+cd /opt/libvirttls
+certtool --generate-privkey > clientkey.pem
+export host=`hostname`
+cat> client.info<<EOF
+country = CN
+state = HB
+locality = Beijing
+organization = Awcloud
+cn = $host
+expiration_date = "2100-01-01 00:00:00"
+tls_www_client
+encryption_key
+signing_key
+EOF
+certtool --generate-certificate --load-privkey clientkey.pem \
+    --load-ca-certificate /etc/pki/CA/cacert.pem \
+    --load-ca-privkey /etc/pki/CA/cakey.pem \
+    --template client.info --outfile clientcert.pem
+mv clientcert.pem /etc/pki/libvirt;
+mv clientkey.pem /etc/pki/libvirt/private;
+\end{code-block}
+
+修改libvirt配置文件
+\begin{code-block}{bash}
+vi /etc/sysconfig/libvirtd
+LIBVIRTD_ARGS="--listen"
+
+vi /etc/libvirt/libvirtd.conf
+listen_tls = 1
+tls_port = "16514"
+key_file = "/etc/pki/libvirt/private/serverkey.pem"
+cert_file = "/etc/pki/libvirt/servercert.pem"
+ca_file = "/etc/pki/CA/cacert.pem"
+tls_no_verify_certificate = 1
+\end{code-block}
+
+重启libvirt
+\begin{code-block}{bash}
+/etc/init.d/libvirtd restart
+\end{code-block}
+
+如果出现16514，则说明libvirt配置成功。执行操作
+\begin{code-block}{bash}
+virsh -c qemu+tls://<hostname>/system
+\end{code-block}
+
+如果能够连接成功，说明libvirt的tls连接配置正确。
+
 \section{kvm嵌套虚拟化}
 \begin{code-block}{bash}
 # 升级kernel到4.10以上版本
