@@ -139,3 +139,17 @@ void destroy_tree(tree *root){
     visit_tree_root_last(root, visit);
 }
 \end{code-block}
+
+\section{宏定义的高级使用}
+\begin{outline}[enumerate]
+
+\1 使用typeof创建范型宏
+\begin{code-in-enumerate}{bash}
+#define MIN(x, y) ({\
+    typeof(x) _min1 = (x);          \
+    typeof(y) _min2 = (y);          \
+    (void) (&_min1 == &_min2);      \
+    _min1 < _min2 ? _min1 : _min2; })
+\end{code-in-enumerate}
+
+\end{outline}
