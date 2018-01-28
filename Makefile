@@ -19,6 +19,7 @@ help:
 	@echo "Please use \`make <target>' where <target> is one of"
 	@echo "  latexpdf   to make LaTeX files and run them through xelatex"
 
+.PHONY: clean
 clean:
 	rm -rf *.aux *.bbl *.blg *.log *.out *.pyg *.toc *.atfi _minted-docs
 
