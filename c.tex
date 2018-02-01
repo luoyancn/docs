@@ -1,5 +1,20 @@
 \chapter{C}
 
+\section{通用交换函数}
+通用的交换函数（非字符串）
+\begin{code-block}{c}
+#include <stdlib.h>
+#include <string.h>
+void swap_object(void * first, void * last, size_t size)
+{
+    void * tmp = malloc(size);
+    memcpy(tmp, first, size);
+    memcpy(first, last, size);
+    memcpy(last, tmp, size);
+    free(tmp);
+}
+\end{code-block}
+
 \section{柔性数组}
 C语言的数据和python的不一样，是一个定长的，也就是说，需要预先设定好长度。如果需要
 使用变长数组，则需要使用指针。通过指针的方式，一个一个的分配。但是，这种方式，不利于
