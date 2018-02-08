@@ -159,12 +159,24 @@ void destroy_tree(tree *root){
 \begin{outline}[enumerate]
 
 \1 使用typeof创建范型宏
-\begin{code-in-enumerate}{bash}
+\begin{code-in-enumerate}{c}
 #define MIN(x, y) ({\
     typeof(x) _min1 = (x);          \
     typeof(y) _min2 = (y);          \
     (void) (&_min1 == &_min2);      \
     _min1 < _min2 ? _min1 : _min2; })
+\end{code-in-enumerate}
+
+\1 定义通用的错误处理
+\begin{code-in-enumerate}{c}
+#define errout(...) fprintf(stderr, "File %s Line %d ", __FILE__, __LINE__);\
+        fprintf(stderr, ##__VA_ARGS__)
+int main(int argc, char * argv[])
+{
+    errout("swap_object function %d\n", 123);
+    errout("swap_object function\n");
+    return 0;
+}
 \end{code-in-enumerate}
 
 \end{outline}
