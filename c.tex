@@ -166,8 +166,6 @@ void destroy_tree(tree *root){
     (void) (&_min1 == &_min2);      \
     _min1 < _min2 ? _min1 : _min2; })
 \end{code-in-enumerate}
-\par\parshape0 \linewidth\textwidth
-\setlength{\parindent}{2em}
 但是，如果在编译的时候，使用了-std和-ansi参数，则上面的宏会失效。需要对他做部分的修改。
 \begin{code-in-enumerate}{c}
 #define MIN(x, y) ({                    \
@@ -176,8 +174,6 @@ void destroy_tree(tree *root){
     (void) (&_min1 == &_min2);          \
     _min1 < _min2 ? _min1 : _min2; })
 \end{code-in-enumerate}
-\par\parshape0 \linewidth\textwidth
-\setlength{\parindent}{2em}
 另外，使用-std和-ansi参数的时候，typeof需要替换为\_\_typeof\_\_, asm需要替换为
 \_\_asm\_\_，inline也需要替换为\_\_inline\_\_。
 
@@ -228,12 +224,9 @@ int main(int argc, char **argv, char **envp)
     return 0;
 }
 \end{code-in-enumerate}
-\par\parshape0 \linewidth\textwidth
-\setlength{\parindent}{2em}
 由于main方法可以接收多个参数，因此上述代码是正确合法的。现在简单的分析一下。
 分析的手法是直接使用gcc -E参数来观察预处理的结果。
 
-\setlength{\parindent}{2em}
 不添加CONFIG\_SDL宏，其结果是：
 \begin{code-in-enumerate}{bash}
 gcc -E test.c
@@ -243,8 +236,6 @@ int main(int argc, char **argv, char **envp)
     return 0;
 }
 \end{code-in-enumerate}
-\par\parshape0 \linewidth\textwidth
-\setlength{\parindent}{2em}
 添加CONFIG\_SDL宏，其结果是：
 \begin{code-in-enumerate}{bash}
 gcc -E -D CONFIG_SDL test.c
@@ -261,8 +252,6 @@ int qemu_main(int argc, char **argv, char **envp)
     return 0;
 }
 \end{code-in-enumerate}
-\par\parshape0 \linewidth\textwidth
-\setlength{\parindent}{2em}
 从代码中可以看到，实际上，整个处理过程中通过undefine main和define main qemu\_main
 这2条语句，就直接修改了整个操作的入口。实际上，这个代码的核心，就是将函数名当作
 了一个宏定义，通过简单的名称替换，达到更改程序入口的目的。以上代码的用法，在qemu的

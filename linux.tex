@@ -382,5 +382,63 @@ virsh qemu-agent-command 25 '{"execute":"guest-info"}' --pretty
 virsh qemu-monitor-command 25 '{"execute":"query-commands"}' --pretty
 \end{code-in-enumerate}
 
-
 \end{outline}
+
+\section{Linux Kernel}
+\subsection{Kernel编译}
+\subsubsection{安装必要的软件包}
+\begin{code-block}{bash}
+yum install ncurses-devel bison flex elfutils-libelf-devel bc openssl-devel -y
+\end{code-block}
+
+\subsubsection{设置编译选项}
+\begin{code-block}{bash}
+make menuconfig
+\end{code-block}
+
+\subsubsection{编译内核}
+\begin{code-block}{bash}
+make
+# 如果是在多核服务器上进行编译，可以增加编译参数，提高编译速度
+# make -j32 #32表示cpu的核数
+\end{code-block}
+
+\subsubsection{安装内核模块}
+\begin{code-block}{bash}
+make modules_install
+\end{code-block}
+
+安装内核模块的操作，会将编译生成的内核模块复制到/lib/modules/\{kernel-version\}/下。
+
+\subsubsection{安装内核}
+\begin{code-block}{bash}
+make install
+\end{code-block}
+
+安装内核的过程主要完成了以下的工作：将编译内核时生成的内核镜像bzImage拷贝到/boot目录下，
+并将这个镜像命名为vmlinuz-\{kernel-version\}。如果使用x86的cpu，则该镜像位于arch/x86/boot/目录下；
+将目录下的System.map拷贝到/boot/目录下，重新命名为System.map-\{kernel-version\}，该文件中存放了内核的符号表。
+将目录下的.config拷贝到/boot/目录下，重新命名为config-\{kernel-version\}
+
+\subsubsection{创建initrd.img文件}
+\begin{code-block}{bash}
+mkinitrd  /boot/initrd.img-{kernel-version} {kernel-version}
+\end{code-block}
+
+initrd.img即为初始化的ramdisk文件，它是一个镜像文件。
+
+\subsubsection{修改grub}
+\begin{code-block}{bash}
+grub2-mkconfig -o /boot/grub2/grub.cfg
+\end{code-block}
+
+修改完成之后，重启服务器，即可发现新编译的内核，如下图：
+图 \nameref{fig:new-kernel}
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.6]{new-kernel.png}
+  \caption{新编译内核 \protect\footnotemark}
+  \label{fig:new-kernel}
+\end{figure}
+
+\subsection{Kernel编译}
