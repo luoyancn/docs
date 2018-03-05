@@ -441,4 +441,60 @@ grub2-mkconfig -o /boot/grub2/grub.cfg
   \label{fig:new-kernel}
 \end{figure}
 
-\subsection{Kernel编译}
+\subsection{编写自己的内核模块}
+在编写自己的内核模块的时候，一般需要2个文件：一个c代码文件，包含了自己的内核模块
+内在逻辑实现；一个makefile文件，用于编译自己的内核模块。以最简单的hello world为例。
+C代码如下：
+\begin{code-block}{c}
+// hello_kernel.c
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/kernel.h>
+
+// 必须，标明模块的许可声明
+MODULE_LICENSE("GPL");
+
+// 模块的加载函数，即加载该模块之后，执行的操作
+static int hello_init(void)
+{
+    printk(KERN_ALERT "hello,I am zhangjl\n");
+    return 0;
+}
+
+// 模块的卸载函数，即该模块卸载之后，应当执行什么操作
+static void hello_exit(void)
+{
+    printk(KERN_ALERT "goodbye,kernel\n");
+}
+
+// 注册模块对应的操作
+module_init(hello_init);
+module_exit(hello_exit);
+
+// 可选，表示该模块的作者和其他信息
+MODULE_AUTHOR("zhangjl");
+MODULE_DESCRIPTION("This is a simple example!\n");
+MODULE_ALIAS("A simplest example");
+\end{code-block}
+
+Makefile文件内容如下：
+\begin{code-block}{make}
+obj-m += hello_kernel.o
+#generate the path
+CURRENT_PATH:=$(shell pwd)
+#the current kernel version number
+LINUX_KERNEL:=$(shell uname -r)
+#the absolute path
+LINUX_KERNEL_PATH:=/usr/src/kernels/$(LINUX_KERNEL)
+#complie object
+all:
+        make -C $(LINUX_KERNEL_PATH) M=$(CURRENT_PATH) modules
+#clean
+clean:
+        make -C $(LINUX_KERNEL_PATH) M=$(CURRENT_PATH) clean
+\end{code-block}
+
+然后执行make。执行完毕之后，会在当前目录生成hello\_kernel.ko，这个文件即是我们
+所需要的内核模块。执行insmod hello\_kernel.ko，在/var/log/message当中，会发现有hello的输出，执行
+rmmod hello\_kernel，在/var/log/message当中，会发现有goodbyd的输出。整个简单的模块
+就算完成了。
