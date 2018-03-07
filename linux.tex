@@ -498,3 +498,68 @@ clean:
 所需要的内核模块。执行insmod hello\_kernel.ko，在/var/log/message当中，会发现有hello的输出，执行
 rmmod hello\_kernel，在/var/log/message当中，会发现有goodbyd的输出。整个简单的模块
 就算完成了。
+
+\subsection{Linux的进程遍历}
+一个进程是由进程控制块（PCB），代码段和数据段组成的；并且，OS通常是通过PCB来感知
+一个进程的存在。其实PCB就是操作系统对每个进程的代码描述。linux内核中使用task\_struct
+结构来描述一个PCB（具体可以在linux/kernel/sched.c查看源码）；多个进程则常常使用双链表
+等来进行组织。比如可运行状态的进程组成可运行队列，等待状态的进程组成等待队列等。
+
+list\_head为linux内核当中常用的数据结构，用于构造双链表，关于list\_head的具体用法，可以
+参见c部分的宏定义高级使用部分。而task\_struct的定义类似于如下的代码：
+\begin{code-block}{c}
+struct task_struct {
+        struct thread_info    thread_info;
+        struct list_head      tasks;
+};
+\end{code-block}
+
+由于该结构体当中存在list\_head的变量，因此，我们可以利用该变量来访问整个task\_strut,
+进而获取我们需要的信息。完整代码如下：
+\begin{code-block}{c}
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/sched.h>
+#include <linux/sem.h>
+#include <linux/list.h>
+
+MODULE_LICENSE("GPL");
+static int hello_init(void)
+{
+        printk(KERN_ALERT "hello,I am zhangjl\n");
+        return 0;
+}
+
+static int traverse_init(void)
+{
+       struct task_struct *pos;
+       struct list_head *current_head;
+       int count=0;
+       printk("Traversal module is working..\n");
+       current_head=&(current->tasks);
+       list_for_each_entry(pos,current_head,tasks)
+       {
+              count++;
+              printk("[process %d]: %s\'s pid is %d\n",count,pos->comm,pos->pid);
+       }
+       printk(KERN_ALERT"The number of process is:%d\n",count);
+       return 0;
+}
+
+static void hello_exit(void)
+{
+    printk(KERN_ALERT "goodbye,kernel\n");
+    traverse_init();
+}
+
+module_init(hello_init);
+module_exit(hello_exit);
+MODULE_AUTHOR("zhangjl");
+MODULE_DESCRIPTION("This is a simple example!\n");
+MODULE_ALIAS("A simplest example");
+
+\end{code-block}
+
+其中，current是一个宏，即为系统内正在运行的进程。编译该文件，然后加载该模块，在
+系统日志当中，即可发现对应的输出。

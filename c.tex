@@ -256,6 +256,138 @@ int qemu_main(int argc, char **argv, char **envp)
 这2条语句，就直接修改了整个操作的入口。实际上，这个代码的核心，就是将函数名当作
 了一个宏定义，通过简单的名称替换，达到更改程序入口的目的。以上代码的用法，在qemu的
 源码vl.c代码当中。
+
+\1 获取结构体的数据偏移量
+\begin{code-in-enumerate}{c}
+#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
+typedef struct user user;
+struct user{
+    char * name;
+    uint8_t age;
+    user* prev;
+    user* next;
+};
+
+int main(int argc, char * argv[])
+{
+    printf("%ld\n",offsetof(user, name);
+    printf("%ld\n",offsetof(user, age);
+    printf("%ld\n",offsetof(user, prev);
+    printf("%ld\n",offsetof(user, next);
+    return 0;
+}
+\end{code-in-enumerate}
+
+在((TYPE *)0)->MEMBER)这个其实就是提取type类型中的member成员，那么\&((TYPE *)0)->MEMBER)
+得到member成员的地址，再强制转换成size\_t类型（unsigned int）。
+但是这个地址很特别，因为TYPE类型是从0x0开始定义的，那么我们现在得到的这个地址就是
+member成员在TYPE数据类型中的偏移量。这个宏定义的效果和c库当中的offsetof（stddef.h）功能一样。
+以上的代码当中，输出的结果是0,8,16和24（64位平台）。原因是每一个指针的大小固定为
+平台的位数，64位为8字节，32位为4字节。
+
+\1 根据偏移量获取数据地址
+\begin{code-in-enumerate}{c}
+#define container_of(ptr, type, member) ({                           \
+        const typeof( ((type *)0)->member ) *__mptr = (ptr);         \
+        (type *)( (char *)__mptr - offsetof(type,member) );})
+#define list_entry(ptr, type, member)                                \
+        container_of(ptr, type, member)
+\end{code-in-enumerate}
+
+const typeof(((type *)0)->member) *\_\_mptr = (ptr);首先将0转化成type类型的指针变量
+（这个指针变量的地址为0x0），然后再引用member成员（对应就是((type *)0)->member )）。
+注意这里的typeof（x），是返回x的数据类型，那么 typeof(((type *)0)->member)其实就是
+返回member成员的数据类型。那么这条语句整体就是将\_\_mptr强制转换成member成员的数据类型，
+再将ptr的赋给它(ptr本身就是指向member的指针)。offsetof得到的是member成员在TYPE数据类型
+中的偏移量。 (type *)((char *)\_\_mptr – offsetof(type,member))求的就是type的地址，
+即指向type的指针。不过这里要注意\_\_mptr被强制转换成了(char *)，为何要这么做？
+因为如果member是非char型的变量，比如为int型，并且假设返回值为offset，那么这样直接减去偏移量，
+实际上\_\_mptr会减去sizeof(int)*offset！这一点和指针加一减一的原理相同。当然，char*指针可以
+替换为void*指针，可能会更加通用。有了这个指针，那么就可以随意引用其内的成员了。关于container\_of
+的第二行，其效果类似如下。通过这个测试代码，可以发现pos的值和zhangjl的地址的值是
+一模一样的，因此，可以通过pos指针访问student zhangjl当中的所有数据。
+\begin{code-in-enumerate}{c}
+int main(int argc, char * argv[])
+{
+        LIST_HEAD(first);
+        student zhangjl = {.name="zhangjl", .age=18, .order=head};
+        student *pos;
+        printf("%x\n", &zhangjl);
+        printf("%x\n", &zhangjl.order);
+        printf("%ld\n", offsetof(student, order));
+        //printf("%x\n", (void * )&zhangjl.order - offsetof(student, order));
+        printf("%x\n", (char * )&zhangjl.order - offsetof(student, order));
+        pos = (student*)((void *)&zhangjl.order - offsetof(student, order));
+        printf("%x\n", pos);
+        return 0;
+}
+\end{code-in-enumerate}
+
+具体使用可以参见下方完整代码。
+\begin{code-in-enumerate}{c}
+typedef struct list_head list_head;
+struct list_head {
+        list_head *next, *prev;
+};
+
+typedef struct student student;
+struct student {
+        char * name;
+        int age;
+        list_head order;
+};
+
+#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
+
+#define LIST_HEAD_INIT(name) { &(name), &(name) }
+#define LIST_HEAD(name)                                              \
+        list_head name = LIST_HEAD_INIT(name)
+
+#define container_of(ptr, type, member) ({                           \
+        const typeof( ((type *)0)->member ) *__mptr = (ptr);         \
+        (type *)( (char *)__mptr - offsetof(type,member) );})
+
+#define list_entry(ptr, type, member)                                \
+        container_of(ptr, type, member)
+
+#define list_for_each_entry(pos, head, member)                       \
+        for (pos = list_entry((head)->next, typeof(*pos), member);   \
+            &pos->member != (head);                                  \
+            pos = list_entry(pos->member.next, typeof(*pos), member))
+
+static inline void __list_add(list_head *_new,
+                list_head *prev, list_head *next)
+{
+        next->prev = _new;
+        _new->next = next;
+        _new->prev = prev;
+        prev->next = _new;
+}
+
+static inline void list_add_tail(list_head *_new, list_head *head)
+{
+        __list_add(_new, head->prev, head);
+}
+
+int main(int argc, char * argv[])
+{
+        LIST_HEAD(head);
+        LIST_HEAD(first);
+        student zhangjl = {.name="zhangjl", .age=18, .order=head};
+        student luoyan = {.name="luoyan", .age=18, .order=first};
+        list_add_tail(&(luoyan.order), &(zhangjl.order));
+
+        student *pos;
+
+        list_for_each_entry(pos, &head, order){
+                printf("%ld\n", pos);
+                printf("%s\n", pos->name);
+        }
+
+        return 0;
+}
+\end{code-in-enumerate}
+
 \end{outline}
 
 \section{匿名结构体}
