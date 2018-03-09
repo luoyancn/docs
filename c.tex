@@ -372,14 +372,15 @@ static inline void list_add_tail(list_head *_new, list_head *head)
 int main(int argc, char * argv[])
 {
         LIST_HEAD(head);
-        LIST_HEAD(first);
         student zhangjl = {.name="zhangjl", .age=18, .order=head};
-        student luoyan = {.name="luoyan", .age=18, .order=first};
+        //student luoyan = {.name="luoyan", .age=18, .order=first};
+        student luoyan = {.name="luoyan", .age=18, .order=LIST_HEAD_INIT(luoyan.order)};
         list_add_tail(&(luoyan.order), &(zhangjl.order));
 
         student *pos;
 
         list_for_each_entry(pos, &head, order){
+        //list_for_each_entry(pos, &zhangjl.order, order){
                 printf("%ld\n", pos);
                 printf("%s\n", pos->name);
         }
