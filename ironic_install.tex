@@ -368,6 +368,12 @@ ironic node-update $NODE_ID add \
     instance_info/ramdisk=$RAMDISK_ID \
     instance_info/root_gb=600 \
     instance_info/capabilities='{"disk_label": "gpt"}'
+# 如果使用的镜像是whole disk类型的，则命令如下修改
+#ironic node-update $NODE_ID add \
+#    instance_info/image_source=$IMAGE_ID \
+#    instance_info/root_gb=600 \
+#    instance_info/capabilities='{"disk_label": "gpt"}' \
+#    instance_info/is_whole_disk_image=True
 \end{code-block}
 
 创建所需要的flavor

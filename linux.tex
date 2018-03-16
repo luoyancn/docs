@@ -383,3 +383,19 @@ virsh qemu-monitor-command 25 '{"execute":"query-commands"}' --pretty
 \end{code-in-enumerate}
 
 \end{outline}
+
+\section{gdb在线调试运行程序}
+\begin{code-block}{bash}
+strace -p <pid>
+yum install gdb python-debuginfo
+gdb python 19427 # python的进程号
+#或者gdb attach 19427
+\end{code-block}
+
+进入gdb环境之后，直接使用gdb的命令即可进行调试。常用的命令如下
+\begin{code-block}{bash}
+info thread # 查看当前进程的信息
+bt          # 查看当前堆栈信息
+py-list     # 查看当前的python代码
+py-bt       # 查看当前的python调用堆栈
+\end{code-block}
