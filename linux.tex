@@ -382,6 +382,23 @@ virsh qemu-agent-command 25 '{"execute":"guest-info"}' --pretty
 virsh qemu-monitor-command 25 '{"execute":"query-commands"}' --pretty
 \end{code-in-enumerate}
 
+\1 通过扩充虚拟磁盘大小
+\begin{code-in-enumerate}{bash}
+# 使用qemu扩充文件大小，为磁盘增加200GB空间
+qemu-img resize /opt/qemu-kvm/ironic-vm.qcow2 +200G
+# 备份原始文件
+cp /opt/qemu-kvm/ironic-vm.qcow2 /opt/qemu-kvm/ironic-vm-200G.qcow2
+# 查看文件分区，确定根文件系统。如果不能确定，可以通过guestmount的方式，对下面的
+# 输出进行mount来确定
+virt-filesystem -a /opt/qemu-kvm/ironic-vm.qcow2
+# 对文件系统进行扩区，扩展的是磁盘分区，比如/dev/sda2这类的。不支持扩展pv和vg
+virt-resize -expand /dev/sda2 ironic-vm.qcow2 ironic-vm-200G.qcow2
+# 如果需要虚拟机磁盘包含了lv和vg，需要对lv和vg进行扩区，则应该使用如下的命令
+virt-resize -expand /dev/sda2 ironic-vm.qcow2 ironic-vm-200GB.qcow2 --LV-expand /dev/rhel/root
+# 检测文件系统的大小信息
+virt-filesystems -a ironic-vm-200.qcow2 --long -h --all
+\end{code-in-enumerate}
+
 \end{outline}
 
 \section{gdb在线调试运行程序}
