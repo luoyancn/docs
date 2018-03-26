@@ -392,11 +392,18 @@ cp /opt/qemu-kvm/ironic-vm.qcow2 /opt/qemu-kvm/ironic-vm-200G.qcow2
 # 输出进行mount来确定
 virt-filesystem -a /opt/qemu-kvm/ironic-vm.qcow2
 # 对文件系统进行扩区，扩展的是磁盘分区，比如/dev/sda2这类的。不支持扩展pv和vg
-virt-resize -expand /dev/sda2 ironic-vm.qcow2 ironic-vm-200G.qcow2
+virt-resize --expand /dev/sda2 ironic-vm.qcow2 ironic-vm-200G.qcow2
 # 如果需要虚拟机磁盘包含了lv和vg，需要对lv和vg进行扩区，则应该使用如下的命令
-virt-resize -expand /dev/sda2 ironic-vm.qcow2 ironic-vm-200GB.qcow2 --LV-expand /dev/rhel/root
+virt-resize --expand /dev/sda2 ironic-vm.qcow2 ironic-vm-200GB.qcow2 --LV-expand /dev/rhel/root
 # 检测文件系统的大小信息
 virt-filesystems -a ironic-vm-200.qcow2 --long -h --all
+# compress image file
+qemu-img convert -c -O qcow2 ironic-vm-resized.qcow2 ironic-vm.qcow2
+\end{code-in-enumerate}
+
+\1 清理linux内存
+\begin{code-in-enumerate}{bash}
+echo 1 > /proc/sys/vm/drop_caches
 \end{code-in-enumerate}
 
 \end{outline}
@@ -415,4 +422,12 @@ info thread # 查看当前进程的信息
 bt          # 查看当前堆栈信息
 py-list     # 查看当前的python代码
 py-bt       # 查看当前的python调用堆栈
+\end{code-block}
+
+\section{在线升级操作系统}
+\begin{code-block}{bash}
+dnf upgrade --refresh
+dnf install dnf-plugin-system-upgrade
+dnf system-upgrade download --releasever=27
+dnf system-upgrade reboot
 \end{code-block}
