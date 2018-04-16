@@ -263,7 +263,7 @@ int qemu_main(int argc, char **argv, char **envp)
 typedef struct user user;
 struct user{
     char * name;
-    uint8_t age;
+    uint8_t age:7; // 表示只占用该数据类型的最后7 bit，也就是说限制age不能大于127
     user* prev;
     user* next;
 };
