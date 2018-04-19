@@ -431,3 +431,21 @@ dnf install dnf-plugin-system-upgrade
 dnf system-upgrade download --releasever=27
 dnf system-upgrade reboot
 \end{code-block}
+
+\section{动态修改虚拟机vnc端口}
+\begin{code-block}{bash}
+socat READLINE UNIX-CONNECT:/var/lib/awstack/saas.monitor
+# 进入qemu控制台
+# 修改vnc端口，监听到0.0.0.0:5940
+change vnc 0.0.0.0:40
+\end{code-block}
+
+\section{Centos7进入单用户模式}
+启动虚拟机，进入引导页面之后，输入e，然后进行对应的修改
+\begin{code-block}{bash}
+# 删除linux16行以下内容
+ro rhgb quiet
+# 追加以下内容到linux16行末尾
+rw init=/bin/bash
+# 输入ctrl+x，即可进入单用户模式，进行用户信息的修改
+\end{code-block}
