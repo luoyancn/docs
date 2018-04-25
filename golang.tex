@@ -300,3 +300,34 @@ fmt.Println(time.Now().Format(CHS_TIME_LAYOR))
 // 2017-08-03 15:18:15
 // 2017年08月03日 15:18:16
 \end{code-block}
+
+\section{自动构建版本信息}
+\begin{code-block}{go}
+package main
+import (
+    "fmt"
+)
+var version = "No Version Provided"
+var buildstamp = "No build stamp Provided"
+var githash = "No githash Provided"
+func main() {
+    fmt.Printf("OceanClient Version: %s\n", version)
+    fmt.Printf("OceanClient buildstamp: %s\n", buildstamp)
+    fmt.Printf("OceanClient githash: %s\n", githash)
+}
+\end{code-block}
+
+通过以上的代码，构建出来的版本信息是空，但是，我们可以利用go自带的一些信息，来
+构建版本信息。
+\begin{code-block}{bash}
+go install -ldflags "-X main.version=0.1 -X \
+    main.buildstamp=`date '+%Y-%m-%dT%H:%M:%S'` -X main.githash=`git rev-parse HEAD`"
+\end{code-block}
+其中，main表示golang的模块或者package，version、buildstamp和githash都表示package
+当中的全局变量。最终的结果如下：
+\begin{code-block}{bash}
+/opt/github.com/learningo/bin/oceanclient version
+OceanClient Version: 0.1
+OceanClient buildstamp: 2018-04-25T15:37:38
+OceanClient githash: 7a552b1cf6aca0e775d7b5d2dd69449cab8e783a
+\end{code-block}
