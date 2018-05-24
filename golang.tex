@@ -38,6 +38,7 @@ go get -u -v github.com/sparrc/gdm
 go get -u -v github.com/kardianos/govendor
 go get -u -v github.com/tylerb/gotype-live
 go get -u -v github.com/spf13/cobra/cobra
+go get -u -v github.com/Masterminds/glide
 go get -v -u github.com/derekparker/delve/cmd/dlv
 go get -u -v github.com/davidrjenni/reftools/cmd/fillstruct
 go get -u -v golang.org/x/tools/cmd/guru
@@ -324,7 +325,7 @@ go install -ldflags "-X main.version=0.1 -X \
     main.buildstamp=`date '+%Y-%m-%dT%H:%M:%S'` -X main.githash=`git rev-parse HEAD`"
 \end{code-block}
 其中，main表示golang的模块或者package，version、buildstamp和githash都表示package
-当中的全局变量。最终的结果如下：
+当中的全局变量。例如：-X oceanstack/common.Version=0.1，最终的结果如下：
 \begin{code-block}{bash}
 /opt/github.com/learningo/bin/oceanclient version
 OceanClient Version: 0.1

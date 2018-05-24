@@ -119,6 +119,8 @@ git review -s
 cat >> /etc/sysctl.conf <<EOF
 net.ipv6.conf.all.disable_ipv6 = 1
 net.ipv6.conf.default.disable_ipv6 = 1
+fs.file-max = 1000000
+vm.max_map_count = 262144
 EOF
 vi /etc/default/grub
 GRUB_CMDLINE_LINUX="ipv6.disable=1 rd.lvm.lv=rhel/root vconsole.keymap=us vconsole.font=latarcyrheb-sun16 rhgb quiet"
@@ -390,7 +392,7 @@ qemu-img resize /opt/qemu-kvm/ironic-vm.qcow2 +200G
 cp /opt/qemu-kvm/ironic-vm.qcow2 /opt/qemu-kvm/ironic-vm-200G.qcow2
 # 查看文件分区，确定根文件系统。如果不能确定，可以通过guestmount的方式，对下面的
 # 输出进行mount来确定
-virt-filesystem -a /opt/qemu-kvm/ironic-vm.qcow2
+virt-filesystems -a /opt/qemu-kvm/ironic-vm.qcow2
 # 对文件系统进行扩区，扩展的是磁盘分区，比如/dev/sda2这类的。不支持扩展pv和vg
 virt-resize --expand /dev/sda2 ironic-vm.qcow2 ironic-vm-200G.qcow2
 # 如果需要虚拟机磁盘包含了lv和vg，需要对lv和vg进行扩区，则应该使用如下的命令
@@ -438,6 +440,7 @@ socat READLINE UNIX-CONNECT:/var/lib/awstack/saas.monitor
 # 进入qemu控制台
 # 修改vnc端口，监听到0.0.0.0:5940
 change vnc 0.0.0.0:40
+iptables -I INPUT -p tcp --dport 5940 -j ACCEPT
 \end{code-block}
 
 \section{Centos7进入单用户模式}

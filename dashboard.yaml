@@ -1,0 +1,116 @@
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: dashboard
+  namespace: kube-system
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dashboard
+  namespace: kube-system
+
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: kube-system
+  labels:
+    k8s-app: dashboard
+    version: "__KUBE_DASHBOARD_VERSION__"
+spec:
+  selector:
+    matchLabels:
+      k8s-app: dashboard
+      version: "__KUBE_DASHBOARD_VERSION__"
+  template:
+    metadata:
+      labels:
+        k8s-app: dashboard
+        version: "__KUBE_DASHBOARD_VERSION__"
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      serviceAccountName: dashboard
+      containers:
+      - name: dashboard
+        image: __KUBE_DASHBOARD_IMAGE__
+        resources:
+          limits:
+            cpu: 100m
+            memory: 50Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+        ports:
+        - name: http
+          protocol: TCP
+          containerPort: 9090
+        - name: https
+          protocol: TCP
+          containerPort: 8443
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9090
+          initialDelaySeconds: 30
+          timeoutSeconds: 30
+        args:
+        - --apiserver-host=__KUBE_INSECURE_APISERVER__
+        - --heapster-host=http://heapster
+      tolerations:
+      - key: "CriticalAddonsOnly"
+        operator: "Exists"
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: kube-system
+  labels:
+    k8s-app: dashboard
+    addonmanager.kubernetes.io/mode: Reconcile
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "Dashboard"
+spec:
+  type: NodePort
+  selector:
+    k8s-app: dashboard
+    version: "__KUBE_DASHBOARD_VERSION__"
+  ports:
+  - name: http
+    port: 9090
+    targetPort: 9090
+    nodePort: __KUBE_DASHBOARD_PORT__
+  - name: https
+    port: 8443
+    targetPort: 8443
+
+---
+
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: dashboard
+  namespace: kube-system
+spec:
+  rules:
+  - host: dashboard.__KUBE_DNS_DOMAIN__
+    http:
+      paths:
+      - backend:
+          serviceName: dashboard
+          servicePort: 9090

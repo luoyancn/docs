@@ -293,3 +293,35 @@ curl http://192.168.138.225:5000/v2/_catalog |python -m json.tool
 查看mysql这个仓库的tags列表
 curl http://192.168.138.225:5000/v2/mysql/tags/list |python -m json.tool
 \end{code-block}
+
+\subsection{更换docker的runtime}
+由于Docker是所有容器共享内核，安全隔离性存在一些问题，因此虚拟机容器是一个比较好的选择。目前，可以提供虚拟机容器的平台
+主要是hyper，clearcontainers以及2者的结合产物kata container。接下来以clearcontainers作为说明，以修改docker的
+runtime。
+\begin{code-block}{bash}
+cat >/etc/yum.repos.d<<EOF
+[clearcontainers]
+name=Clear Containers 3.X
+type=rpm-md
+baseurl=http://download.opensuse.org/repositories/home:/clearcontainers:/clear-containers-3/Fedora_27/
+gpgcheck=1
+gpgkey=http://download.opensuse.org/repositories/home:/clearcontainers:/clear-containers-3/Fedora_27/repodata/repomd.xml.key
+enabled=1
+EOF
+dnf -y install cc-runtime cc-proxy cc-shim
+
+cat >/etc/docker/daemon.json<<EOF
+{
+    "default-runtime": "cc-runtime",
+    "runtimes": {
+        "cc-runtime": {
+            "path": "/usr/bin/cc-runtime"
+        }
+    }
+}
+EOF
+
+systemctl daemon-reload
+systemctl restart docker
+\end{code-block}
+完成以上操作之后，利用docker进行新的容器创建，则会直接使用clear container作为runtime，不再使用docker本身的runtime了。
