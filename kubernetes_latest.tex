@@ -99,7 +99,7 @@ Type=notify
 #     --selinux-enabled=false \
 #     --registry-mirror=https://docker.mirrors.ustc.edu.cn
 
-# 如果是3.18内核一下，推荐使用devicemapper + thinlvm作为存储驱动，则启动命令需要修改一下。
+# 如果是3.18内核以下，推荐使用devicemapper + thinlvm作为存储驱动，则启动命令需要修改一下。
 ExecStart=/usr/bin/dockerd \
     --host=unix:///var/run/docker.sock \
     --host=tcp://0.0.0.0:2375 \
@@ -136,7 +136,8 @@ WantedBy=multi-user.target
 \end{code-in-enumerate}
 
   \1 准备对应的二进制文件
-需要的二进制文件主要包含了网络（calico:https://docs.projectcalico.org/v3.1/releases/），安全（cfssl），kubernetes以及其他插件。
+需要的二进制文件主要包含了网络（calico:https://docs.projectcalico.org/
+v3.1/releases/），安全（cfssl），kubernetes以及其他插件。
 相关的软件（除kubernetes之外）最好都是最新版本。
 \par\parshape0 \linewidth\textwidth
 \begin{center}
@@ -313,7 +314,8 @@ cfssl gencert \
 
 cp /etc/kubernetes/ssl/* /etc/etcd/ssl
 # 同时，同步到其他节点
-for id in {2..3};do scp /etc/kubernetes/ssl/* root@k8s$id:/etc/etcd/ssl;scp /etc/kubernetes/ssl/* root@k8s$id:/etc/kubernetes/ssl;done
+for id in {2..3};do scp /etc/kubernetes/ssl/* root@k8s$id:/etc/etcd/ssl; \
+    scp /etc/kubernetes/ssl/* root@k8s$id:/etc/kubernetes/ssl;done
 \end{code-in-enumerate}
 
   \1 设置kubernetes的context
@@ -1062,6 +1064,35 @@ kubectl create -f kubedns.yaml
     dashboard.yaml
 
 kubectl create -f dashboard.yaml
+\end{code-in-enumerate}
+
+\1 安装ingress
+Ingress同样使用容器的方式进行部署，部署过程中需要使用的yaml模板文件主要是
+\textattachfile{configmap.yaml}{\textcolor{blue}{configmap.yaml}}，
+\textattachfile{default-backend.yaml}{\textcolor{blue}{default-backend.yaml}}
+和\textattachfile{nginx-ingress-controller.yaml}{\textcolor{blue}{nginx-ingress-controller.yaml}}
+需要注意，ingress-controller已经不再放到gcr上了，同步的更新地址为https://github.com/kubernetes/ingress-nginx/releases。
+\begin{code-in-enumerate}{bash}
+sed -i -r \
+    -e "s|__KUBE_NGINX_INGRESS_CONTROLLER_IMAGE__|quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.12.0" \
+    -e "s|__KUBE_NGINX_INGRESS_CONTROLLER_VERSION__|0.12.0|" \
+    -e "s|__KUBE_INSECURE_APISERVER__|http://20.30.40.6:7070|" \
+    -e "s|__KUBE_INGRESS_PORT__|30082|" \
+    nginx-ingress-controller.yaml
+
+sed -i -r \
+    -e "s|__KUBE_DEFAULTBACKEND_IMAGE__|gcr.io/google-containers/defaultbackend:1.4|" \
+    -e "s|__KUBE_DEFAULTBACKEND_VERSION__|1.4|" \
+    default-backend.yaml
+
+kubectl create -f /opt/ingress
+\end{code-in-enumerate}
+
+\1 设置自动补全
+\begin{code-in-enumerate}{bash}
+yum install bash-completion -y
+kubectl completion bash > /etc/bash_completion.d/kubectl-completion
+source /etc/bash_completion.d/kubectl-completion
 \end{code-in-enumerate}
 
 至此，基本的一个kubernetes平台已经搭建完毕，可以正常使用了。

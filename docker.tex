@@ -294,7 +294,7 @@ curl http://192.168.138.225:5000/v2/_catalog |python -m json.tool
 curl http://192.168.138.225:5000/v2/mysql/tags/list |python -m json.tool
 \end{code-block}
 
-\subsection{更换docker的runtime}
+\section{更换docker的runtime}
 由于Docker是所有容器共享内核，安全隔离性存在一些问题，因此虚拟机容器是一个比较好的选择。目前，可以提供虚拟机容器的平台
 主要是hyper，clearcontainers以及2者的结合产物kata container。接下来以clearcontainers作为说明，以修改docker的
 runtime。
