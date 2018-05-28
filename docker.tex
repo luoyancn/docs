@@ -158,6 +158,8 @@ dnf install libguestfs-tools-c appliance-tools libguestfs-tools-c -y
 
   \1 创建docker的image文件
 \begin{code-in-enumerate}{bash}
+# 特别注意的是，需要在英文环境下进行操作，否则可能不成功
+export LANG=en_US.utf8
 appliance-creator -c init.ks -d -v -t /tmp -o /tmp/Fedora24 \
       --name "Fedora24" --release 24 --format=qcow2
 \end{code-in-enumerate}
@@ -171,6 +173,9 @@ virt-tar-out -a /tmp/Fedora24/Fedora24/Fedora24-sda.qcow2 / - | docker import - 
 虽然kickstart文件不能完全跨平台，但是在fedora上，我们可以通过kickstart制作redhat的docker镜像。
 具体过程如上，不再赘述。而redhat的kickstart文件如附件：
 \textattachfile{cern.ks}{\textcolor{blue}{cern.ks}}
+
+另外，Fedora官方提供了一些标准的最小化docker镜像的kickstart文件，具体可以查看
+\url{https://pagure.io/fedora-kickstarts.git}。
 %\begin{mdframed}[topline=true, bottomline=true, leftline=true,
 %                 rightline=true, backgroundcolor=lbcolor,
 %                 userdefinedwidth=\textwidth]

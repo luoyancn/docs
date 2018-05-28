@@ -93,8 +93,168 @@ kubectl config use-context zhangjl
 
 \end{code-block}
 
+\subsection{Label}
+\begin{code-block}{bash}
+# 查看对象的label
+kubectl get namespace --show-labels
+kubectl get pod -o wide --show-labels
+
+# 为对象添加label.label的添加可以多次进行。overwrite表示，如果对应的key存在，就进行更新，
+# 否则进行创建
+kubectl label namespace zhangjl ns-name=zhangjl name=zhangjl --overwrite
+kubectl label pod zhangjl ns-name=zhangjl user=zhangjl --overwrite
+
+# 删除label
+kubectl label namespace zhangjl ns-name- name-
+kubectl label pod zhangjl ns-name- name-
+
+# 根据label进行搜索
+kubectl get pod --all-namespaces  -l k8s-app==dashboard
+kubectl get pod --all-namespaces  -l k8s-app!=dashboard
+
+# selector 搜索
+kubectl get pod --all-namespaces  -l 'k8s-app in (dashboard,default-http-backend)'
+kubectl get pod --all-namespaces --selector='k8s-app==calico-kube-controllers'
+
+# 多label搜索
+kubectl get pod --all-namespaces  -l k8s-app!=dashboard,k8s-app==default-http-backend
+
+# 混用selector和等式搜索
+kubectl get pod --all-namespaces  -l 'k8s-app notin (dashboard,kube-dns), k8s-app==default-http-backend'
+kubectl get pod --all-namespaces  --selector='k8s-app notin (dashboard,kube-dns), k8s-app==default-http-backend'
+\end{code-block}
+特别需要注意的是，node的label会影响pod的调度，pod的label会影响service和deployment等资源的选择。
+另外，kubernetes当中，内置了很多label，具体的如下：
+\begin{itemize}
+    \item kubernetes.io/hostname
+    \item failure-domain.beta.kubernetes.io/zone
+    \item failure-domain.beta.kubernetes.io/region
+    \item beta.kubernetes.io/instance-type
+    \item beta.kubernetes.io/os
+    \item beta.kubernetes.io/arch
+\end{itemize}
 
 \subsection{Pod}
+\begin{code-block}{bash}
+# 获取所有pod
+kubectl get --all-namespace pod
+
+# 展示pod的详情
+kubectl describe --namespace=kube-system pod zhangjl
+
+# 显示pod的日志
+kubectl logs --namespace=kube-system zhangjl
+
+# 指定namespace，并且指定node的label进行pod创建
+cat >pod.yml<<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+    k8sapp: nginx
+  namespace: zhangjl # 限定pod所在的namespace
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+  nodeSelector: # nodeSelector调度指令将在之后的版本进行废弃，使用affinity/anti-affinity代替
+    disk_type: ssd # 指定pod所使用的磁盘类型
+EOF
+kubectl create -f pod.yml
+
+# 使用anti-affinity/affinity进行pod的节点指定
+# 根据node的亲和性与反亲和性进行调度
+cat>pod.yml<<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+    k8sapp: nginx
+    rules: node-affinity
+  namespace: zhangjl
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: In
+            values:
+            - k8s1
+            - k8s3
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        preference:
+          matchExpressions:
+          - key: disk_type
+            operator: In
+            values:
+            - nvme
+EOF
+
+kubectl create -f pod.yml
+
+# 根据pod的亲和性与反亲和性进行调度
+# 在pod层面进行调度，比较的对象是节点上已经存在的
+# pod。如果节点上没有pod，则该节点不在调度的考虑范围内。
+cat>pod-affinity-pod.yml<<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: with-pod-affinity
+  labels:
+    affinity-rule: on_pod_level
+  namespace: zhangjl
+spec:
+  affinity:
+    podAffinity:
+      # 要求调度之后的节点上，已经运行的pod当中，所有pod
+      # 的label的k8sapp的值需要在nginx当中。强制性规则
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: k8sapp
+            operator: In
+            values:
+            - nginx
+        topologyKey: kubernetes.io/hostname
+    podAntiAffinity:
+      # 希望调度之后的节点上，已经运行的pod当中，其label的env
+      # 不在test当中。倾向性规则。
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: env
+              operator: NotIn
+              values:
+              - test
+          topologyKey: kubernetes.io/hostname
+  containers:
+  - name: with-pod-affinity
+    image: nginx
+EOF
+
+kubectl create -f pod-affinity-pod.yml
+\end{code-block}
+亲和性规则只针对pod和node。但是两者的规则是一致的。同样的，这些调度规则可以用于pod，replicate和deployment当中。
+\begin{itemize}
+    \item requiredDuringSchedulingIgnoredDuringExecution   必须满足，没有满足条件的node，pod会创建失败
+    \item preferredDuringSchedulingIgnoredDuringExecution  尽力满足，没有满足条件的node，pod也会创建成功
+    \item IgnoredDuringExecution的意思是，上面两条规则只在pod创建时起作用，如果pod已经运行，后来又改了node的lable，node不满足pod运行条件，但已经运行的pod不受影响
+    \item requiredDuringSchedulingRequiredDuringExecution  现在不支持，后面版本会支持，作用基本等同requiredDuringSchedulingIgnoredDuringExecution，不同之处是pod改变label，对已经运行在其上的pod也会有影响。
+\end{itemize}
 
 \subsection{Replication}
 
