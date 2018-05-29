@@ -720,3 +720,92 @@ spec:
           - name: edns0
 EOF
 \end{code-block}
+
+\subsection{NetworkPolicy}
+kubernetes的NetworkPolicy用于控制pod的网络访问，总共分为2种类型：ingress-入站规则和egress-出站规则。
+实现网络策略的控制，需要依赖于kubernetes的网络插件的实现。当前的网络插件当中，只有cni模式的插件，可以支持
+即calico等，但是flannel网络则完全不支持。
+\begin{code-block}{bash}
+# 禁止所有网络出入
+cat > deny-all.yml<<EOF
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}  # 表示针对所有的pod
+  policyTypes:
+  - Ingress        # 入站规则
+  - Egress         # 出站规则
+EOF
+\end{code-block}
+NetworkPolicy采取的是白名单模式，只有符合规则的，才允许进行访问。上述的规则中，Ingress/Egress
+没有指定任何规则，表示所有的pod都则白名单之外，所有的pod都不允许任何网络出入。
+
+\begin{code-block}{bash}
+# 允许所有的pod网络流出
+cat > allow-all-egress.yml<<EOF
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}
+  egress:
+  - {}
+  policyTypes:
+  - Egress
+EOF
+
+# 允许所有的网络流入
+cat > allow-all-ingress.yml<<EOF
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}
+  ingress:
+  - {}
+  policyTypes:
+  - Ingress
+EOF
+\end{code-block}
+
+Kubernetes的网络规则可以允许ip段，namespace，pod等等方式的访问控制。
+\begin{code-block}{bash}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: test-network-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      role: db                # 针对特定的pod生效
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - ipBlock:
+        cidr: 172.17.0.0/16   # 禁止172.17.0.0/16段的ip访问
+        except:               # 但是开放特例，一定要允许calico的gateway访问，否则会导致pod的跨主机通信失败
+        - 172.17.1.0/24
+    - namespaceSelector:
+        matchLabels:
+          project: myproject  # 只允许metadata当中project=myproject的namespace当中的pod进行访问
+    - podSelector:
+        matchLabels:
+          role: frontend      # 只允许role=frontend的pod访问
+    ports:
+    - protocol: TCP
+      port: 6379
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/24
+    ports:
+    - protocol: TCP
+      port: 5978
+\end{code-block}
