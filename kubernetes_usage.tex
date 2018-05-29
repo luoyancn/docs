@@ -74,7 +74,7 @@ EOF
 kubectl create -f zhangjl.yml
 \end{code-block}
 
-\subsection{Contenxt}
+\subsection{Context}
 \begin{code-block}{bash}
 # 获取所有上下文环境
 kubectl config get-contexts
@@ -256,6 +256,467 @@ kubectl create -f pod-affinity-pod.yml
     \item requiredDuringSchedulingRequiredDuringExecution  现在不支持，后面版本会支持，作用基本等同requiredDuringSchedulingIgnoredDuringExecution，不同之处是pod改变label，对已经运行在其上的pod也会有影响。
 \end{itemize}
 
-\subsection{Replication}
+\subsection{Secret}
+Secret和认证相关，为用户的secret key。
+\begin{code-block}{bash}
+# 通过命令行创建secret key
+echo -n 'admin' > ./username.txt
+echo -n '1f2d1e2e67df' > ./password.txt
+kubectl create secret generic db-user-pass --from-file=./username.txt --from-file=./password.txt
+
+# 通过文件创建secret key
+export user_name=`echo -n 'admin' | base64`
+export pass_word=`echo -n '1f2d1e2e67df' | base64`
+cat >secret.yml<<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysecret
+type: Opaque
+data:
+  username: $user_name
+  password: $pass_word
+EOF
+
+kubectl create -f secret.yml
+
+# 查看secret详情
+kubectl describe secret db-user-pass
+
+# 透传secret key到pod当中
+cat >secret-pod.yml<<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secret-pod
+  namespace: zhangjl
+spec:
+  containers:
+  - name: secret-pod
+    image: nginx
+    volumeMounts:
+    - name: secret-key
+      mountPath: "/opt/secret-key"
+      readOnly: true
+  volumes:
+  - name: secret-key
+    secret:
+      secretName: zhangjl
+EOF
+kubectl apply -f secret-pod.yml
+
+# pod创建完毕之后，其内部的会在/opt/secret-key路径下
+# 生成username和password文件，并且内容为解码之后的信息。
+
+# 透传secret key的部分信息到pod当中
+cat >secret-pod.yml<<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secret-pod
+  namespace: zhangjl
+spec:
+  containers:
+  - name: secret-pod
+    image: nginx
+    volumeMounts:
+    - name: secret-key
+      mountPath: "/opt/secret-key"
+      readOnly: true
+  volumes:
+  - name: secret-key
+    secret:
+      secretName: zhangjl
+      items:             # 该标签标明只透传items下的内容，其他的信息不会进行透传
+      - key: username
+        path: user       # 将secret key当中的username透传到/opt/secret-key/user
+                         # 而不是/opt/secret-key/username
+EOF
+
+# 以环境变量的方式使用secret key
+cat >secret-env.yml<<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secret-pod
+  namespace: zhangjl
+spec:
+  containers:
+  - name: secret-pod
+    image: nginx
+    env:
+      - name: SECRET_USERNAME
+        valueFrom:
+          secretKeyRef:      # 表示secret key的引用
+            name: zhangjl    # 引用的secret key的名称
+            key: username
+      - name: SECRET_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: zhangjl
+            key: password
+EOF
+# 该文件apply之后，在容器内部进行env命令，即可搜索到对应的环境变量
+
+# 修改host映射。该文件apply之后，在pod当中，hosts文件会有变化
+# secret-pod指向了16.16.109.101
+# kubectl exec hostaliases-pod -- cat /etc/hosts
+cat >host-map.yml<<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hostaliases-pod
+  namespace: zhangjl
+spec:
+  hostAliases:
+  - ip: "16.16.109.101"
+    hostnames:
+    - "secret-pod"
+    - "secrete.remote"
+  containers:
+  - name: cat-hosts
+    image: nginx
+EOF
+
+\end{code-block}
 
 \subsection{Deployment}
+1.7版本之前有replication的概念。目前，replication已经基本为deployment所取代，不复使用。
+\begin{code-block}{bash}
+# 创建简单的deployment
+cat >deployment.yml<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+EOF
+
+# 利用node的affinity/anti-affinity进行调度
+cat >node-affinity-deployment<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+  replicas: 4
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - k8s1
+                - k8s3
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: disk_type
+                operator: In
+                values:
+                - ssd
+EOF
+
+# 利用pod的affinity进行调度，将deployment的所有pod强制调度到
+# 同一台node
+cat >pod-affinity-deployment.yml<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+      schedule: pod-affinity
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+        schedule: pod-affinity
+        app: nginx-web-server
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - nginx-web-server
+            topologyKey: kubernetes.io/hostname
+EOF
+
+# 利用node-affinity和pod-affinity，将deployment的
+# pod强制调度到k8s3
+cat >pod-and-node-affinity-deployment.yml<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+      schedule: pod-affinity
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+        schedule: pod-affinity
+        app: nginx-web-server
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - nginx-web-server
+            topologyKey: kubernetes.io/hostname
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - k8s3
+EOF
+
+# 利用pod-anti-affinity，将deployment的pod调度到不同的节点上
+cat >pod-anti-affinity-deployment.yml<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+      schedule: pod-affinity
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+        schedule: pod-affinity
+        app: nginx-web-server
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - nginx-web-server
+            topologyKey: kubernetes.io/hostname
+EOF
+\end{code-block}
+
+\subsection{Service}
+Deployment只是指定了pod的副本数，调度规则，以及资源使用，但是并没有暴露对应的服务。如果是对外提供相关的服务，则
+还需要创建service。需要注意的是，service可以独立存在，不依赖于pod。如果service需要的deployment和pod不存在，
+service依然可以创建，只是service不可用而已。
+
+另外需要注意的是，service和deployment创建的先后顺序会影响pod的env属性。
+如果service先于deployment创建，则pod的env属性当中，会存在service的env，如图\nameref{fig:k8s_service}所示，
+反之，则不存在。因此，操作顺序上一般是先创建service，再创建deployment。
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.3]{k8s_service.png}
+  \caption{新建service}
+  \label{fig:k8s_service}
+\end{figure}
+
+\begin{code-block}{bash}
+cat >service.yml<<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  labels:
+    run: nginx-cluster
+    schedule: pod-affinity
+    service: nginx
+spec:
+  type: NodePort # 指定服务的暴露方式，采用NodePort方式
+  ports:
+  - port: 80        # 暴露的集群端口，供kubernetes集群内部访问
+    targetPort: 80  # 容器内部暴露的端口
+    nodePort: 31000 # 在node上暴露的端口，提供给外部访问
+  selector: # 从deployment当中选择合适的deployment，deployment的metadata
+            # 当中包含的一下的键值对
+    run: nginx-cluster
+    schedule: pod-affinity
+EOF
+
+# 获取service的endpoint
+kubectl get endpoints nginx-service
+kubectl get ep nginx-service
+\end{code-block}
+Service的提供方式只有3种：
+\begin{enumerate}
+    \item ClusterIP：即kubernetes的网络ip方式，提供给node使用
+    \item NodePort：即端口转发方式，通过暴露物理机的指定端口，暴露服务给外界使用
+    \item LoadBalance：负载均衡模式，需要cloud-privider提供，提供外部ip，通过外部的公网ip访问
+\end{enumerate}
+
+\subsection{DNS}
+kubernetes的dns设置可以通过dns的policy和dnsconfig进行。
+\begin{code-block}{bash}
+# 设置dns的策略
+cat >dns-policy.yml<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+      schedule: pod-affinity
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+        schedule: pod-affinity
+        app: nginx-web-server
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+      dnsPolicy: ClusterFirst
+EOF
+\end{code-block}
+
+Dns策略主要有4种：
+\begin{itemize}
+    \item Default：默认策略
+    \item ClusterFirst：优先在k8s集群当中查找
+    \item ClusterFirstWithHostNet：只针对hostNetwork模式的pod生效
+    \item None：1.9新增，无策略
+\end{itemize}
+
+而通过dnsconfig也可以进行dns的设置，但是dnsconfig只能适用于1.9版本之后。
+\begin{code-block}{bash}
+# 设置dns的策略
+cat >dns-config.yml<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+      schedule: pod-affinity
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+        schedule: pod-affinity
+        app: nginx-web-server
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers:
+          - 1.2.3.4
+        searches:
+          - ns1.svc.cluster.local
+          - my.dns.search.suffix
+        options:
+          - name: ndots
+            value: "2"
+          - name: edns0
+EOF
+\end{code-block}
