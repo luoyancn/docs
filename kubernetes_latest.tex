@@ -39,6 +39,7 @@ net.ipv6.conf.default.disable_ipv6 = 1
 net.ipv4.ip_forward = 1
 fs.file-max = 1000000
 vm.max_map_count = 262144
+fs.may_detach_mounts=1
 EOF
 
 cat>>/etc/security/limits.conf<<EOF
@@ -59,6 +60,7 @@ EOF
 
 # 如果操作系统使用的是3.18版本之后，最好使用overlay作为docker的存储驱动。
 # 此时，需要加载overlay的内核模块
+# 但特别注意的是，/var/lib/docker不能做软链接，链接到其他路径，否则会带来使用问题。
 echo "overlay" > /etc/modules-load.d/overlay.conf
 echo "/dev/vdb /var/lib/docker xfs defaults 0 0" >> /etc/fstab
 mkfs.xfs -n ftype=1 -f /dev/vdb
@@ -392,6 +394,8 @@ for id in {2..3};do scp /etc/kubernetes/*.kubeconfig root@kubernetes$id:/etc/kub
 \end{code-in-enumerate}
 
   \1 配置etcd集群
+
+Etcd集群最少为3台，但生产环境下，最好为5台。
 \begin{code-in-enumerate}{bash}
 # k8s1 node, 20.30.40.6
 cat>/etc/etcd/etcd.conf<<EOF

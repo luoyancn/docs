@@ -1,0 +1,131 @@
+\subsection{Voume}
+\begin{code-block}{bash}
+# 使用git作为volume。但前提是要求kubernetes的node上安装有git
+cat >git-volume.yml<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+      schedule: pod-affinity
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+        schedule: pod-affinity
+        app: nginx-web-server
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - mountPath: /opt
+            name: git-volume
+      volumes:
+      - name: git-volume
+        gitRepo:
+          repository: "https://github.com/luoyancn/docs.git"
+          revision: "2bfe235cc6a913ff0ce496dd99318b5f1a19c9ac"
+EOF
+
+# 使用emptydir作为volume
+cat >empty-dir.yml<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+      schedule: pod-affinity
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+        schedule: pod-affinity
+        app: nginx-web-server
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - mountPath: /opt
+            name: emptydir
+      volumes:
+      - name: emptydir
+        emptyDir: {}
+EOF
+\end{code-block}
+EmptyDir和gitrepo模式的volume，其真正的数据都放在了node的物理存储上，具体的位置为：
+/var/lib/kubelet/pods/{podid}/volumes/。如果在node上对这些路径进行文件写入，实际上
+会反映到对应的pod当中。
+
+Kubernetes不仅支持emptyDir和gitrepo，还支持其他各种存储，包括ceph，glusterfs，当然也包括了
+物理机存储（hostpath）。在性能上，hostpath是最好的；但是，hostpath也是最不灵活的：与主机息息相关
+无法迁移。
+\begin{code-block}{bash}
+cat >host-path-volume.yml<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+      schedule: pod-affinity
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+        schedule: pod-affinity
+        app: nginx-web-server
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - mountPath: /opt
+            name: host-volume
+      volumes:
+      - name: host-volume
+        hostPath:
+          path: /mnt/host-volume
+          type: DirectoryOrCreate
+EOF
+\end{code-block}
+HostPath模式下，volume的使用类型主要有以下几种：
+\begin{itemize}
+  \item DirectoryOrCreate：以目录的方式挂载。如果主机上对应的目录不存在则新建
+  \item Directory：目录方式。要求对应路径一定存在
+  \item FileOrCreate：以文件方式挂载。如果主机对应路径不存在则新建
+  \item File：文件方式，要求对应路径一定存在
+  \item Socket：以socket方式
+  \item CharDevice：以字符设备方式
+  \item BlockDevice：以块存储方式
+\end{itemize}
