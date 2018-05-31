@@ -222,8 +222,8 @@ Docker File 如下：
 FROM fedora
 RUN dnf update -y;dnf install git git-review -y;dnf clean all
 RUN echo "root:luoyan" | chpasswd
-RUN ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key
-RUN ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key
+RUN ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key -N ""
+RUN ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N ""
 RUN (cd /lib/systemd/system/sysinit.target.wants/; \
 for i in *; do [ $i == systemd-tmpfiles-setup.service ] || rm -f $i; done); \
 rm -f /lib/systemd/system/multi-user.target.wants/*;\

@@ -129,3 +129,47 @@ HostPath模式下，volume的使用类型主要有以下几种：
   \item CharDevice：以字符设备方式
   \item BlockDevice：以块存储方式
 \end{itemize}
+
+\begin{code-block}{bash}
+# 将/mnt/host-volume下的mysql和php分别挂载到/opt/host-volume对应的路径下
+cat >multi-path-volume.yml<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+      schedule: pod-affinity
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+        schedule: pod-affinity
+        app: nginx-web-server
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - mountPath: /opt/host-volume/mysql
+            name: host-volume
+            subPath: mysql
+          - mountPath: /opt/host-volume/php
+            name: host-volume
+            subPath: php
+      volumes:
+      - name: host-volume
+        hostPath:
+          path: /mnt/host-volume
+          type: DirectoryOrCreate
+EOF
+\end{code-block}
