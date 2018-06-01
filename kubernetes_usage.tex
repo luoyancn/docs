@@ -586,6 +586,73 @@ spec:
 EOF
 \end{code-block}
 
+Deployment从某种程度上已经取代了Replication的功能，也可以做动态的扩容或者灰度发布。
+\begin{code-block}{bash}
+cat >roll-up-deployment.yml<<EOF
+# kubernetes 1.8
+apiVersion: extensions/v1beta1
+# kubernetes 1.10
+#apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+  replicas: 3    # 之前为2副本
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+    spec:
+      containers:
+      - name: nginx-cluster
+        # 同样可以进行镜像的替换
+        image: gcr.io/google-containers/nginx-ingress-controller:0.9.0-beta.15
+        ports:
+        - containerPort: 80
+EOF
+\end{code-block}
+
+另外，查看deployment的rollup可以使用命令
+\begin{code-block}{bash}
+kubectl rollout status deployment/nginx-cluster
+\end{code-block}
+
+如果升级失败，deployment还可以进行回退。回退除了通过yaml文件直接apply之外，也可以使用命令进行回退。
+\begin{code-block}{bash}
+kubectl rollout history deployment/nginx-deployment
+kubectl rollout undo deployment/nginx-deployment
+kubectl rollout undo deployment/nginx-deployment --to-revision=2
+\end{code-block}
+
+当然，deployment还可以进行横向（水平）扩展。水平扩展的实质就是修改replicas的数量。这个操作可以使用yaml文件
+直接进行apply，同样的，也可以使用对应的命令行进行操作。
+\begin{code-block}{bash}
+# 将副本数调整为5份
+kubectl scale deployment nginx-cluster --replicas=5
+
+# 当然，也可以根据监控进行自动的水平扩展。这一部分的需要使用heapster以及其他的kubernetes支持的监控平台。
+kubectl autoscale deployment nginx-deployment --min=10 --max=15 --cpu-percent=80
+\end{code-block}
+
+如果需要针对deployment的多个项目进行修改，除了使用yaml文件之外，还可以进行暂停式升级。这个升级方式
+在升级的准备过程中会将deployment的rolling up进行暂停，相当于一个状态锁定。锁定之后，在解锁之前，是
+不能对deployment进行rolling up的。
+\begin{code-block}{bash}
+# 将deployment的rolling up暂停
+kubectl rollout pause deployment nginx-cluster
+# 修改deployment的container的image
+kubectl set image deploy nginx-cluster nginx-cluster=nginx:1.9.1
+# 修改deployment的资源限制
+kubectl set resources deployment nginx-cluster --containers=nginx-cluster --limits=cpu=200m,memory=512Mi
+# 将rolling up恢复，解锁
+kubectl rollout resume deployment nginx-cluster
+\end{code-block}
+进行以上操作之后，deployment会自动更新使用的image和资源占用。
+
 \subsection{Service}
 Deployment只是指定了pod的副本数，调度规则，以及资源使用，但是并没有暴露对应的服务。如果是对外提供相关的服务，则
 还需要创建service。需要注意的是，service可以独立存在，不依赖于pod。如果service需要的deployment和pod不存在，
@@ -812,3 +879,6 @@ spec:
 
 \input{kubernetes_storage}
 \input{kubernetes_security}
+\input{kubernetes_quota}
+\input{kubernetes_hook}
+\input{kubernetes_daemonset}

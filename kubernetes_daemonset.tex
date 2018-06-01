@@ -1,0 +1,36 @@
+\subsection{DaemonSet}
+DaemonSet的特点是默认情况下，要求每一台节点上都有一个（组）相同的pod。这种一般用于需要采集
+物理机的监控信息或者提供网络服务。Daemonset和deployment的区别有很多，最重要的区别主要是
+几个：
+\begin{itemize}
+    \item 默认所有节点都有pod
+    \item 无需调度
+    \item 不能指定副本数
+\end{itemize}
+\begin{code-block}{bash}
+cat >daemon-set.yml<<EOF
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: daemon-set-pod
+  namespace: zhangjl
+  labels:
+    k8s-app: nginx-daemon-pod
+spec:
+  selector:
+    matchLabels:
+      name: daemon-set-pod
+  template:
+    metadata:
+      labels:
+        name: daemon-set-pod
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - name: nginx-daemon-web-server
+        image: nginx
+      terminationGracePeriodSeconds: 30
+EOF
+\end{code-block}

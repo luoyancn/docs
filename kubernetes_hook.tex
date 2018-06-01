@@ -1,0 +1,81 @@
+\subsection{LifeCycle And Hooks}
+由于有的pod有可能依赖于一些额外的pod，但是这些额外的pod又不是必须永久存在的。此时，
+可以用initcontainer进行操作。但是需要注意的是，initcontainer操作的是额外的pod，
+并不能针对宿主机做任何操作。
+\begin{code-block}{bash}
+cat >deploy-with-initpod.yml<<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+      init: using-busybox-to-init
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+        init: using-busybox-to-init
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+      initContainers:
+      - name: echo-hello
+        image: busybox
+        command: ['sh', '-c', 'echo hello']
+EOF
+\end{code-block}
+
+但是，如同上边所说，initcontainer操作的是额外的pod，并不能真正影响对应的pod。有的时候，
+我们是需要对本身的pod做一些操作。这时，需要使用pod的hook进行操作。Pod的hook只有2个，postStart和preStop。
+PostStart在容器启动之后就立即执行，preStop则是在容器退出之前执行。
+\begin{code-block}{bash}
+cat >deploy-with-hook.yml<<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster
+      init: postStart-and-preStop-hook
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster
+        init: postStart-and-preStop-hook
+    spec:
+      containers:
+      - name: nginx-cluster
+        image: nginx
+        ports:
+        - containerPort: 80
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "echo Hello from the postStart handler >> /opt/message"]
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "echo goodye from the preStop handler >> /opt/message"]
+        volumeMounts:
+          - mountPath: /opt
+            name: /host-volume
+      volumes:
+      - name: host-volume
+        hostPath:
+          path: /mnt
+          type: Directory
+EOF
+\end{code-block}
+
+为了探测容器内部的状态，kubernetes还提供了一套探针机制来实现该功能，目前可用的探针为livenessProbe和readinessProbe。
