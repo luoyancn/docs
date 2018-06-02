@@ -17,110 +17,16 @@ selinux --disabled
 rootpw --lock --iscrypted locked
 zerombr
 clearpart --all
-part / --size 1024 --fstype=ext4
+part / --size 1924 --fstype=ext4
 # Repositories
 repo --name=rhel7 --baseurl=http://linuxsoft.cern.ch/cern/centos/7/os/x86_64/
 reboot
 # Package list.
 %packages --excludedocs
-basesystem
+
 bash
-coreutils
-cronie
-curl
-yum
-e2fsprogs
-filesystem
-glibc
-grubby
-hostname
-initscripts
-iproute
-iputils
-kbd
-less
-man-db
-ncurses
-openssh-clients
-openssh-server
-parted
-passwd
-plymouth
-policycoreutils
-procps-ng
-rootfiles
-rpm
-selinux-policy-targeted
-setup
-shadow-utils
-sudo
-systemd
-util-linux
-vim-minimal
-# removed below
-NetworkManager
-grubby
-man-db
-selinux-policy
-selinux-policy-targeted
-firewalld
-ebtables
-glib-networking
-gsettings-desktop-schemas
-libsoup
-initscripts
-kbd
-plymouth
-plymouth-scripts
-ppp
-nettle
-avahi-libs
-avahi-autoipd
-libedit
-openssh-clients
-libproxy
-libpipeline
-libpcap
-iproute
-hardlink
-dracut
-dhcp-libs
-dbus-glib
-dbus-python
-python-slip-dbus
-libgudev1
-gobject-introspection
-pygobject3-base
-cronie
-cronie-noanacron
-crontabs
-iputils
-trousers
-gnutls
-dnsmasq
-libdrm
-dracut
-policycoreutils
-kbd-misc
-parted
-passwd
-hwdata
-libpciaccess
-libdrm
-dhcp-common
-groff-base
-less
-hostname
-libselinux-utils
-libmodman
-libnl3
-libdaemon
-plymouth-core-libs
-libndp
-procps-ng
-libselinux-python
-python-slip
-kpartx
+
+
 %end
 %post --erroronfail
 # setup systemd to boot to the right runlevel
