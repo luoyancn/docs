@@ -491,28 +491,23 @@ etcdctl member list
 最好是单独给docker配置存储
 \begin{code-in-enumerate}{bash}
 # 准备之后所需要的docker image镜像
-docker pull gcr.io/google_containers/pause:3.0
-docker pull quay.io/calico/node:v2.6.4
-docker pull quay.io/calico/node:v2.6.2
-for id in {0..2};do docker pull quay.io/calico/cni:v1.11.$id;done
-for id in {0..2};do docker pull quay.io/calico/kube-controllers:v1.0.$id;done
-
-for id in {node,cni,kube-controllers};do docker pull quay.io/calico/calico-$id:v3.1.0;done
-for id in {node,cni,kube-controllers};do docker pull reg.qiniu.com/quay/calico-$id:v3.1.1;done
-
-docker pull gcr.io/kubernetes-helm/tiller:v2.6.0
-for id in {4,5,6,7};do docker pull gcr.io/google-containers/k8s-dns-kube-dns-amd64:1.14.$id;done
-for id in {kube-dns,dnsmasq-nanny,sidecar};do docker pull gcr.io/google-containers/k8s-dns-$id-amd64:1.14.9;done
-for id in {4,5,6,7};do docker pull gcr.io/google-containers/k8s-dns-dnsmasq-nanny-amd64:1.14.$id; docker pull gcr.io/google-containers/k8s-dns-sidecar-amd64:1.14.$id;done
-for id in {1,3};do docker pull gcr.io/google-containers/heapster-influxdb-amd64:v1.$id.$id;done
-for id in {v4.0.2,v4.2.0,v4.4.1,v4.4.3};do docker pull gcr.io/google-containers/heapster-grafana-amd64:$id;done
-for id in {v1.4.1,v1.4.2,v1.4.3,v1.5.0};do docker pull gcr.io/google-containers/heapster-amd64:$id;done
-for id in {1.7,1.8.0,1.8.1};do docker pull gcr.io/google-containers/addon-resizer:$id;done
-for id in {v1.6.1,v1.8.1};do docker pull gcr.io/google-containers/kubernetes-dashboard-amd64:$id;done
-for id in {1.23,1.24};do docker pull gcr.io/google-containers/fluentd-elasticsearch:$id;done
-for id in {v4.6.1-1,v5.4.0};do docker pull gcr.io/google-containers/kibana:$id;done
-for id in {0..4};do docker pull gcr.io/google-containers/defaultbackend:1.$id;done
+docker pull reg.qiniu.com/quay/calico-node:v3.1.1
+docker pull reg.qiniu.com/quay/calico-cni:v3.1.1
+docker pull reg.qiniu.com/quay/calico-kube-controllers:v3.1.1
+docker pull gcr.io/google-containers/k8s-dns-kube-dns-amd64:1.14.9
+docker pull gcr.io/google-containers/k8s-dns-sidecar-amd64:1.14.9
+docker pull gcr.io/google-containers/k8s-dns-dnsmasq-nanny-amd64:1.14.9
+docker pull gcr.io/google-containers/heapster-amd64:v1.5.2
+docker pull gcr.io/google-containers/kubernetes-dashboard-amd64:v1.8.3
+docker pull gcr.io/google-containers/addon-resizer:1.8.1
+docker pull gcr.io/google-containers/defaultbackend:1.4
 docker pull gcr.io/google-containers/nginx-ingress-controller:0.9.0-beta.15
+docker pull gcr.io/google-containers/heapster-influxdb-amd64:v1.3.3
+docker pull gcr.io/google-containers/heapster-grafana-amd64:v4.4.3
+docker pull gcr.io/kubernetes-helm/tiller:v2.6.0
+docker pull gcr.io/google-containers/fluentd-elasticsearch:1.24
+docker pull gcr.io/google-containers/kibana:v5.4.0
+docker pull gcr.io/google_containers/pause:3.0
 \end{code-in-enumerate}
 
   \1 配置kubernetes controller服务
@@ -790,7 +785,7 @@ ExecStart=/usr/local/bin/kubelet \
     --cni-conf-dir=/etc/cni/net.d \
     --cloud-config= \
     --cloud-provider= \
-    --cluster-dns=18.18.0.2 \
+    --cluster-dns=18.18.0.2 \         # dns的ip一定不能写错，否则会影响后续heapster的搭建和使用。
     --cluster-domain=k8s.zhangjl.me\
     --fail-swap-on=false \
     --healthz-port=10248 \
@@ -993,6 +988,9 @@ LimitNOFILE=65536
 [Install]
 WantedBy=multi-user.target
 
+for id in {1..3};do kubectl create clusterrolebinding system:node:k8s$id \
+    --clusterrole=system:node --group=system:nodes \
+    --user=system:node:k8s$id; sleep 2;done
 
 kubectl create clusterrolebinding kubelet-bootstrap \
             --clusterrole=system:node-bootstrapper \
@@ -1000,8 +998,10 @@ kubectl create clusterrolebinding kubelet-bootstrap \
 for id in {kubelet,kube-proxy};do systemctl enable $id;systemctl start $id;done
 
 kubectl get certificatesigningrequest | awk '/Pending/{print $1}' |xargs -i kubectl certificate approve {}
-for id in k8s{1..3};do kubectl label node $id "pdmi.cn/group=developer" --overwrite;done
 kubectl label namespace kube-system ns-name=kube-system --overwrite
+for id in {1..3};do kubectl label node k8s$id node-role.kubernetes.io/master=k8s$id \
+    --overwrite;kubectl label node k8s$id node-role.kubernetes.io/node=k8s$id \
+    --overwrite;done
 
 \end{code-in-enumerate}
   \1 配置Calico服务
@@ -1045,7 +1045,7 @@ calicoctl node status
 需要使用到的kubedns的部署yaml模板文件主要是\textattachfile{kubedns.yaml}{\textcolor{blue}{kubedns.yaml}}.
 \begin{code-in-enumerate}{bash}
 sed -i -r \
-    -e "s|__KUBE_DNS_DOMAIN__|k8s.zhangjl.m|" \
+    -e "s|__KUBE_DNS_DOMAIN__|k8s.zhangjl.me|" \
     -e "s|__KUBE_DNS_VERSION__|1.14.9|" \
     -e "s|__KUBE_DNS_IMAGE__|gcr.io/google-containers/k8s-dns-kube-dns-amd64:1.14.9|" \
     -e "s|__KUBE_DNSMASAQ_IMAGE__|gcr.io/google-containers/k8s-dns-dnsmasq-nanny-amd64:1.14.9|" \
@@ -1069,6 +1069,51 @@ kubectl create -f kubedns.yaml
 
 kubectl create -f dashboard.yaml
 \end{code-in-enumerate}
+
+\1 安装heapster
+Heapster是kubernetes默认的监控插件。该服务也是以容器的方式进行部署。需要使用到的yaml模板文件主要是
+\textattachfile{influxdb-grafana.yaml}{\textcolor{blue}{influxdb-grafana.yaml}}，
+\textattachfile{heapster.yaml}{\textcolor{blue}{heapster.yaml}}。
+\begin{code-in-enumerate}{bash}
+sed -i -r \
+    -e "s|__KUBE_HEAPSTER_GRAFANA_VERSION__|v4.4.3|" \
+    -e "s|__KUBE_HEAPSTER_GRAFANA_IMAGE__|gcr.io/google-containers/heapster-grafana-amd64:v4.4.3|" \
+    -e "s|__KUBE_HEAPSTER_INFLUXDB_VERSION__|v1.3.3|" \
+    -e "s|__KUBE_HEAPSTER_INFLUXDB_IMAGE__|gcr.io/google-containers/heapster-influxdb-amd64:v1.3.3|" \
+    -e "s|__KUBE_HEAPSTER_VERSION__|v1.5.2|" \
+    -e "s|__KUBE_HEAPSTER_IMAGE__|gcr.io/google-containers/heapster-amd64:v1.5.2|" \
+    -e "s|__KUBE_ADDON_RESIZER_IMAGE__|gcr.io/google-containers/addon-resizer:1.8.1|" \
+    -e "s|__KUBE_LOCAL_VOLUME_MNT_DIR__|/var/lib/k8s|" \
+    -e "s|__nanny_memory__|128Mi|" \
+    -e "s|__base_metrics_cpu__|80m|" \
+    -e "s|__base_metrics_memory__|140Mi|" \
+    -e "s|__metrics_memory_per_node__|4|" \
+    -e "s|__base_eventer_memory__|190Mi|" \
+    -e "s|__eventer_memory_per_node__|500|" \
+    influxdb-grafana.yaml
+
+sed -i -r \
+    -e "s|__KUBE_HEAPSTER_GRAFANA_VERSION__|v4.4.3|" \
+    -e "s|__KUBE_HEAPSTER_GRAFANA_IMAGE__|gcr.io/google-containers/heapster-grafana-amd64:v4.4.3|" \
+    -e "s|__KUBE_HEAPSTER_INFLUXDB_VERSION__|v1.3.3|" \
+    -e "s|__KUBE_HEAPSTER_INFLUXDB_IMAGE__|gcr.io/google-containers/heapster-influxdb-amd64:v1.3.3|" \
+    -e "s|__KUBE_HEAPSTER_VERSION__|v1.5.2|" \
+    -e "s|__KUBE_HEAPSTER_IMAGE__|gcr.io/google-containers/heapster-amd64:v1.5.2|" \
+    -e "s|__KUBE_ADDON_RESIZER_IMAGE__|gcr.io/google-containers/addon-resizer:1.8.1|" \
+    -e "s|__KUBE_LOCAL_VOLUME_MNT_DIR__|/var/lib/k8s|" \
+    -e "s|__nanny_memory__|128Mi|" \
+    -e "s|__base_metrics_cpu__|80m|" \
+    -e "s|__base_metrics_memory__|140Mi|" \
+    -e "s|__metrics_memory_per_node__|4|" \
+    -e "s|__base_eventer_memory__|190Mi|" \
+    -e "s|__eventer_memory_per_node__|500|" \
+    heapster.yaml
+
+kubectl apply -f influxdb-grafana.yaml
+sleep 20
+kubectl apply -f heapster.yaml
+\end{code-in-enumerate}
+注意，如果heapster对应的pod运行不正常，请仔细检查kubedns服务以及dns的ip是否为18.18.0.2。
 
 \1 安装ingress
 Ingress同样使用容器的方式进行部署，部署过程中需要使用的yaml模板文件主要是
