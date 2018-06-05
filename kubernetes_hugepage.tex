@@ -1,0 +1,37 @@
+\subsection{HugePages}
+和虚拟化技术一样，kubernetes同样支持hugepage（大页内存）的分配。主要使用在
+emptydir上。
+\begin{code-block}{bash}
+cat >huge-page.yml<<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-cluster-huge-page
+  namespace: zhangjl
+spec:
+  selector:
+    matchLabels:
+      run: nginx-cluster-huge-page
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        run: nginx-cluster-huge-page
+    spec:
+      containers:
+        - name: nginx-cluster-huge-page
+          image: nginx
+          ports:
+          - containerPort: 80
+          volumeMounts:
+            - mountPath: /hugepages
+              name: hugepage
+          resources:
+            limits:
+              memory: 100Mi
+      volumes:
+      - name: hugepage
+        emptyDir:
+          medium: HugePages
+EOF
+\end{code-block}

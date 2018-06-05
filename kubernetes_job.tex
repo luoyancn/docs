@@ -1,0 +1,43 @@
+\subsection{Job}
+Kubernetes支持job类型的任务。
+\begin{code-block}{bash}
+cat >job.yml<<EOF
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi
+spec:
+  template:
+    spec:
+      containers:
+      - name: pi
+        image: perl
+        command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(20000)"]
+      restartPolicy: Never
+  backoffLimit: 4
+EOF
+\end{code-block}
+Job一般在容器当中的任务运行结束之后，会自行终止。所谓的任务结束，即容器中的主进程退出。
+但是，有的时候，容器中的主进程很有可能很长时间都无法结束，因此，有另外一种方式来终止Job的
+运行。
+\begin{code-block}{bash}
+cat >active-job.yml<<EOF
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi
+spec:
+  activeDeadlineSeconds: 100   # 表示该job最多运行100s。如果到了100s，任务还未完成，
+                               # 该任务依然会退出。但是需要和pod的对应属性一起使用（bug？）
+                               # 并且，pod的对应属性要小于job
+  template:
+    spec:
+      containers:
+      - name: pi
+        image: perl
+        command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(20000)"]
+      restartPolicy: Never
+      activeDeadlineSeconds: 99
+  backoffLimit: 4
+EOF
+\end{code-block}

@@ -1,0 +1,36 @@
+\subsection{Statefulset}
+有状态任务集是另外的一种deployment。和deployment不一致的地方，
+主要在于deployment生成的pod的编号是随机的，但是，statefulset
+生成的pod的编号是有序的。另外，deployment多用于无状态的服务，而
+statefulset基本都是用于有状态的服务。Statefulset还可以指定其
+生成的pod的顺序，可以是串行的，可以是并行的。默认为串行。
+\begin{code-block}{bash}
+cat >statefulset.yml<<EOF
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  serviceName: "nginx"
+  replicas: 3
+  podManagementPolicy: Parallel # 表示pod的生成顺序为并行模式
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+          name: web
+EOF
+\end{code-block}
+
+另外，和deployment非常不同的是，statefulset要求挂载的volume都是通过storageclass来实现，要么使用
+hostpath或者其他已经存在的volume，不能直接使用pv和pvc。
