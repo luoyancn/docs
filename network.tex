@@ -16,4 +16,8 @@ MACADDR=fa:16:3e:ef:91:ec
 OVS_EXTRA="set bridge br-ex other-config:hwaddr=$MACADDR"
 \end{code-block}
 
-
+\section{Kvm虚拟机的网卡信息}
+当kvm的虚拟机网卡使用不同的驱动时，会影响虚拟机内部网卡的信息读取。
+具体说来，如果虚拟机的网卡使用virtio时，通过ethtool命令无法获取网卡的信息。
+但是，如果网卡使用rtl8139或者其他驱动时，ethtool可以正确读取网卡信息。
+如果在虚拟机当中的应用需要读取网卡信息时，建议不要使用virtio的驱动模式。
