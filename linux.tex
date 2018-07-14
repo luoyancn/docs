@@ -114,6 +114,16 @@ git review -s
 # git config --global http.sslVerify false
 \end{code-block}
 
+\section{Git使用submodule}
+添加submodule
+\begin{code-block}{bash}
+git submodule add ssh://git@10.2.237.56:23/dennis/sub.git lib
+\end{code-block}
+检出submodule
+\begin{code-block}{bash}
+git submodule update --init --recursive
+\end{code-block}
+
 \section{禁用ipv6}
 \begin{code-block}{bash}
 cat >> /etc/sysctl.conf <<EOF
