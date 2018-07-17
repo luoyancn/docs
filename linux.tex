@@ -466,5 +466,6 @@ rw init=/bin/bash
 \section{修改grub启动顺序}
 \begin{code-block}{bash}
 # 0表示grub2.cfg当中，menuentry标题的顺序
+awk -F\' '$1=="menuentry " {print $2}' /etc/grub2.cfg
 grub2-set-default 0
 \end{code-block}
