@@ -384,6 +384,27 @@ rpm2cpio mysql-community-common-5.6.28-2.el7.x86_64.rpm | cpio -idmv
 \1 解压xz文件
 \begin{code-in-enumerate}{bash}
 xz -k -d xxx.xz
+tar -Jxf a.tar.xz
+\end{code-in-enumerate}
+
+\1 创建xz文件
+\begin{code-in-enumerate}{bash}
+tar -Jcf linux-3.12.tar.xz linux-3.12/
+\end{code-in-enumerate}
+
+\1 解压bz2文件
+\begin{code-in-enumerate}{bash}
+tar -jxvf test.tar.bz2
+\end{code-in-enumerate}
+
+\1 创建bz2文件
+\begin{code-in-enumerate}{bash}
+tar -jcvf test.tar.bz2 a.txt
+\end{code-in-enumerate}
+
+\1 连接windows远程桌面
+\begin{code-in-enumerate}{bash}
+xfreerdp /u:Administrator /p:'123456' /v:192.168.1.1  /h:1000 /w:1920
 \end{code-in-enumerate}
 
 \1 通过qemu-guest-agent执行命令
@@ -411,6 +432,9 @@ virt-resize --expand /dev/sda2 ironic-vm.qcow2 ironic-vm-200GB.qcow2 --LV-expand
 virt-filesystems -a ironic-vm-200.qcow2 --long -h --all
 # compress image file
 qemu-img convert -c -O qcow2 ironic-vm-resized.qcow2 ironic-vm.qcow2
+
+# 直接挂载磁盘到虚拟机
+virsh attach-disk --domain kubernetes1  /home/zhangjl/gfs1 --target vdd --targetbus virtio  --sourcetype file --live --config
 \end{code-in-enumerate}
 
 \1 清理linux内存
