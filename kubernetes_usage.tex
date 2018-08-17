@@ -41,6 +41,17 @@ kube-controller-manager；而node则包含了kubelet和kube-proxy。当然，可
 
 \section{kubernetes基本操作}
 
+\subsection{强制删除元素}
+有的时候，由于etcd的数据同步，以及kubernetes本身的问题，可能出现k8s的元素无法删除，具体的提示信息就是错误
+\begin{code-block}{bash}
+error: timed out waiting for "mariadb" to be synced
+\end{code-block}
+
+此时需要进行强制的删除
+\begin{code-block}{bash}
+kubectl delete statefulsets mariadb -n openstack  --force --grace-period=0 --cascade=false
+\end{code-block}
+
 \subsection{NameSpace}
 \begin{code-block}{bash}
 # 查看所有namespace
