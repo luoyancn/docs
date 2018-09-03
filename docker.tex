@@ -190,14 +190,25 @@ virt-tar-out -a /tmp/Fedora24/Fedora24/Fedora24-sda.qcow2 / - | docker import - 
 export cern=/tmp/cern
 mkdir -p ${cern}/var/lib/rpm
 rpm --root $cern --initdb
+
+# 不能使用7.5以上的，否则会增加其他的依赖关系，增加image的大小
 rpm --root ${cern} -ivh \
-    http://linuxsoft.cern.ch/cern/centos/7/os/x86_64/Packages/centos-release-7-4.1708.el7.centos.x86_64.rpm
-cp /etc/yum.repos.d/cern.repo ${cern}/etc/yum.repos.d/
-yum -y --installroot=${cern} install yum rpm systemd
+    http://linuxsoft.cern.ch/cern/centos/7.4.1708/os/x86_64/Packages/centos-release-7-4.1708.el7.centos.x86_64.rpm
+
+# 如果在centos上进行build，可以追加cern的repo
+# cp /etc/yum.repos.d/cern.repo ${cern}/etc/yum.repos.d/
+
+sed -i '/enabled/d' /etc/yum.repos.d/CentOS-Base.repo \
+    /etc/yum.repos.d/CentOS-CR.repo /etc/yum.repos.d/elrepo.repo
+sed -i '/gpgkey/aenabled=1' /etc/yum.repos.d/CentOS-Base.repo  \
+    /etc/yum.repos.d/CentOS-CR.repo /etc/yum.repos.d/elrepo.repo
+yum -y --installroot=${cern} install yum rpm systemd openssh-server --nogpgcheck
 rm -rf ${cern}/var/cache/*
 rm -rf ${cern}/usr/lib/locale/*
 rm -rf ${cern}/usr/share/locale/*
 rm -rf ${cern}/var/lib/yum/*
+rm -rf ${cern}/tmp/*
+rm -rf ${cern}/var/tmp/*
 # 导入docker
 tar -C cern -c . | docker import - cern
 
@@ -240,7 +251,11 @@ EXPOSE 22 80 3306 5000 5672 6379 8000 8080 8773 8774 8775 8776 8888 9000 9292 96
 CMD ["/usr/sbin/init"]
 \end{code-block}
 
-使用上述的docker file创建一个支持daemon的镜像之后，我们就可以创建一个类似于虚拟机的容器，
+使用上述的docker file创建一个支持daemon的镜像
+\begin{code-block}{bash}
+docker build . -t cern -f Dockerfile
+\end{code-block}
+
 然后像使用虚拟机一样的使用docker容器。
 \begin{code-block}{bash}
 docker run -tdi --privileged -v /opt/shared/:/root -v /opt/build/:/root/rpmbuild \
