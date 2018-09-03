@@ -198,10 +198,10 @@ rpm --root ${cern} -ivh \
 # 如果在centos上进行build，可以追加cern的repo
 # cp /etc/yum.repos.d/cern.repo ${cern}/etc/yum.repos.d/
 
-sed -i '/enabled/d' /etc/yum.repos.d/CentOS-Base.repo \
-    /etc/yum.repos.d/CentOS-CR.repo /etc/yum.repos.d/elrepo.repo
-sed -i '/gpgkey/aenabled=1' /etc/yum.repos.d/CentOS-Base.repo  \
-    /etc/yum.repos.d/CentOS-CR.repo /etc/yum.repos.d/elrepo.repo
+sed -i '/enabled/d' ${cern}/etc/yum.repos.d/CentOS-Base.repo \
+    ${cern}/etc/yum.repos.d/CentOS-CR.repo
+sed -i '/gpgkey/aenabled=1' ${cern}/etc/yum.repos.d/CentOS-Base.repo  \
+    ${cern}/etc/yum.repos.d/CentOS-CR.repo
 yum -y --installroot=${cern} install yum rpm systemd openssh-server --nogpgcheck
 rm -rf ${cern}/var/cache/*
 rm -rf ${cern}/usr/lib/locale/*
