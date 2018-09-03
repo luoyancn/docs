@@ -231,11 +231,9 @@ tar -C cern -c . | docker import - cern
 Docker File 如下：
 \begin{code-block}{bash}
 FROM fedora
-RUN dnf update -y;dnf install git git-review -y;dnf clean all
-RUN echo "root:luoyan" | chpasswd
-RUN ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key -N ""
-RUN ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N ""
-RUN (cd /lib/systemd/system/sysinit.target.wants/; \
+RUN echo "root:luoyan" | chpasswd && ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key -N "" &&\
+ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N "" &&\
+(cd /lib/systemd/system/sysinit.target.wants/; \
 for i in *; do [ $i == systemd-tmpfiles-setup.service ] || rm -f $i; done); \
 rm -f /lib/systemd/system/multi-user.target.wants/*;\
 rm -f /etc/systemd/system/*.wants/*;\
@@ -243,9 +241,9 @@ rm -f /lib/systemd/system/local-fs.target.wants/*; \
 rm -f /lib/systemd/system/sockets.target.wants/*udev*; \
 rm -f /lib/systemd/system/sockets.target.wants/*initctl*; \
 rm -f /lib/systemd/system/basic.target.wants/*;\
-rm -f /lib/systemd/system/anaconda.target.wants/*;
+rm -f /lib/systemd/system/anaconda.target.wants/*;\
+systemctl enable sshd.service
 
-RUN systemctl enable sshd.service
 EXPOSE 22 80 3306 5000 5672 6379 8000 8080 8773 8774 8775 8776 8888 9000 9292 9696 9999 11211 15672 35357 55672
 
 CMD ["/usr/sbin/init"]
@@ -258,8 +256,8 @@ docker build . -t cern -f Dockerfile
 
 然后像使用虚拟机一样的使用docker容器。
 \begin{code-block}{bash}
-docker run -tdi --privileged -v /opt/shared/:/root -v /opt/build/:/root/rpmbuild \
-    -p 60072:22 --name rpmbuild --hostname rpmbuild cern-latest
+docker run -tdi --privileged -v /opt/shared/.ssh:/root/.ssh \
+    -p 60022:22 --name cern --hostname cern cern
 \end{code-block}
 
 \section{搭建Docker的私有源}
