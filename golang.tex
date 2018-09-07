@@ -17,6 +17,8 @@ git config --global http.proxy socks5://localhost:8588
 \section{安装Golang的开发工具}
 只有设置好代理之后，才能正常的安装开发golang所需要使用的开发工具。
 \begin{code-block}{bash}
+go get -u -v honnef.co/go/tools/cmd/keyify
+go get -u -v github.com/koron/iferr
 go get -u -v github.com/nsf/gocode
 go get -u -v github.com/rogpeppe/godef
 go get -u -v github.com/zmb3/gogetdoc
@@ -32,7 +34,6 @@ go get -u -v github.com/klauspost/asmfmt/cmd/asmfmt
 go get -u -v github.com/fatih/motion
 go get -u -v github.com/fatih/gomodifytags
 go get -u -v github.com/josharian/impl
-go get -u -v github.com/dominikh/go-tools/cmd/keyify
 go get -u -v github.com/kisielk/errcheck
 go get -u -v github.com/sparrc/gdm
 go get -u -v github.com/kardianos/govendor
