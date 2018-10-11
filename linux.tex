@@ -117,11 +117,12 @@ git review -s
 \section{Git使用submodule}
 添加submodule
 \begin{code-block}{bash}
-git submodule add ssh://git@10.2.237.56:23/dennis/sub.git lib
+git submodule add ssh://git@10.2.237.56:23/dennis/sub.git ./src/github.com/luoyancn/merak
 \end{code-block}
 检出submodule
 \begin{code-block}{bash}
 git submodule update --init --recursive
+git submodule update --init --recursive src/github.com/luoyancn/merak
 \end{code-block}
 
 \section{禁用ipv6}

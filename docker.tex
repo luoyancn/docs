@@ -203,6 +203,16 @@ sed -i '/enabled/d' ${cern}/etc/yum.repos.d/CentOS-Base.repo \
 sed -i '/gpgkey/aenabled=1' ${cern}/etc/yum.repos.d/CentOS-Base.repo  \
     ${cern}/etc/yum.repos.d/CentOS-CR.repo
 yum -y --installroot=${cern} install yum rpm systemd openssh-server --nogpgcheck
+ssh-keygen -t dsa -f ${cern}/etc/ssh/ssh_host_dsa_key -N ""
+ssh-keygen -t rsa -f ${cern}/etc/ssh/ssh_host_rsa_key -N ""
+ssh-keygen -t ecdsa -f ${cern}/etc/ssh/ssh_host_ecdsa_key -N ""
+ssh-keygen -t ed25519 -f ${cern}/etc/ssh/ssh_host_ed25519_key -N ""
+cp ~/.bash_profile ${cern}/root/
+cp ~/.bashrc ${cern}/root/
+# 添加term环境变量，让clear命令可以正常使用
+sed -i '/Source/iexport TERM=xterm-256color' ${cern}/root/.bashrc
+yum -y --installroot=${cern} update --nogpgcheck
+yum  --installroot=${cern} clean all
 rm -rf ${cern}/var/cache/*
 rm -rf ${cern}/usr/lib/locale/*
 rm -rf ${cern}/usr/share/locale/*
@@ -231,8 +241,7 @@ tar -C cern -c . | docker import - cern
 Docker File 如下：
 \begin{code-block}{bash}
 FROM fedora
-RUN echo "root:luoyan" | chpasswd && ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key -N "" &&\
-ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N "" &&\
+RUN echo "root:luoyan" | chpasswd &&\
 (cd /lib/systemd/system/sysinit.target.wants/; \
 for i in *; do [ $i == systemd-tmpfiles-setup.service ] || rm -f $i; done); \
 rm -f /lib/systemd/system/multi-user.target.wants/*;\
