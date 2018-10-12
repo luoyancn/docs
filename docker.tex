@@ -202,7 +202,7 @@ sed -i '/enabled/d' ${cern}/etc/yum.repos.d/CentOS-Base.repo \
     ${cern}/etc/yum.repos.d/CentOS-CR.repo
 sed -i '/gpgkey/aenabled=1' ${cern}/etc/yum.repos.d/CentOS-Base.repo  \
     ${cern}/etc/yum.repos.d/CentOS-CR.repo
-yum -y --installroot=${cern} install yum rpm systemd openssh-server --nogpgcheck
+yum -y --installroot=${cern} install yum rpm systemd openssh-server sudo epel-release --nogpgcheck
 ssh-keygen -t dsa -f ${cern}/etc/ssh/ssh_host_dsa_key -N ""
 ssh-keygen -t rsa -f ${cern}/etc/ssh/ssh_host_rsa_key -N ""
 ssh-keygen -t ecdsa -f ${cern}/etc/ssh/ssh_host_ecdsa_key -N ""
@@ -241,6 +241,10 @@ tar -C cern -c . | docker import - cern
 Docker File 如下：
 \begin{code-block}{bash}
 FROM fedora
+
+LABEL maintainer="zhangjl@awcloud.com" software="yum rpm systemd openssh-server sudo epel-release" \
+distro="CentOS/Cern/RedHat" version="7.5.1804.5"
+
 RUN echo "root:luoyan" | chpasswd &&\
 (cd /lib/systemd/system/sysinit.target.wants/; \
 for i in *; do [ $i == systemd-tmpfiles-setup.service ] || rm -f $i; done); \
