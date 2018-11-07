@@ -227,11 +227,11 @@ rpm --root $fedora --initdb
 
 #dnf -y --installroot=${fedora} install --releasever 28\
 rpm --root ${fedora} -ivh \
-    https://dl.fedoraproject.org/pub/fedora/linux/releases/28/Everything/x86_64/os/Packages/f/fedora-release-28-1.noarch.rpm \
-    https://dl.fedoraproject.org/pub/fedora/linux/releases/28/Everything/x86_64/os/Packages/f/fedora-repos-28-1.noarch.rpm \
-    https://dl.fedoraproject.org/pub/fedora/linux/releases/28/Everything/x86_64/os/Packages/f/fedora-gpg-keys-28-1.noarch.rpm
+https://dl.fedoraproject.org/pub/fedora/linux/releases/28/Everything/x86_64/os/Packages/f/fedora-release-28-1.noarch.rpm\
+ https://dl.fedoraproject.org/pub/fedora/linux/releases/28/Everything/x86_64/os/Packages/f/fedora-repos-28-1.noarch.rpm \
+https://dl.fedoraproject.org/pub/fedora/linux/releases/28/Everything/x86_64/os/Packages/f/fedora-gpg-keys-28-1.noarch.rpm
 
-dnf -y --installroot=${fedora} install dnf yum rpm systemd openssh-server
+dnf -y --installroot=${fedora} install dnf rpm systemd openssh-server
 ssh-keygen -t dsa -f ${fedora}/etc/ssh/ssh_host_dsa_key -N ""
 ssh-keygen -t rsa -f ${fedora}/etc/ssh/ssh_host_rsa_key -N ""
 ssh-keygen -t ecdsa -f ${fedora}/etc/ssh/ssh_host_ecdsa_key -N ""
@@ -240,12 +240,13 @@ cp ~/.bash_profile ${fedora}/root/
 cp ~/.bashrc ${fedora}/root/
 # 添加term环境变量，让clear命令可以正常使用
 sed -i '/Source/iexport TERM=xterm-256color' ${fedora}/root/.bashrc
-dnf -y --installroot=${fedora} erase xkeyboard-config xkeyboard-config
+dnf -y --installroot=${fedora} erase xkeyboard-config xkeyboard-config acl shared-mime-info
 dnf -y --installroot=${fedora} update
 dnf --installroot=${fedora} clean all
 rm -rf ${fedora}/var/cache/* ${fedora}/usr/lib/locale/* \
     ${fedora}/usr/share/locale/* ${fedora}/var/lib/yum/* \
-    ${fedora}/tmp/* ${fedora}/var/tmp/*
+    ${fedora}/tmp/* ${fedora}/var/tmp/* ${fedora}/usr/share/man/* \
+    ${fedora}/usr/share/licenses/* ${fedora}/usr/share/doc/*
 
 # 导入docker
 tar -C cern -c . | docker import - cern
