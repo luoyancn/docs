@@ -263,17 +263,17 @@ int qemu_main(int argc, char **argv, char **envp)
 typedef struct user user;
 struct user{
     char * name;
-    uint8_t age:7; // 表示只占用该数据类型的最后7 bit，也就是说限制age不能大于127
+    uint8_t age;
+    //uint8_t age:7; 表示只占用该数据类型的最后7 bit，也就是说限制age不能大于127
     user* prev;
     user* next;
 };
 
 int main(int argc, char * argv[])
 {
-    printf("%ld\n",offsetof(user, name);
-    printf("%ld\n",offsetof(user, age);
-    printf("%ld\n",offsetof(user, prev);
-    printf("%ld\n",offsetof(user, next);
+    printf("%ld\n",offsetof(user, name));
+    printf("%ld\n",offsetof(user, prev));
+    printf("%ld\n",offsetof(user, next));
     return 0;
 }
 \end{code-in-enumerate}
@@ -284,6 +284,9 @@ int main(int argc, char * argv[])
 member成员在TYPE数据类型中的偏移量。这个宏定义的效果和c库当中的offsetof（stddef.h）功能一样。
 以上的代码当中，输出的结果是0,8,16和24（64位平台）。原因是每一个指针的大小固定为
 平台的位数，64位为8字节，32位为4字节。
+
+需要注意的是，如果结构体成员当中存在 uint8_t age:7 这种位成员时，是不能通过offsetof
+获取age这种位成员的地址偏移量的。另外，所有对这种位成员进行取地址的操作，都是非法的。
 
 \1 根据偏移量获取数据地址
 \begin{code-in-enumerate}{c}
