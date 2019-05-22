@@ -135,6 +135,32 @@ loop:
 }
 \end{code-block}
 
+\section{闭包}
+Golang支持闭包，但是和python的闭包不一样的是，golang的闭包可以对外层函数的变量
+进行修改
+\begin{code-block}{go}
+func wrapper(start int) func(int) int {
+    return func(input int) int {
+        start = start + input
+        return start
+    }
+}
+\end{code-block}
+上述代码在golang当中是合法的，但是，在python当中，是不能对外层函数的变量进行修改的
+\begin{code-block}{python}
+def wrapper(name):
+    def _wrap(age):
+        name = name + '.jpg'
+        print('%s: %d\n' %(name, age))
+    return _wrap
+
+
+if __name__ == '__main__':
+    w = wrapper('xx')
+    w(12)
+\end{code-block}
+在python当中，上述代码就会出现错误：UnboundLocalError: local variable 'name' referenced before assignment
+
 \section{Golang的继承}
 Golang和c一样，并没有类的概念，因此没有继承。但是，由于golang有结构体的存在，因此，
 可以使用组合的方式来实现继承。
@@ -285,6 +311,41 @@ golang的坑.
 \begin{code-in-enumerate}{go}
 transport := &http.Transport{DisableKeepAlives: true}
 client := &http.Client{Transport: transport}
+\end{code-in-enumerate}
+
+  \1 中文的使用
+
+  Golang当中，中文字符占用3个字节
+\begin{code-in-enumerate}{go}
+fmt.Printf("%d\n", len("hello 北京")) // 得到的结果是12
+\end{code-in-enumerate}
+
+  对包含中文字符的字符串进行遍历时，需要转换为rune类型的切片，否则会出现乱码
+\begin{code-in-enumerate}{go}
+zh := "hello 北京"
+for i := 0; i < len(zh); i++ {
+    fmt.Printf("%c ", zh[i]) // 中文输出为乱码
+}
+
+rune_ := []rune(zh)
+for i := 0; i < len(rune_); i++ {
+    fmt.Printf("%c ", rune_[i]) // 正常输出为中文
+}
+\end{code-in-enumerate}
+
+  \1 string与byte的相互转换
+
+  Golang当中，byte实际上就是数字，可以使用%d输出数值，也可以使用%c输出为字符类型，
+  从底层说，golang当中的string实质就是byte数组，因此二者可以相互转换。比如byte数组
+  转换为string
+\begin{code-in-enumerate}{go}
+b := []byte{'a', 'b', 'c', 'd'}
+str := string(b)
+\end{code-in-enumerate}
+
+  Golang的string转换为byte
+\begin{code-in-enumerate}{go}
+_b := []byte(str)
 \end{code-in-enumerate}
 
 \end{outline}
