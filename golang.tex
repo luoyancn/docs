@@ -335,7 +335,7 @@ for i := 0; i < len(rune_); i++ {
 
   \1 string与byte的相互转换
 
-  Golang当中，byte实际上就是数字，可以使用%d输出数值，也可以使用%c输出为字符类型，
+  Golang当中，byte实际上就是数字，可以使用\%d输出数值，也可以使用\%c输出为字符类型，
   从底层说，golang当中的string实质就是byte数组，因此二者可以相互转换。比如byte数组
   转换为string
 \begin{code-in-enumerate}{go}
@@ -346,6 +346,73 @@ str := string(b)
   Golang的string转换为byte
 \begin{code-in-enumerate}{go}
 _b := []byte(str)
+\end{code-in-enumerate}
+
+  \1 timer,ticker与time.After的使用
+
+\begin{code-in-enumerate}{go}
+ticker := time.NewTicker(time.Second * 1)
+timer := time.NewTimer(time.Second * 10)
+timeout_5 := time.After(time.Second * 5)
+
+for_select:
+for {
+    select {
+        case <-ticker.C:
+            fmt.Printf("Now is %s\n", time.Now().Format(
+                "2006-01-02 15:04:05.000000"))
+        case <-timeout_5:
+            fmt.Printf("After 5 seconds\n")
+        case <-timer.C:
+            fmt.Printf("Time is up, break out the for-select\n")
+            ticker.Stop()
+            timer.Stop()
+            break for_select
+    }
+}
+\end{code-in-enumerate}
+
+  \1 数组和切片的区别
+
+  Golang当中，数组是数值类型，切片是引用类型。数组和切片的定义类似，但是数组在定义时
+  需要指明长度，而切片定义则无需，如下
+\begin{code-in-enumerate}{go}
+arrays_int := [5]int{1,2,3,4,5} // arrays
+arrays_int_copy := [...]int{1,2,3,4,5} //arrays, 自动推导模式
+slice_int := []int{1,2,3,4,5} // slice
+slice_copy := arrays_int[:] // slice
+\end{code-in-enumerate}
+
+  数组名并非数组的首地址，而需要对其进行取地址操作，才可获得数组的首地址，但是，切片的名称
+  就表示切片的首地址
+\begin{code-in-enumerate}{go}
+fmt.Printf("%p\n", &arrays_int)
+// fmt.Printf("%p\n", arrays_int) 输出错误，类似%!p([10]int=[1 2 3 4 5 6 7 8 9 10])
+fmt.Printf("%p\n", slice_int)
+\end{code-in-enumerate}
+
+  对切片的数据修改，将影响切片原始引用数据的修改，也会影响对原始引用数据的其他切片的修改；
+  但是，对数组的修改，只会影响到原始数组的数据，并不会影响到从原始数组扩展出来的新数组的
+  数据修改。因此可以简单粗暴的认为，切片存放的数据是数据的地址。切片实际上存放的内容包含3部分：
+  数组元素的首地址，切片的长度以及切片的容量。切片的内部布局如\nameref{fig:slice}所示。
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=1.5]{slice.png}
+  \caption{切片的内部存储布局}
+  \label{fig:slice}
+\end{figure}
+
+\begin{code-in-enumerate}{go}
+arrays_int := [10]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+brrays := arrays_int
+brrays[8] = 188
+fmt.Printf("%v\n", arrays_int) //arrays_int的数据保持不变
+
+slice_int := arrays_int[:]
+slice_copy := arrays_int[:]
+
+slice_int[7] = 200
+fmt.Printf("%v, %v, %v\n", slice_int, slice_copy, arrays_int) //所有数据全部被修改
 \end{code-in-enumerate}
 
 \end{outline}

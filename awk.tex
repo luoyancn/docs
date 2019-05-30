@@ -1,0 +1,6 @@
+\section{AWK}
+
+\subsection{排除最后一列输出}
+\begin{code-block}{bash}
+awk '{$NF="";print}' test.txt
+\end{code-block}
