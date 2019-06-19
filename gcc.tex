@@ -71,3 +71,42 @@ bye
 
 \section{Gcc内置函数}
 GCC提供了一系列的内置函数，用于进行优化程序。
+
+\begin{outline}[enumerate]
+
+\1 \_\_builtin\_types\_compatible\_p
+
+该函数为Gcc的扩展函数，用于判断2个数据的类型是否相同。其原型定义如下：
+\begin{code-in-enumerate}{c}
+  int __builtin_types_compatible_p(type_a, type_b);
+\end{code-in-enumerate}
+
+在真正的使用当中，可以用于进行宏定义，来判断传递的参数是否为需要的类型：
+\begin{code-in-enumerate}{c}
+// 判断传递的参数是否为数组
+#define BUILD_BUG_ON_ZERO(e) (sizeof(char[1 - 2 * !!(e)]) - 1)
+#define __same_type(a, b) __builtin_types_compatible_p(typeof(a), typeof(b))
+#define __must_be_array(a) BUILD_BUG_ON_ZERO(__same_type((a), &(a)[0]))
+\end{code-in-enumerate}
+
+关于BUILD\_BUG\_ON\_ZERO在前面的已经仔细讲解过，其主要作用就是用来发现编译时的错误，
+\_\_same\_type宏定义用于判断传入的参数是否是相同的数据类型，a表示原始的数据，(a)[0]表示
+取a数组的第0个元素，\&(a)[0]表示对a数组的第0个元素取地址，因此，\_\_same\_type((a), \&(a)[0])
+的作用就是，通过\&(a)[0]这个操作，来区分数组和其他类型，如果数据a可以执行该操作，可以认为
+a是一个数组或指针，反之，就会报错，从而在编译时刻就发现错误。同样的，该宏定义还可以区分数组与指向数组
+的指针：typeof(a)返回的是数组类型，而typeof(\&a[0])返回的则是指针类型。
+
+\begin{code-in-enumerate}{c}
+int a[] = {1,2,3};
+__must_be_array(a);
+float b[] = {1,2,3};
+__must_be_array(b);
+int c = 123;
+int *d = &c;
+__must_be_array(d); // 编译时提示错误
+
+int *e = a;
+__must_be_array(e); // 同样是编译提示错误
+\end{code-in-enumerate}
+
+\end{outline}

@@ -404,6 +404,21 @@ int main(int argc, char * argv[])
 }
 \end{code-in-enumerate}
 
+\1 发现编译时的错误
+
+Linux 内核当中存在2个非常特殊的宏定义，如下：
+\begin{code-in-enumerate}{c}
+#define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
+#define BUILD_BUG_ON_ZERO(e) (sizeof(struct { int:-!!(e); }))
+\end{code-in-enumerate}
+
+下面对于上述的宏定义，进行简单的讲解:
+\begin{enumerate}
+  \item !!表示将e的结果连续取反，得到0或者1
+  \item char[1-2*0]为合法结果，但是，char[1-2*1]为非法结果
+  \item struct的位域定义当中，int:1 表示定义了一个匿名的位域空间，占据1位，int:0表示占据0位，int:-1则为非法表达式
+\end{enumerate}
+
 \end{outline}
 
 \section{匿名结构体}

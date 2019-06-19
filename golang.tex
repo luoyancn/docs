@@ -46,6 +46,8 @@ go get -u -v github.com/davidrjenni/reftools/cmd/fillstruct
 go get -u -v golang.org/x/tools/cmd/guru
 go get -u -v golang.org/x/tools/cmd/gorename
 go get -u -v golang.org/x/tools/cmd/goimports
+go get -u -v github.com/golangci/golangci-lint/cmd/golangci-lint
+go get -u -v golang.org/x/tools/cmd/gopls
 gometalinter --install -u
 \end{code-block}
 
@@ -413,6 +415,66 @@ slice_copy := arrays_int[:]
 
 slice_int[7] = 200
 fmt.Printf("%v, %v, %v\n", slice_int, slice_copy, arrays_int) //所有数据全部被修改
+\end{code-in-enumerate}
+
+  另外，和python不太一样的是，golang的切片从任何形式上来说，都是连续的。
+\begin{code-in-enumerate}{go}
+arrays_int := [10]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+slice_1 := arrays_int[3:] // 表示从数组的第3位开始往后的所有元素
+slice_2 := arrays_int[:7] // 表示数组的第7位开始向前的所有元素
+slice_int = arrays_int[1:3:9] // 表示从数组的前9个元素进行筛选，选取这9个元素当中的
+                              // 第1到3个元素，与python的不一样！
+\end{code-in-enumerate}
+
+  Golang的map也支持切片，但是，和数组的切片不太一样，map的切片如下：
+\begin{code-in-enumerate}{go}
+var map_slice []map[string]string
+\end{code-in-enumerate}
+
+  \1 设计模式一：工厂模式
+
+\begin{code-in-enumerate}{go}
+// object.go
+package object
+type student struct {
+    name string
+    age  uint8
+}
+
+func (stu *student) SetName(name string) {
+    stu.name = name
+}
+
+func NewStudent() *student {
+    return &student{}
+}
+
+/******************/
+// main.go
+// package main
+import object
+stu := factory.NewStudent()
+stu.SetName("zhangjl")
+\end{code-in-enumerate}
+
+  \1 类型断言
+
+\begin{code-in-enumerate}{go}
+usb.Start()
+if p, ok := usb.(*phone); ok { // 判断usb这个接口变量是否是phone这个类型的指针，并将其赋值为p
+                               // 实质上就是将接口赋值给具体类型
+    p.Call()
+}
+usb.Stop()
+
+switch usb.(type) { // 判断usb变量的类型
+case *phone:
+    fmt.Printf("It`s a phone\n")
+case *camera:
+    fmt.Printf("It`s a camera\n")
+case *gumdan:
+    fmt.Printf("It`s a gumdan\n")
+}
 \end{code-in-enumerate}
 
 \end{outline}
