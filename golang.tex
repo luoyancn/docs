@@ -22,7 +22,6 @@ go get -u -v github.com/koron/iferr
 go get -u -v github.com/visualfc/gocode
 go get -u -v github.com/rogpeppe/godef
 go get -u -v github.com/zmb3/gogetdoc
-go get -u -v github.com/golang/lint/golint
 go get -u -v github.com/lukehoban/go-outline
 go get -u -v github.com/sqs/goreturns
 go get -u -v github.com/tpng/gopkgs
@@ -43,10 +42,11 @@ go get -u -v github.com/Masterminds/glide
 go get -u -v github.com/golang/protobuf/protoc-gen-go
 go get -v -u github.com/derekparker/delve/cmd/dlv
 go get -u -v github.com/davidrjenni/reftools/cmd/fillstruct
+go get -u -v github.com/golangci/golangci-lint/cmd/golangci-lint
+go get -u -v golang.org/x/lint/golint
 go get -u -v golang.org/x/tools/cmd/guru
 go get -u -v golang.org/x/tools/cmd/gorename
 go get -u -v golang.org/x/tools/cmd/goimports
-go get -u -v github.com/golangci/golangci-lint/cmd/golangci-lint
 go get -u -v golang.org/x/tools/cmd/gopls
 gometalinter --install -u
 \end{code-block}
@@ -474,6 +474,65 @@ case *camera:
     fmt.Printf("It`s a camera\n")
 case *gumdan:
     fmt.Printf("It`s a gumdan\n")
+}
+\end{code-in-enumerate}
+
+  \1 channel的for-range操作
+
+  Golang当中，channel也是可以通过for-range结构进行迭代和操作的，但是，前提就是被迭代的
+  channel被关闭了。如果没有被关闭，在进行for-range操作的时候，会出现死锁的问题。除此之外，
+  进行for-range操作时，还有一些问题需要注意，见下方代码
+
+\begin{code-in-enumerate}{go}
+for range out_chan {
+    fmt.Printf("%v\n", <-out_chan) // 无法输出out_chan当中的所有数据
+                                   // 原因在于range out_chan已经从通道当中取出了一个数据
+                                   // 因此，<-out_chan操作相当于取通道当中的下一个数据
+}
+
+for val := range in_chan {
+    fmt.Printf("%v\n", val)       // 如果需要使用通道当中的所有结果，则必须在进行
+                                  // for-range操作的时候，将通道的数据赋予另外的变量进行接收
+}
+\end{code-in-enumerate}
+
+  \1 协程版本的质数求解（筛子算法）
+
+\begin{code-in-enumerate}{go}
+func generate(end int, input chan<- int) {
+    for i := 2; i < end; i++ {
+        input <- i
+    }
+    close(input)
+}
+
+func filter(input <-chan int, output chan<- int, prime int) {
+    for val := range input {
+        if val%prime != 0 {
+            output <- val
+        }
+    }
+    close(output)
+}
+
+func Prime(end int) chan int {
+    input := make(chan int)
+    output := make(chan int, end)
+    go generate(end, input)
+for_loop:
+    for {
+        prime, ok := <-input // 注意，不能使用for prime:= input的方式，原因在于input
+                             // 这个通道在循环当中会不断变化
+        if !ok {
+            close(output)
+            break for_loop
+        }
+        output <- prime
+        tmp := make(chan int)
+        go filter(input, tmp, prime)
+        input = tmp
+    }
+    return output
 }
 \end{code-in-enumerate}
 
