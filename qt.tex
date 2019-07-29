@@ -1,0 +1,18 @@
+\chapter{Qt}
+\section{手动生成qt的工程项目文件}
+\begin{code-block}{bash}
+# 生成qt的解决方案pro文件
+qmake-qt5 -project
+
+# 生成之后，在pro文件的头部添加如下信息
+QT       += core gui
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+
+# 最后生成Makefile，进行工程编译
+qmake-qt5 -makefile
+# 或者直接
+qmake-qt5
+
+# 将qt的ui文件手动转换为c/c++的代码
+uic-qt5 united.ui -o ui_united.h
+\end{code-block}

@@ -1,4 +1,41 @@
 \chapter{GCC}
+\section{Gcc编译过程与实质}
+\par Gcc的编译包含了几个步骤：
+\begin{itemize}
+  \item 预处理
+  \item 编译
+  \item 汇编
+  \item 链接
+\end{itemize}
+
+其中预处理，最主要的工作就是将所有的源代码准备，并且将源代码当中的宏定义进行替换。
+而编译，则是使用cc1命令，对c文件进行编译，即将c文件处理成s（汇编文件）
+\begin{code-block}{c}
+# 实际上使用的是 cc1命令
+ /usr/libexec/gcc/x86_64-redhat-linux/4.8.5/cc1 -quiet -v test.c \
+    -quiet -dumpbase test.c -mtune=generic -march=x86-64 -auxbase test \
+    -version -o /tmp/ccHGK1zq.s
+
+# 上述的命令实际上是由gcc的命令完成或者直接调用
+gcc -S -o test.s test.c
+\end{code-block}
+
+而汇编则是将汇编文件进行编译，翻译成字节码文件
+\begin{code-block}{c}
+# 实际上使用的是as命令
+as -v --64 -o /tmp/ccWcmHvw.o /tmp/ccHGK1zq.s
+# 上述的命令实际上是由gcc的命令完成或者直接调用
+gcc -c -o test.o test.c
+\end{code-block}
+
+最后一步，则是将汇编生成的字节码文件，转换成可执行的二进制文件
+\begin{code-block}{c}
+# 实际上使用的是as命令
+/usr/libexec/gcc/x86_64-redhat-linux/4.8.5/collect2 --build-id --no-add-needed ...
+# 上述的命令实际上是由gcc的命令完成或者直接调用
+gcc -o test.out test.o
+\end{code-block}
+
 \section{定义函数别名}
 在gcc当中提供了一系列的扩展功能，包含了定义方法的别名。函数的别名可以是强引用，也可以是弱引用。
 \begin{code-block}{c}

@@ -43,6 +43,7 @@ go get -u -v github.com/golang/protobuf/protoc-gen-go
 go get -v -u github.com/derekparker/delve/cmd/dlv
 go get -u -v github.com/davidrjenni/reftools/cmd/fillstruct
 go get -u -v github.com/golangci/golangci-lint/cmd/golangci-lint
+go get -u -v github.com/bhcleek/lsp-position/cmd/lsp-position
 go get -u -v golang.org/x/lint/golint
 go get -u -v golang.org/x/tools/cmd/guru
 go get -u -v golang.org/x/tools/cmd/gorename
@@ -536,6 +537,162 @@ for_loop:
 }
 \end{code-in-enumerate}
 
+  \1 反射的基本要点
+
+\begin{code-in-enumerate}{go}
+
+// 针对普通的数据类型，其操作基本如下
+func ChangeValue(in interface{}, val_in interface{}) {
+    real_val := reflect.ValueOf(in).Elem()
+    switch in.(type) {
+    case *int:
+        val := val_in.(int)
+        real_val.SetInt(int64(val))
+    case *int32:
+        val := val_in.(int32)
+        real_val.SetInt(int64(val))
+    case *int64:
+        val := val_in.(int64)
+        real_val.SetInt(val)
+    case *string:
+        val := val_in.(string)
+        real_val.SetString(val)
+    case *float32:
+        val := val_in.(float32)
+        real_val.SetFloat(float64(val))
+    case *float64:
+        val := val_in.(float64)
+        real_val.SetFloat(val)
+    }
+}
+
+// 针对结构体，其操作基本如下。但是特别说明的是，针对结构体，最好是通过指针进行
+// 操作，防止出现修改了之后不生效的问题出现
+
+func ChangeStruct(struct_ptr interface{}) {
+    type_pointer := reflect.TypeOf(struct_ptr)
+    val_pointer := reflect.ValueOf(struct_ptr)
+    val_struct := val_pointer.Elem()
+
+    // 判断传入的参数为结构体类型的指针
+    if reflect.Ptr != type_pointer.Kind() || reflect.Struct != val_struct.Kind() {
+        fmt.Printf("Need struct pointer as input\n")
+        return
+    }
+
+    type_struct := type_pointer.Elem()
+    field_num := val_struct.NumField()
+    fmt.Printf("The struct field is %d\n", field_num)
+    for i := 0; i < field_num; i++ {
+        fmt.Printf("The %d field name is %s , and value is %v\n", i,
+            // 获取结构体字段名称，结构体对应字段的值
+            type_struct.Field(i).Name, val_struct.Field(i))
+        // 获取结构体包含的元素的tag标签
+        tag := type_struct.Field(i).Tag.Get("json")
+        if "" != tag {
+            fmt.Printf("The tag of field is %v\n", tag)
+        }
+    }
+
+    // 判断结构体的数据域是否可以被访问
+    if val_struct.Field(1).CanSet() {
+        val_struct.Field(1).SetInt(108)
+        val_struct.FieldByName("Age").SetInt(120)
+    }
+
+    method_num := val_pointer.NumMethod()
+    fmt.Printf("The number of struct methods is %d\n", method_num)
+    for i := 0; i < method_num; i++ {
+        fmt.Printf("The method name is %s, %v\n",
+            // 获取结构体的方法名
+            // val_pointer.Type()的结果实际上就是type_pointer
+            val_pointer.Type().Method(i).Name,
+            type_pointer.Method(i).Type)
+    }
+
+    // 判断结构体所包含的方法是否可以被调用
+    if val_pointer.Method(0).CanAddr() {
+        fmt.Printf("%v\n", val_pointer.Method(0).Call(nil)[0])
+    }
+}
+\end{code-in-enumerate}
+
+  \1 使用反射构造新的结构体实例
+
+\begin{code-in-enumerate}{go}
+func CreatInstance(struct_ptr interface{}) interface{} {
+    struct_type := reflect.TypeOf(struct_ptr)
+    strcut_struct := struct_type.Elem()
+    elem := reflect.New(strcut_struct)
+    instance := elem.Elem()
+    instance.FieldByName("Name").SetString("zhangjl")
+    instance.FieldByName("Age").SetInt(108)
+    // 反射的方式调用结构体所持有的方法，调用时，所有的参数必须转换为
+    // reflect.Value的切片
+    params := []reflect.Value{}
+    params = append(params, reflect.ValueOf(120))
+    elem.MethodByName("SetAge").Call(params)
+    return instance.Interface() // 必须将reflect.Value转换为interface
+}
+
+// 在main方法当中使用
+obj_ := CreatInstance(obj)
+if ins, ok := obj_.(factory.Obj); ok {
+    fmt.Printf("%T, %s, %d\n", ins, ins.Name, ins.Age)
+}
+\end{code-in-enumerate}
+
+  \1 select的基本使用与timer的重设
+
+\begin{code-in-enumerate}{go}
+// 使用过期时间的机制
+intchan := make(chan struct{})
+timer := time.NewTimer(3 * time.Second)
+quit := make(chan struct{})
+go func() {
+    for i := 0; i < 10; i++ {
+    add(i, i, intchan)
+    }
+    quit <- struct{}{}
+}()
+
+for {
+    select {
+    case <-intchan:
+    case <-timer.C:
+        fmt.Printf("Timeout for waiting\n")
+        return
+    case <-quit:
+        fmt.Printf("quit, and reset the timer\n")
+        timer.Reset(3 * time.Second) // 对timer进行重设
+    }
+}
+
+// 在for-select结构当中，对退出通道进行修改
+intchan := make(chan struct{})
+timer := time.NewTimer(3 * time.Second)
+quit := make(chan struct{}, 1) //必须用缓冲式的channel，否则会产生死锁问题
+go func() {
+    for i := 0; i < 10; i++ {
+        add(i, i, intchan)
+    }
+    close(intchan)
+}()
+
+for {
+    select {
+    case <-intchan:
+    case <-timer.C:
+        fmt.Printf("Timeout for waiting\n")
+        quit <- struct{}{}
+        close(quit)
+    case <-quit:
+        fmt.Printf("quit, and reset the timer\n")
+        return
+    }
+}
+\end{code-in-enumerate}
+
 \end{outline}
 
 \section{TimeFormat}
@@ -583,3 +740,350 @@ OceanClient Version: 0.1
 OceanClient buildstamp: 2018-04-25T15:37:38
 OceanClient githash: 7a552b1cf6aca0e775d7b5d2dd69449cab8e783a
 \end{code-block}
+
+\section{Cobra}
+Cobra是一个优秀的golang命令行参数库，提供了杰出的命令行参数处理。目前在各大商业级
+的golang应用当中广泛使用。
+\begin{code-block}{go}
+var protocal string
+var address net.IP
+var port int
+
+var conn_protocal string
+var conn_address net.IP
+var conn_port int
+
+var rootcmd = &cobra.Command{
+    Short: "Demo for network develop",
+    Long:  ` The commands aims to show the network development`,
+}
+
+var serve = &cobra.Command{
+    Use:   "serve",
+    Short: "Start the network server",
+    Long:  "This is the server side of the network server",
+    Run:   listen,
+    Args:  cobra.NoArgs, //命令行之后，除了flag之外，不接受任何参数
+}
+
+var conn = &cobra.Command{
+    Use:   "connect",
+    Short: "Connect the service started by serve commands",
+    Long:  "This is the client side to connect the network server",
+    Run:   connect,
+    Args:  cobra.NoArgs,
+}
+
+func init() {
+
+    // 追加子命令
+    rootcmd.AddCommand(serve)
+
+    // 只在子命令当中生效的flag
+    serve.Flags().StringVarP(&protocal, "protocal", "p",
+        "tcp", "The listen ip protocal")
+    // 使用ip地址作为输入
+    serve.Flags().IPVarP(&address, "ip", "i",
+        net.IPv4(0, 0, 0, 0), "The listen ip address")
+    serve.Flags().IntVarP(&port, "port", "n",
+        8080, "The listen port")
+
+    rootcmd.AddCommand(conn)
+    conn.Flags().StringVarP(&conn_protocal, "protocal", "p",
+        "tcp", "The protocal connected to ")
+    conn.Flags().IPVarP(&conn_address, "ip", "i",
+        net.IPv4(127, 0, 0, 1), "The connected ip address")
+    conn.Flags().IntVarP(&conn_port, "port", "n",
+        8080, "The port listened by server, and client connected to")
+}
+
+func listen(cmd *cobra.Command, args []string) {
+    networks.Listen(protocal, address.String(), port)
+}
+
+func connect(cmd *cobra.Command, args []string) {
+    networks.Connect(conn_protocal, conn_address.String(), conn_port)
+}
+
+func main() {
+    // 运行cobra命令行
+    if err := rootcmd.Execute(); nil != err {
+        os.Exit(-1)
+    }
+}
+\end{code-block}
+
+\section{Golang网络编程}
+\begin{outline}[enumerate]
+
+  \1 普通的tcp/ip服务器
+
+\begin{code-in-enumerate}{go}
+func Listen(protocal, ip string, port int) {
+    listener, err := net.Listen(protocal, fmt.Sprintf("%s:%d", ip, port))
+    if nil != err {
+        fmt.Printf("Cannot listen on port %s:%d: %v", ip, port, err)
+        return
+    }
+    defer listener.Close()
+
+    for {
+        conn, err := listener.Accept()
+        if nil != err {
+            fmt.Printf("Cannot create connection :%v\n", err)
+            continue
+        }
+        go readhandler(conn)
+    }
+}
+
+func readhandler(conn net.Conn) {
+    defer conn.Close()
+    fmt.Printf("Connection from %s connected\n",
+    conn.RemoteAddr().String())
+    conn.Write([]byte("Nice to meet you !\n"))
+
+    tmp := make([]byte, 1024)
+    for {
+        n, err := conn.Read(tmp)
+        if io.EOF == err {
+            fmt.Printf("Connection closed by remote: %s\n",
+            conn.RemoteAddr().String())
+            return
+        }
+        if nil != err {
+            fmt.Printf("Failed to read from socket connection:%v", err)
+            return
+        }
+        fmt.Printf("Recevied message from client %s:  %s\n",
+        conn.RemoteAddr().String(), string(tmp[:n]))
+    }
+}
+\end{code-in-enumerate}
+
+  \1 普通的tcp/ip客户端
+
+\begin{code-in-enumerate}{go}
+func Connect(protocal, ip string, port int) {
+    conn, err := net.Dial(protocal, fmt.Sprintf("%s:%d", ip, port))
+    if nil != err {
+        fmt.Printf("Cannot connect to the server %s:%d because: %v",
+        ip, port, err)
+        return
+    }
+    defer conn.Close()
+
+    fmt.Printf("Connected the server %s:%d\n", ip, port)
+    tmp := make([]byte, 1024)
+    conn.Read(tmp)
+    fmt.Printf("Recevied message from server :%s\n", string(tmp))
+
+    reader := bufio.NewReader(os.Stdin)
+    for {
+        content, err := reader.ReadString('\n')
+        if nil != err {
+            fmt.Printf("Read err: %v", err)
+            return
+        }
+        content = strings.Trim(content, " \r\n")
+        if "exit" == content || "quit" == content {
+            return
+        }
+        conn.Write([]byte(content))
+    }
+}
+\end{code-in-enumerate}
+
+  \1 Redis连接池
+\begin{code-in-enumerate}{go}
+import (
+    "github.com/gomodule/redigo/redis"
+)
+var once sync.Once
+var redispool *redis.Pool
+
+func init() {
+    once.Do(func() {
+        redispool = &redis.Pool{
+            MaxIdle:         3,                 // 连接池的最大空闲连接数
+            MaxActive:       1024,              // 与redis的最大连接数
+            IdleTimeout:     120 * time.Second, // 连接的最大空闲时间
+            MaxConnLifetime: 10 * time.Minute,
+
+            Dial: func() (redis.Conn, error) {
+                return redis.Dial("tcp", "10.1.4.24:6379")
+            },
+            TestOnBorrow: func(c redis.Conn, t time.Time) error {
+                if time.Since(t) < time.Minute {
+                    return nil
+                }
+                _, err := c.Do("PING")
+                return err
+            },
+        }
+    })
+}
+\end{code-in-enumerate}
+
+  \1 Grpc实现服务器到客户端的通信
+
+  通常来说，服务器客户端之间的交互属于一个请求应答模式，即客户端发起请求，服务器进行对应的回复。
+  如果需要由服务器端单独向客户端发送消息，在常见的Rest模式下基本不太可能，毕竟Rest属于短连接。
+  一般的情况，如果做这种交互操作，需要使用TCP的方式，或者借助消息队列的模式。不过，可以通过对
+  Grpc的部分修改，达到这个目的。下面的例子当中，我们通过一个模拟来实现这个功能：客户端启动之后，
+  向服务器发送一个订阅的请求，服务器根据这个订阅的请求，定时的向客户端发送消息。而这个定时的发送
+  功能，可以根据需要，在服务端接收到其他请求之后，再进行发送。
+\begin{code-in-enumerate}{go}
+// protoc 描述文件
+syntax = "proto3";
+package messages;
+service RegisterSrv{
+    rpc Subscribe (stream Topic) returns (stream Notification) {} // 需要使用stream流模式，进行双工通信
+}
+
+message Topic {
+    string client = 1;
+}
+
+message Notification {
+    string client = 1;
+    string server = 2;
+    string msg = 3;
+}
+\end{code-in-enumerate}
+
+  服务器端的代码如下：
+\begin{code-in-enumerate}{go}
+type Streamer struct {
+    name      string
+    substream map[string]messages.RegisterSrv_SubscribeServer
+}
+
+func NewStreamer() *Streamer {
+    return &Streamer{
+        name:      "PushNotifyServer",
+        substream: make(map[string]messages.RegisterSrv_SubscribeServer),
+    }
+}
+
+func (this *Streamer) Subscribe(stream messages.RegisterSrv_SubscribeServer) error {
+    var client string = ""
+    for {
+        input, err := stream.Recv()
+        if io.EOF == err {
+            fmt.Printf("Complete recv\n")
+            if "" != client {
+                delete(this.substream, client)
+            }
+            return nil
+        }
+        if nil != err {
+            fmt.Printf("Error: %v\n", err)
+            if "" != client {
+                delete(this.substream, client)
+            }
+            return err
+        }
+        client = input.GetClient()
+        fmt.Printf("Received a Subscription Request (%s, %s)\n",
+            client, input.String())
+        _, ok := this.substream[client]
+        if !ok {
+            this.substream[client] = stream
+        } else {
+            fmt.Printf("Client %s already subscribed\n", client)
+        }
+    }
+    return nil
+}
+
+func (this *Streamer) pushmsg() {
+    ticker := time.NewTicker(10 * time.Second)
+    for {
+        select {
+        case <-ticker.C:
+            for client, server := range this.substream {
+                fmt.Printf("Server send message to client:%s\n", client)
+                    server.Send(&messages.Notification{
+                        Client: client, Server: "push server",
+                        Msg: fmt.Sprintf("From server to client %s: %s",
+                    client, time.Now().Format("2006-01-02 15:04:05.000000000"))})
+            }
+        }
+    }
+}
+
+func main() {
+    grpc_server := grpc.NewServer()
+    service := NewStreamer()
+    messages.RegisterRegisterSrvServer(grpc_server, service)
+    address, err := net.Listen("tcp", "0.0.0.0:8080")
+    if nil != err {
+        panic(err)
+    }
+
+    go service.pushmsg()
+    defer address.Close()
+    reflection.Register(grpc_server)
+    if err = grpc_server.Serve(address); nil != err {
+        panic(err)
+    }
+}
+\end{code-in-enumerate}
+
+  客户端的代码如下：
+\begin{code-in-enumerate}{go}
+func subscribe(client messages.RegisterSrvClient, name string) {
+    stream, err := client.Subscribe(context.Background())
+    if nil != err {
+        fmt.Printf("Failed to subscribe the channel:%v\n", err)
+        return
+    }
+
+    if err := stream.Send(&messages.Topic{Client: name}); nil != err {
+        fmt.Printf("Cannot send message to subscribe server:%v\n", err)
+        return
+    }
+    notification(stream)
+}
+
+func notification(stream messages.RegisterSrv_SubscribeClient) {
+    for {
+        resp, err := stream.Recv()
+        if io.EOF == err {
+            stream.CloseSend()
+            return
+        }
+        if nil != err {
+            fmt.Printf("Cannot recevied anything:%v\n", err)
+            stream.CloseSend()
+            return
+        }
+        fmt.Printf("Recevied message: %s\n", resp.GetMsg())
+    }
+}
+
+func main() {
+    conn, err := grpc.Dial("172.16.11.151:8080", grpc.WithInsecure())
+    if nil != err {
+        fmt.Printf("Failed to connect the grpc server :%v\n", err)
+        return
+    }
+    defer conn.Close()
+    client := messages.NewRegisterSrvClient(conn)
+
+    rand.Seed(time.Now().UTC().UnixNano())
+    name := fmt.Sprintf("%s:%d", "Client", rand.Intn(50))
+    subscribe(client, name)
+}
+\end{code-in-enumerate}
+
+  整体的运行结果如下图所示\nameref{fig:grpc}。
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.4]{grpc.png}
+  \caption{Grpc服务端客户端双工通信}
+  \label{fig:grpc}
+\end{figure}
+
+\end{outline}

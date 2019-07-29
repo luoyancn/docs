@@ -438,6 +438,38 @@ qemu-img convert -c -O qcow2 ironic-vm-resized.qcow2 ironic-vm.qcow2
 virsh attach-disk --domain kubernetes1  /home/zhangjl/gfs1 --target vdd --targetbus virtio  --sourcetype file --live --config
 \end{code-in-enumerate}
 
+\1 直接修改rbd存储内容
+\begin{code-in-enumerate}{bash}
+#首先对rbd进行映射
+rbd map liberty-pool/be3eab24-81f0-48f0-bf6d-1387da64184b_disk
+# 通常会得到一个输出，类似于：/dev/rbd0
+
+#然后查看分区的信息
+fdisk -lu /dev/rbd0
+
+#得到的信息大致如下：
+# Disk /dev/rbd0: 85 GB, 85896599040 bytes
+# 255 heads, 63 sectors/track, 10443 cylinders, total 167766795 sectors
+# Units = sectors of 1 * 512 = 512 bytes
+#
+#     Device Boot      Start         End      Blocks   Id  System
+# /dev/rbd0p1   *        2048   167765961    83883366   83  Linux
+# Warning: Partition 1 does not end on cylinder boundary.
+
+#利用上述得到的units大小和磁盘的起始地址，计算偏移量
+echo "512*2048" | bc
+#得到的结果可能为 1048576
+
+#随后将rbd进行挂载
+mount -o offset=1048576 /dev/rbd0 /mnt
+
+#随后修改rbd磁盘文件内容，修改完毕之后，卸载磁盘
+umount /mnt
+
+# 取消rbd映射
+rbd unmap /dev/rbd0
+\end{code-in-enumerate}
+
 \1 清理linux内存
 \begin{code-in-enumerate}{bash}
 echo 1 > /proc/sys/vm/drop_caches
