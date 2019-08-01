@@ -28,42 +28,6 @@ gpgkey=https://yum.dockerproject.org/gpg
 一般的，代理通常有socket5和http代理，但是docker，wget之类的一般只支持http代理。
 因此，需要转换一下。
 
-\subsection{设置socket5代理}
-Socket5代理一般需要shadowsocks的支持。首先设置socket5代理，并且将socket5转换为
-http代理
-\begin{code-block}{bash}
-dnf install python-shadowsocks polipo -y
-cat >/opt/server.json<<EOF
-{
-    "server":"107.191.52.9",
-    "server_port":8964,
-    "local_address": "127.0.0.1",
-    "local_port":1080,
-    "password":"laozhang",
-    "method":"aes-256-cfb"
-}
-EOF
-sslocal -c /root/server.json
-
-cat > /etc/polipo/config<<EOF
-logSyslog = true
-daemonise = true
-pidFile = /var/run/polipo/polipo.pid
-logFile = /var/log/polipo/polipo.log
-proxyAddress = "0.0.0.0"
-allowedClients = "0.0.0.0/0"
-socksParentProxy = "localhost:1080"
-socksProxyType = socks5
-EOF
-
-systemctl enable polipo
-systemctl start polipo
-\end{code-block}
-
-和polipo相同，shadowsocks也可以作为daemon运行。具体可以参考\textattachfile{shadowsocks.service}{\textcolor{blue}{shadowsocks.service}}
-
-通过以上的方式，就可以将socket5的代理转换为http代理。
-
 \subsection{设置docker使用代理}
 \begin{code-block}{bash}
 vi /usr/lib/systemd/system/docker.service

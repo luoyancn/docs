@@ -1,5 +1,55 @@
 \chapter{C}
 
+\section{C语言的内存分配}
+auto关键字修饰的变量，其申请的内存放在栈当中
+
+register关键字修饰的变量，其申请的内存放在寄存器当中，并不是在内存当中，而是在cpu的
+缓存当中，其访问速度比较快，常用于定义一些快速访问的变量。但是，cpu只是会尽量将这些
+变量放在寄存器当中，如果寄存器不够了，还是会放在内存当中。另外，针对register修饰的变量
+进行取地址操作是不起作用的。原因在于cpu的寄存器无法取地址。
+
+对于内存的地址的分配的内容，可以使用unsigned char类型的指针进行查看。
+\begin{code-block}{c}
+void test()
+{
+    float a = 1.4;
+    unsigned int *pointer_int;
+    unsigned char * pointer_char;
+    pointer_int = &a;
+    pointer_char = &a; // float a为4字节的数据，pointer_char指向的数据为1字节的数据
+                       // *pointer_char表示的是float a的16进制的最后2位
+    printf("pointer_int is %x\n", *pointer_int);
+    printf("pointer_char is %x\n", *pointer_char);
+}
+\end{code-block}
+
+变量的内存分配是从高地址从低地址进行分配。
+\begin{code-block}{c}
+void test()
+{
+    int a = 0x1234567;
+    unsigned char *p = (unsigned char*)&a; //每次读取一个字节
+    // 在intel的cpu上，其输出结果基本如下：
+    // The p is 67 and p+1 is 45, p+2 is 23, and p+3 is 1
+    printf("The p is %x and p+1 is %x, p+2 is %x, and p+3 is %x\n", *p, *(p+1), *(p+2), *(p+3));
+    return 0;
+}
+\end{code-block}
+
+利用这种分配特性，我们可以通过指针进行越界访问，操作其他变量的值。
+\begin{code-block}{c}
+void test()
+{
+    const int first = 1; //假设first的地址为0xf4
+    int second = 2;      //则second的地址为0xf0。注意，只要是这样连续定义，变量的地址一定是连续的。
+    printf("%p\t%p\n", &first, &second);
+    int *pointer_int = &second;
+    *(pointer_int+1) = 100; //pointer_int+1指向了first的地址
+                            // 通过这种越界访问的方式，则访问并修改了first的值。
+    printf("%d\n", first);
+}
+\end{code-block}
+
 \section{通用交换函数}
 通用的交换函数（非字符串）
 \begin{code-block}{c}
@@ -444,4 +494,14 @@ int main(int argc, char * argv[])
            user_ptra -> child_name, user_ptra -> child_age);
     return 0;
 }
+\end{code-block}
+
+\section{位移运算}
+\begin{code-block}{c}
+// 设置某一位为高电平（1），其余位不变
+a = a | (0x1<<n)
+a |= (0x1<<n)
+
+// 设置某一位为低电平（0），其余位不变
+a &= (~(0x1<<n))
 \end{code-block}

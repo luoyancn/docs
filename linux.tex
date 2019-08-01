@@ -112,6 +112,10 @@ git review -s
 # 如果需要通过代理
 # git config --global http.proxy http://localhost:8123
 # git config --global http.sslVerify false
+
+# 如果是使用socket5模式的代理
+# git config --global http.proxy socks5://localhost:8588
+# git config --global https.proxy socks5://localhost:8588
 \end{code-block}
 
 \section{Git使用submodule}
@@ -526,6 +530,42 @@ rw init=/bin/bash
 awk -F\' '$1=="menuentry " {print $2}' /etc/grub2.cfg
 grub2-set-default 0
 \end{code-block}
+
+\section{设置socket5代理}
+Socket5代理一般需要shadowsocks的支持。首先设置socket5代理，并且将socket5转换为
+http代理
+\begin{code-block}{bash}
+dnf install python-shadowsocks polipo -y
+cat >/opt/server.json<<EOF
+{
+    "server":"107.191.52.9",
+    "server_port":8964,
+    "local_address": "127.0.0.1",
+    "local_port":1080,
+    "password":"laozhang",
+    "method":"aes-256-cfb"
+}
+EOF
+sslocal -c /root/server.json
+
+cat > /etc/polipo/config<<EOF
+logSyslog = true
+daemonise = true
+pidFile = /var/run/polipo/polipo.pid
+logFile = /var/log/polipo/polipo.log
+proxyAddress = "0.0.0.0"
+allowedClients = "0.0.0.0/0"
+socksParentProxy = "localhost:1080"
+socksProxyType = socks5
+EOF
+
+systemctl enable polipo
+systemctl start polipo
+\end{code-block}
+
+和polipo相同，shadowsocks也可以作为daemon运行。具体可以参考\textattachfile{shadowsocks.service}{\textcolor{blue}{shadowsocks.service}}
+
+通过以上的方式，就可以将socket5的代理转换为http代理。
 
 \input{awk}
 \input{kernel}
