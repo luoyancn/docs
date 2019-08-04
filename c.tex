@@ -50,6 +50,44 @@ void test()
 }
 \end{code-block}
 
+从总体内存分布当中来看，C语言的内存分配存在如下的特点：
+\begin{itemize}
+  \item 代码段放在内存的低地址当中，通常是放在0x804或者0x40开头的低地址当中。代码段是静态地址。为只读的内存段
+  \item 代码段上面则是只读数据段，存放不可变数据，比如字符串“hello world”就属于存放于该部分，这一部分也是只读的内存段
+  \item 全局数据空间，即存放全局变量的地方。static修饰的数据也放在这部分（不管修饰的是全局的还是局部的变量）。
+    如果只是用static修饰定义，但是没有赋初值，则对应的变量放在bss段，而不是data段。
+    static int a = 100 ，a会放在data段，static int b；b则是放在bss段。这一部分为可读可写的内存。
+    const修饰的变量并没有放到内存的只读区，同样是放在内存的可读可写区域
+  \item 代码段上面则是运行时的堆地址，通常使用malloc，calloc或者realloc等函数所申请的空间地址
+  \item 堆地址之上，则是栈地址，通常用于存放代码当中的临时变量
+  \item 栈地址之上则是内核空间，这部分的地址则是应用程序无法访问的地方，也是禁止访问的地址
+\end{itemize}
+
+代码段，只读数据段，全局数据空间统称为静态数据段，在汇编的实现当中，代码段和只读数据段统称为text，而全局数据空间则称为data和bss（未初始化数据段）。
+字符串数据放在text段。
+通常情况下，可以使用size命令查看一个二进制文件的代码分布。如\nameref{fig:size}所示:
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.8]{size.png}
+  \caption{内存分布}
+  \label{fig:size}
+\end{figure}
+
+\begin{code-block}{c}
+printf("hello world\n");
+
+// 与上述代码对比
+// printf("1234hello world\n"); 在编译生成的二进制文件当中，通过size命令可以
+// 看到text段多出了4个字节
+\end{code-block}
+
+除此之外，C语言的函数实际上也是地址，我们可以通过地址，获得函数入口，进行调用。
+\begin{code-block}{c}
+int (*printfunc)(const char * ,...);
+printfunc = (int (*)(const char *,...))0x400420; // 假设printf函数的内存地址为该数值
+printfunc("hello world\n"); // 相当于调用printf("hello world \n");
+\end{code-block}
+
 \section{通用交换函数}
 通用的交换函数（非字符串）
 \begin{code-block}{c}
