@@ -693,6 +693,39 @@ for {
 }
 \end{code-in-enumerate}
 
+
+  \1 for-select的使用误区
+
+  For-Select是Golang并发编程当中常用的一种结构，通常与定时器ticker结合，来实现部分功能的跳转和修改。
+  但是，如果使用不当，则会导致严重的CPU和内存泄漏。
+\begin{code-in-enumerate}{go}
+ticker := time.NewTicker(time.Second * 10)
+for {
+    select {
+    case <-ticker.C:
+        fmt.Printf("xxxxxx\n")
+    default:
+    }
+}
+\end{code-in-enumerate}
+
+注意，上述代码是有问题的代码，由于select结构处于for循环当中，因此，只要ticker没有返回结果，
+for循环就会执行select结构当中的default分支，这样的后果就是default分支占用了99\%以上的CPU时间，使得
+cpu的使用率居高不下。因此，在for-select结构当中，尤其是使用定时器作为select的一个判断条件时，千万
+不能随意添加default分支。上述代码应该修改为如下的形式，修改之后，大量的cpu时间则被释放，不会出现
+CPU占用居高不下的情况。
+
+\begin{code-in-enumerate}{go}
+ticker := time.NewTicker(time.Second * 10)
+for {
+    select {
+    case <-ticker.C:
+        fmt.Printf("xxxxxx\n")
+    }
+}
+\end{code-in-enumerate}
+
+
 \end{outline}
 
 \section{TimeFormat}
