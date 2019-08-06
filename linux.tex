@@ -479,6 +479,38 @@ rbd unmap /dev/rbd0
 echo 1 > /proc/sys/vm/drop_caches
 \end{code-in-enumerate}
 
+\1 使用dd备份磁盘
+
+首先需要通过fdisk获得磁盘的结束标志，得到最大的磁盘地址max\_size
+\begin{code-in-enumerate}{bash}
+fdisk -l -u /dev/sda
+\end{code-in-enumerate}
+
+如图\nameref{fig:backup}所示，标红部分即为我们所需的max\_size:
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.5]{backup.png}
+  \caption{获取磁盘结束位置}
+  \label{fig:backup}
+\end{figure}
+
+然后再通过dd命令进行磁盘备份
+\begin{code-in-enumerate}{bash}
+dd if=/dev/sda of=backup.img bs=512 count=[fdisk所获得的max_size]+1
+\end{code-in-enumerate}
+
+\1 使用tar进行操作系统的备份和恢复
+\begin{code-in-enumerate}{bash}
+# 对操作系统进行备份
+tar cvpzf /var/local/backup.tgz --exclude=/proc --exclude=/lost+found \
+    --exclude=/var/local/backup.tgz --exclude=/tmp --exclude=/var/log \
+    --exclude=/var/tmp --exclude=/etc/network/interfaces \
+    --exclude=/var/cache/apt /
+
+# 对操作系统进行还原
+tar xvpfz /var/local/backup.tgz -C /
+\end{code-in-enumerate}
+
 \end{outline}
 
 \section{gdb在线调试运行程序}
