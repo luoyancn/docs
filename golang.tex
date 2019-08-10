@@ -301,6 +301,21 @@ set GOARCH=amd64
 go build
 \end{code-block}
 
+如果是需要CGO支持的，则需要使用交叉编译的C Complier。以在X86上交叉编译ARM的为例：
+\begin{code-block}{bash}
+wget https://releases.linaro.org/archive/15.06/components/toolchain/binaries/4.8/arm-linux-gnueabihf/\
+gcc-linaro-4.8-2015.06-x86_64_arm-linux-gnueabihf.tar.xz
+
+tar -Jxf gcc-linaro-4.8-2015.06-x86_64_arm-linux-gnueabihf.tar.xz
+export CROSS_COMPILE=/opt/gcc-linaro-4.8-2015.06-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-
+
+GOOS=linux GOARCH=arm CGO_ENABLED=1 \
+    CC_FOR_TARGET=/opt/gcc-linaro-4.8-2015.06-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc \
+    CC=/opt/gcc-linaro-4.8-2015.06-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc \
+    go install
+
+\end{code-block}
+
 \section{Golang的坑爹问题}
 Go毕竟还只是发展阶段的语言，存在一些问题是有可能的。下面记录一些实际当中遇到的
 golang的坑.
