@@ -1,12 +1,12 @@
 \chapter{GCC}
-\section{Gcc编译过程与实质}
-\par Gcc的编译包含了几个步骤：
-\begin{itemize}
+\section{GCC编译过程与实质}
+\par GCC的编译包含了几个步骤：
+\begin{enumerate}
   \item 预处理
   \item 编译
   \item 汇编
   \item 链接
-\end{itemize}
+\end{enumerate}
 
 其中预处理，最主要的工作就是将所有的源代码准备，并且将源代码当中的宏定义进行替换。
 而编译，则是使用cc1命令，对c文件进行编译，即将c文件处理成s（汇编文件）
@@ -36,8 +36,129 @@ gcc -c -o test.o test.c
 gcc -o test.out test.o
 \end{code-block}
 
+GCC的编译参数，可以分为静态编译（-static）与动态编译（-shared）。静态编译会将所有的
+依赖库合并为一个可执行文件，占用空间比较大；而动态编译则是生成动态的问题，生成的文件较小。
+默认情况下，gcc使用动态编译的方式。
+\begin{code-block}{c}
+# 强制使用静态编译的方式需要使用参数-static，另外，依赖于glibc-static这个类库
+gcc -static -o test.out test.o
+\end{code-block}
+
+动态编译（-shared）则通常与-fPIC（相对位置无关）参数一同使用。
+
+\section{制作静态链接库}
+静态链接库的生成过程以及使用方式大致如下：
+\begin{enumerate}
+  \item 生成目标文件（.o）
+  \item 将静态库（.a）与目标文件打包（ar）
+  \item 调用静态链接库：gcc -o target source.c -L
+\end{enumerate}
+
+具体操作可见如下
+
+\begin{code-block}{c}
+// testlib.c
+#include <stdio.h>
+unsigned int add(unsigned int a, unsigned int b)
+{
+        return a + b;
+}
+
+// testmain.c
+#include <stdio.h>
+unsigned int add(unsigned int, unsigned int);
+int main(int argc, char * argv[])
+{
+        unsigned int a = 10;
+        unsigned int b = 20;
+        printf("%u\n", add(a, b));
+        return 0;
+}
+\end{code-block}
+
+然后将上述代码testlib.c转换成目标文件
+\begin{code-block}{bash}
+gcc -o testlib.o testlib.c
+\end{code-block}
+
+随之将其进行归档打包，生成静态链接库文件
+\begin{code-block}{bash}
+ar crv testlib.a testlib.o
+\end{code-block}
+
+使用静态链接库文件进行代码编译
+\begin{code-block}{bash}
+gcc -o testmain testmain.c -L./ testlib.a
+\end{code-block}
+
+\section{制作动态链接库}
+动态链接库的生成过程以及使用方式大致如下：
+\begin{enumerate}
+  \item 生成位置无关的目标代码（-fPIC）
+  \item 生成动态链接库文件 gcc -shared -o *.so *.o
+  \item 调用动态链接库 gcc -o target source.c -L[path] *.so
+\end{enumerate}
+
+具体操作可见如下
+
+\begin{code-block}{c}
+// testlib.c
+#include <stdio.h>
+unsigned int add(unsigned int a, unsigned int b)
+{
+        return a + b;
+}
+
+// testmain.c
+#include <stdio.h>
+unsigned int add(unsigned int, unsigned int);
+int main(int argc, char * argv[])
+{
+        unsigned int a = 10;
+        unsigned int b = 20;
+        printf("%u\n", add(a, b));
+        return 0;
+}
+\end{code-block}
+
+首先是生成位置无关的目标代码
+\begin{code-block}{bash}
+gcc -fPIC -c -o testlib.o testlib.c
+\end{code-block}
+
+随后生成动态链接库文件
+\begin{code-block}{bash}
+gcc -shared -o testlib.so testlib.o
+\end{code-block}
+
+然后编译main文件
+\begin{code-block}{bash}
+gcc -o testmain testmain.c -L./ testlib.so
+\end{code-block}
+
+最后执行文件
+\begin{code-block}{bash}
+# 由于Linux下，默认的so文件全部放在$LD_LIBRARY_PATH，即/usr/lib和/usr/lib64下，
+# 因此，链接到自己的so文件时，要么将这个so放到规定的路径下，要么使用环境变量的模式进行加载
+LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH ./testmain
+
+# 使用规定目录的方式（x86_64）
+# mv testlib.so /lib64
+# ldconfig
+# ./testmain
+\end{code-block}
+
+\section{编译GCC}
+GCC的编译需要依赖以下几个软件包：
+\begin{itemize}
+  \item GMP:ftp://gcc.gnu.org/pub/gcc/infrastructure/gmp-6.1.0.tar.bz2
+  \item MPFR:ftp://gcc.gnu.org/pub/gcc/infrastructure/mpfr-3.1.4.tar.bz2
+  \item MPC:ftp://gcc.gnu.org/pub/gcc/infrastructure/mpc-1.0.3.tar.gz
+  \item m4
+\end{itemize}
+
 \section{定义函数别名}
-在gcc当中提供了一系列的扩展功能，包含了定义方法的别名。函数的别名可以是强引用，也可以是弱引用。
+在GCC当中提供了一系列的扩展功能，包含了定义方法的别名。函数的别名可以是强引用，也可以是弱引用。
 \begin{code-block}{c}
 void __swap_object(void * first, void * last, size_t size)
 {
@@ -57,7 +178,7 @@ void swap_strone(void * first, void *last, size_t size)
 \end{code-block}
 
 \section{标记函数被废弃}
-在gcc也支持标记函数为废弃，来警示相关人员不要使用这样的函数。
+在GCC也支持标记函数为废弃，来警示相关人员不要使用这样的函数。
 \begin{code-block}{c}
 void print_hello() __attribute__ ((deprecated));
 void print_hello()
@@ -76,9 +197,9 @@ test.c:46:6: 附注：在此声明
  void print_hello()
 \end{code-block}
 
-\section{特殊的gcc扩展}
+\section{特殊的GCC扩展}
 有的时候，我们可能需要在执行main方法之前执行一些动作，在执行完main方法之后，再
-进行一些扫尾的动作。Gcc提供了这样的支持。
+进行一些扫尾的动作。GCC提供了这样的支持。
 \begin{code-block}{c}
 // 进入main方法之前就执行该方法
 void hello() __attribute__ ((constructor));
@@ -106,14 +227,14 @@ helllo
 bye
 \end{code-block}
 
-\section{Gcc内置函数}
+\section{GCC内置函数}
 GCC提供了一系列的内置函数，用于进行优化程序。
 
 \begin{outline}[enumerate]
 
 \1 \_\_builtin\_types\_compatible\_p
 
-该函数为Gcc的扩展函数，用于判断2个数据的类型是否相同。其原型定义如下：
+该函数为GCC的扩展函数，用于判断2个数据的类型是否相同。其原型定义如下：
 \begin{code-in-enumerate}{c}
   int __builtin_types_compatible_p(type_a, type_b);
 \end{code-in-enumerate}
@@ -147,3 +268,73 @@ __must_be_array(e); // 同样是编译提示错误
 \end{code-in-enumerate}
 
 \end{outline}
+
+\section{Makefile}
+Makefile当中包含了一些特殊的系统变量，这些特定的系统变量如表\nameref{tab:macro_of_makefile}所示
+\begin{center}
+  \rowcolors{2}{green!80!yellow!50}{green!70!yellow!40}
+  \begin{tabularx}{\textwidth}{|X|X|}
+  \hline
+  表达式& 说明\\ \hline
+  \$* & 不包含扩展名的目标文件名称 \\
+  \$< & 第一个依赖文件名称\\
+  \$? & 所有时间戳比目标文件晚的依赖文件\\
+  \$@ & 目标文件完整名称\\
+  \$\^{} & 所有不重复的依赖文件\\ \hline
+  \end{tabularx}
+  \label{tab:macro_of_makefile}
+\end{center}
+
+比如有如下的一段代码
+\begin{code-block}{make}
+TARGET = testmain
+OBJS = testmain.o testlib.o
+testmain : $(OBJS)
+        $(CC) -o $@ $^
+\end{code-block}
+
+在上述代码当中\$\@就表示testmain这个目标，\$\^则表示testmain的依赖文件，即\$(OBJS)所代表的testmain.o和testlib.o文件
+
+默认的，Makefile当中执行的每一行代码都会在屏幕当中显示出来。如果不需要显示，则只需要在命令前添加@符号即可，如下：
+\begin{code-block}{make}
+TARGET = testmain
+OBJS = testmain.o testlib.o
+testmain : $(OBJS)
+        @$(CC) -o $@ $^
+\end{code-block}
+
+Makefile本身也支持嵌套。假设现在有一个工程，其目录结构如图\nameref{fig:submake}所示。
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.8]{make.png}
+  \caption{Makefile嵌套}
+  \label{fig:submake}
+\end{figure}
+
+则在编译时，我们可以使用Makefile进行统一的嵌套管理
+\begin{code-block}{make}
+# 外层的Makefile
+TARGET = testmain
+OBJS = testmain.o libs/testlib.o
+INC = include
+testmain : $(OBJS)
+        @$(CC) -o $@ $^
+testmain.o: testmain.c
+        $(CC) -I$(INC) -c $^
+libs/testlib.o:
+        $(MAKE) -C libs #嵌套执行libs下的makefile
+.PHONY: clean
+clean:
+        rm -rf $(OBJS) $(TARGET)
+
+#libs当中的Makefile
+OBJS = testlib.o
+INC = ../include
+testlib.o: testlib.c
+        $(CC) -I$(INC) -c $^
+.PHONY: clean
+clean:
+        rm -rf $(OBJS)
+\end{code-block}
+
+当然，也可以单独执行每个路径下的Makefile

@@ -1,0 +1,201 @@
+\section{Linux系统编程}
+
+\subsection{IO函数}
+Linux系统当中，通常需要处理IO，而IO的处理，在Linux的函数当中，主要有4个函数：
+\begin{itemize}
+  \item open //fcntl.h
+  \item write //unistd.h
+  \item read //unistd.h
+  \item close //unistd.h
+\end{itemize}
+
+实现简单的touch命令的功能
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+int main(int argc, char * argv[])
+{
+        // 第3个参数可以直接写为0644
+        int fd = open(argv[1], O_CREAT|O_WRONLY,
+                S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+        if (0>fd)
+        {
+                printf("Cannot create file %s\n", argv[1]);
+                return -1;
+        }
+        printf("Create file %s success\n", argv[1]);
+        close(fd);
+        return 0;
+}
+\end{code-block}
+
+但是，由于Linux操作系统本身存在umask（默认为022），因此，如果上述的第3个参数写作0777，
+生成的文件的权限与umask进行亦或计算之后，实际上，文件的权限还是755，并不是我们所期待的
+777。如果需要保持设置的权限与生成的文件权限完全一致，需要执行如下命令：
+\begin{code-block}{bash}
+umask 000
+# 后续再执行代码，生成文件
+\end{code-block}
+
+另外，如果只是需要打开文件，并不是创建文件，则open函数的第3个参数不需要。
+除此之外，还需要注意一下，文件的打开模式
+\begin{itemize}
+  \item O\_TRUNC：覆盖文件
+  \item O\_EXCL : 与O\_CREAT合用，如果对应文件已经存在，则提示错误
+\end{itemize}
+
+而对应的，也可以利用write函数向打开的文件句柄当中写入内容
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+int main(int argc, char * argv[])
+{
+        // 第3个参数可以直接写为0644
+        int fd = open(argv[1], O_CREAT|O_RDWR,
+                S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+        if (0>fd)
+        {
+                printf("Cannot create file %s\n", argv[1]);
+                return -1;
+        }
+        printf("Create file %s success\n", argv[1]);
+
+        char msg[] = "hello world";
+        write(fd, msg, sizeof(msg)/sizeof(char)); //会写入一个文件结束符，特殊符号
+                                                  // 如果不需要，则将长度-1即可
+        close(fd);
+        return 0;
+}
+\end{code-block}
+
+相应的，也可以利用read函数读取打开文件的内容：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+
+int main(int argc, char * argv[])
+{
+        int fd = open(argv[1], O_RDONLY);
+        if (0>fd)
+        {
+                printf("Cannot open file %s\n", argv[1]);
+                return -1;
+        }
+        printf("Open file %s success\n", argv[1]);
+
+        size_t read_ret = 0;
+#if 0
+        // 连续多次读取，并非一次性读完
+        size_t total = 0;
+        char readbuf[128];
+        while ((read_ret=read(fd, readbuf, 127))>0) // 每次只能读取max-1，否则末尾存在特殊字符，可能出现溢出
+        {
+                total += read_ret;
+                printf("Read %d chars \n", read_ret);
+                printf("The content of file is %s \n", readbuf);
+                memset(readbuf, 0, 128);
+        }
+        printf("The total sizeof file is %d\n", total);
+#else
+        // 一次性读取
+        char readbuf[1024];
+        read_ret=read(fd, readbuf, 1024);
+        printf("Read %d chars \n", read_ret);
+        printf("The content of file is %s \n", readbuf);
+#endif
+        close(fd);
+        return 0;
+}
+\end{code-block}
+
+高级一点的，我们就可以使用read和write函数来实现一个简单的文件拷贝功能。
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+
+int main(int argc, char * argv[])
+{
+        int readrd = 0, writefd = 0;
+        if (0 >= (readrd = open(argv[1], O_RDONLY)))
+        {
+                printf("Cannot open the source file %s\n", argv[1]);
+                return -1;
+        }
+        if (0 >= (writefd = open(
+                argv[2], O_CREAT|O_TRUNC|O_WRONLY, 0644)))
+        {
+                printf("Cannot create the target file %s\n", argv[2]);
+                return -1;
+        }
+
+        unsigned char buffer[128];
+        memset(buffer, 0, 128);
+
+        size_t readret = 0, writeret = 0;
+        while(0 < (readret = read(readrd, buffer, 127)))
+        {
+                if (0 > (writeret = write(writefd, buffer, readret)))
+                {
+                        printf("Cannot write content to write file\n");
+                        return -1;
+                }
+                memset(buffer, 0, 128);
+        }
+
+        close(readrd);
+        close(writefd);
+        return 0;
+}
+\end{code-block}
+
+由于读取使用的是unsigned char，因此，上述文件也可以直接拷贝二进制文件。
+
+\subsection{标准IO函数}
+Linux的IO操作包括文件IO和标准IO。所谓的文件IO，即直接调用内核提供的系统调用函数，一般需要使用头文件unistd.h当中的函数；而
+标准IO，则是通过调用C的库函数，间接的调用系统调用函数，通常的，使用的头文件stdio.h当中的函数。从功能上看，标准IO与文件IO是
+相同的，但是，细节上，他们存在区别。
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+
+int main(int argc, char * argv[])
+{
+        char  buffer[] = "hello world";
+        printf("stdio %s", buffer);
+        write(1, buffer, 11);
+        while(1);
+        return 0;
+}
+\end{code-block}
+
+上述代码编译之后，运行，只有hello world能够输出，而printf的stdio hello world则无法输出。问题在于缓存。
+Linux程序当中存在几种缓存：
+\begin{itemize}
+  \item 用户空间缓存：即想从内核读写的数据，即上述代码当中buffer
+  \item 内核空间缓存：没打开一个文件，内核会在内核空间开辟一块缓存，这个称之为内核空间的缓存
+  \item 库缓存：标准IO的库函数的缓存
+\end{itemize}
+
+文件IO中的写，即是将用户空间的缓存写入到内核空间缓存当中；反之，文件IO的读，则是将内核空间的缓存读写到用户空间的缓存当中。
+而调用标准IO之后，数据会从用户空间写入到库缓存，当写入的数据包含\textbackslash n时，或者库缓存空间写满时，才会向内核缓存空间提交数据。
+因此，如果上述代码修改为
+\begin{code-block}{c}
+printf("stdio %s\n", buffer); //或者直接将库缓存写满
+while(1);
+\end{code-block}
+则会直接输出。另外，库缓存的大小默认为1024个字节。
+
+常用fgets，gets，printf，sprintf，fprintf，fputs，puts，scanf这些函数在遇到\textbackslash n或者写满缓存时，即
+调用系统调用函数，称之为行缓存函数；而fread，fwrite只有在写满缓存之后再调用系统调用函数，这些则称之为全缓存函数；
+而只要调用，则会将内容和数据写入到内核当中的函数，称之为无缓存函数。fclose函数在关闭文件之前，会刷新缓存当中的数据到文件当中。
+
+与文件IO相对应的，标准IO使用fopen函数进行文件的创建和读写。但是需要特别注意的是，实际上，fopen函数创建的函数的权限始终是
+666，但是由于umask的存在，因此，fopen函数创建的文件的最终权限为644。
