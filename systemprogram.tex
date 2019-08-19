@@ -39,12 +39,15 @@ umask 000
 # 后续再执行代码，生成文件
 \end{code-block}
 
+Open函数只能生成普通文件，如果是管道、字符设备之类的，则无法使用open函数进行创建。
 另外，如果只是需要打开文件，并不是创建文件，则open函数的第3个参数不需要。
 除此之外，还需要注意一下，文件的打开模式
 \begin{itemize}
   \item O\_TRUNC：覆盖文件
   \item O\_EXCL : 与O\_CREAT合用，如果对应文件已经存在，则提示错误
 \end{itemize}
+
+Open函数一旦调用，Linux内核会在内核空间打开3个文件描述符，分别是0，1，2。
 
 而对应的，也可以利用write函数向打开的文件句柄当中写入内容
 \begin{code-block}{c}
@@ -195,7 +198,284 @@ while(1);
 
 常用fgets，gets，printf，sprintf，fprintf，fputs，puts，scanf这些函数在遇到\textbackslash n或者写满缓存时，即
 调用系统调用函数，称之为行缓存函数；而fread，fwrite只有在写满缓存之后再调用系统调用函数，这些则称之为全缓存函数；
-而只要调用，则会将内容和数据写入到内核当中的函数，称之为无缓存函数。fclose函数在关闭文件之前，会刷新缓存当中的数据到文件当中。
+而只要调用，则会将内容和数据写入到内核当中的函数，称之为无缓存函数，注意，stderr是无缓存的，而stdout则是行缓存的。
+fclose函数在关闭文件之前，会刷新缓存当中的数据到文件当中。
+
+需要注意的是fputc是缓存函数，但是，他不是行缓存函数，立即生效的话，需要使用fflush函数进行强制刷新。
+
+除此之外，在标准IO当中，读取文件有可能会出现错误，而fgets函数读取正常时，返回读取到的内容，这个内容与fgets函数的第一个参数的结果一致，
+如果读取错误，则会返回一个空指针（char）。但是无法准确判断这个错误是什么类型。判断错误的准确类型，可以使用feof和ferror函数进行判断。
+前者表示读取到了文件末尾，而后一个则表示真的文件读取错误，如下代码所示：
+\begin{code-block}{c}
+FILE *fp = fopen("test.c")
+char buffer[128];
+char * read_ret = NULL;
+read_ret = fgets(buffer, 128, fp);
+if (NULL == read_ret)
+{
+        if(feof(fp))
+        {
+                printf("Read the end of file\n");
+        }
+        if(ferror(fp))
+        {
+                printf("Read error from the stream\n");
+        }
+}
+\end{code-block}
 
 与文件IO相对应的，标准IO使用fopen函数进行文件的创建和读写。但是需要特别注意的是，实际上，fopen函数创建的函数的权限始终是
 666，但是由于umask的存在，因此，fopen函数创建的文件的最终权限为644。
+
+全缓存函数fread和fwrite在使用的时候会调用syscall，写入到内核缓存当中，最后写入到硬件当中（文件）。同样的，我们也可以用fread和fwrite实现
+Linux的cat命令，简单的如下：
+\begin{code-block}{c}
+if(NULL == (fp = fopen(argv[1], "rb")))
+{
+        printf("Cannot open the file %s\n", argv[1]);
+        return -1;
+}
+
+unsigned char buffer[128];
+memset(buffer, 0, 128);
+while(0 < fread(buffer, sizeof(char), 128, fp))
+{
+        fwrite(buffer, sizeof(char), 128, stdout);
+        memset(buffer, 0, 128);
+        if(feof(fp))
+        {
+                printf("Read the the of file\n");
+                break;
+        }
+}
+
+fclose(fp); // 调用fflush，直接写入到内核缓存当中
+return 0;
+\end{code-block}
+
+从执行效率上说，fgetc/fputc<fgets/fputs<fread/fwrite，主要原因在于fread基本都是在内核空间操作，效率有保证。因此，在有高效率要求的情况下，尽可能的使用fread和fwrite
+作为IO的操作函数。
+
+\subsection{目录IO}
+除了文件IO和标准IO之外，Linux还提供了针对路径（目录）的IO操作函数，具体如图\nameref{fig:dirio}所示
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=1]{dirio.png}
+  \caption{Linux的目录IO函数}
+  \label{fig:dirio}
+\end{figure}
+
+只是需要注意的是，mkdir函数在sys/stat.h当中，其他的函数大部分在dirent.h当中。目录的创建，可以使用如下的代码：
+\begin{code-block}{c}
+int ret = mkdir("zhangjl", 0777);
+if(0 > ret)
+{
+        printf("Failed to create dir\n");
+        return -1;
+}
+return 0;
+\end{code-block}
+
+而打开目录，则可以如下操作：
+\begin{code-block}{c}
+#include <dirent.h>
+
+int main(int argc, char * argv[])
+{
+        DIR *dp = opendir("/root");
+        if(NULL ==  dp)
+        {
+                printf("Failed to open dir\n");
+                return -1;
+        }
+
+        closedir(dp);
+        return 0;
+}
+\end{code-block}
+
+读取目录内容，则可以使用readdir函数。由于readdir函数在多个头文件当中都有定义，此处应当使用dirent.h当中的函数。
+具体的使用如下代码：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <dirent.h>
+
+int main(int argc, char * argv[])
+{
+        DIR *dp = opendir("/root/cprograms/dirio");
+        if(NULL ==  dp)
+        {
+                printf("Failed to open dir\n");
+                return -1;
+        }
+
+        struct dirent * dir = NULL;
+        while (NULL != (dir = readdir(dp)))
+        {
+                printf("The inode is %lu, and name is %s\n",
+                        dir->d_ino, dir->d_name);
+        }
+
+        closedir(dp);
+        return 0;
+}
+\end{code-block}
+上述代码需要注意的有几点：
+\begin{enumerate}
+  \item readdir返回的是一个指针，而这个指针，实际上是一个链表的头指针，因此，通常情况下需要反复调用该函数，读取链表上的所有元素
+  \item readdir只能返回一级文件目录当中的内容，子目录以及子目录下的子目录，则无法一次性读取
+  \item rewinddir则会将readdir所得到的指针，重新定位到这个链表的头节点，也可以使用seekdir进行指定地址的跳转。
+\end{enumerate}
+
+\subsection{Linux进程通信}
+首先需要明确的是，在用户空间实现进程间通信是不可能的，需要在Linux内核空间当中进行；但是线程间的通信，在用户空间就可以实现。
+最明显的，线程间的通信，通过全局变量即可实现，其原因主要就是多线程之间是共享内存的，如下简单代码：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+int main_run = 0;
+void *func(void *var)
+{
+        int i = 0;
+        //while(!main_run); //如果需要父进程执行结束之后，再执行子线程，则开启本行注释即可
+        for (; i <10; i++)
+        {
+                usleep(100);
+                printf("This is fun i=%d\n", i);
+        }
+}
+
+int main(int argc, char * argv[])
+{
+        int i = 0;
+        char buf[] = "hello world\n";
+        pthread_t tid;
+        int ret = 0;
+        ret = pthread_create(&tid, NULL, func, (void*)buf);
+        if (0 > ret)
+        {
+                printf("Create thread failure\n");
+                return -1;
+        }
+        for(i = 0; i < 10; i++)
+        {
+                usleep(100);
+                printf("this is main fun i = %d\n", i);
+        }
+        main_run = 1;
+        while(1);
+        return 0;
+}
+\end{code-block}
+
+注意，多线程编译时，需要加入-pthread参数，即
+\begin{code-block}{bash}
+gcc -pthread -o test test.c
+\end{code-block}
+
+但是，与线程不同，进程间的每一种通信方式都是基于文件IO的思想进行设计和实现的。
+\subsubsection{管道通信}
+管道是一种特殊的文件，由队列来实现，遵循先进先出的顺序。与open函数类似，open函数打开的文件描述符为0，1，2，而管道函数（pipe）
+打开的文件描述符则固定为3，4，分别对应fd[0]和fd[1]。
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+
+int main(int argc, char * argv[])
+{
+        int fd[2];
+        int ret = 0;
+        if (0 > (ret=pipe(fd)))
+        {
+                printf("Cannot create pipe \n");
+                return -1;
+        }
+        printf("%d, %d\n", fd[0], fd[1]);
+        return 0;
+}
+\end{code-block}
+
+由于管道本身是特殊文件，因此，也可以对管道进行读写，但是特别需要注意的是，fd[0]只允许进行读取，而fd[1]则只允许进行写入，如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+
+int main(int argc, char * argv[])
+{
+        int fd[2];
+        int ret = 0;
+        if (0 > (ret=pipe(fd)))
+        {
+                printf("Cannot create pipe \n");
+                return -1;
+        }
+        char buf[] = "hello linux";
+        char readbuf[128];
+        memset(readbuf, 0, 128);
+        size_t writed = write(fd[1], buf, sizeof(buf)/sizeof(char));
+        size_t readed = read(fd[0], readbuf, writed);
+        printf("Read from pipe: %s\n", readbuf);
+        close(fd[0]);
+        close(fd[1]);
+        return 0;
+}
+\end{code-block}
+
+\begin{enumerate}
+  \item 管道创建在内存当中，进程结束，空间释放，管道就不存在了
+  \item 管道当中的数据，一旦读取完毕，就直接从管道当中删除了
+  \item 如果管道当中没有内容，则读取操作会一直阻塞；反之，如果没有读取操作，一旦缓冲写满（65536），则写入操作会阻塞
+  \item 管道最大为65536字节
+  \item 无名管道只能实现父子进程之间的通信
+\end{enumerate}
+
+实现父子进程的通信如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+
+int main(int argc, char * argv[])
+{
+        int fd[2];
+        int ret = pipe(fd);
+        int inter = 0;
+        pid_t pid;
+        pid = fork();
+        if (0 > ret)
+        {
+                printf("Cannot create pipe \n");
+                return -1;
+        }
+        if (0 == pid)
+        {
+                int i = 0;
+                read(fd[0], &inter, 1);
+                while(!inter);
+                for (;i < 5; i++)
+                {
+                        printf("[%d]In child\n", i);
+                }
+        }
+        if ( 0 < pid)
+        {
+                int i = 0;
+                for(;i < 5; i++)
+                {
+                        printf("[%d]In parent\n", i);
+                }
+                inter = 1;
+                write(fd[1], &inter, 1);
+        }
+
+        close(fd[0]);
+        close(fd[1]);
+        return 0;
+}
+\end{code-block}
+
+与无名管道相对应的，则是有名管道。所谓有名管道，其实也是一个管道，但是，他是存在于文件系统当中的，并不是仅仅只是在内存当中。
+有名管道的文件，每个文件节点都含有inode编号，并且其文件为p类型（即管道类型）。管道文件只含有inode编号，不占用磁盘存储空间，与套接字，字符设备
+以及块设备一样。

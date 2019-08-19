@@ -146,6 +146,11 @@ LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH ./testmain
 # mv testlib.so /lib64
 # ldconfig
 # ./testmain
+
+# 使用配置文件的方式
+# echo `pwd` >> /etc/ld.so.conf
+# ldconfig
+# ./testmain
 \end{code-block}
 
 \section{编译GCC}
