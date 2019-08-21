@@ -375,6 +375,7 @@ gcc -pthread -o test test.c
 \end{code-block}
 
 但是，与线程不同，进程间的每一种通信方式都是基于文件IO的思想进行设计和实现的。
+
 \subsubsection{管道通信}
 管道是一种特殊的文件，由队列来实现，遵循先进先出的顺序。与open函数类似，open函数打开的文件描述符为0，1，2，而管道函数（pipe）
 打开的文件描述符则固定为3，4，分别对应fd[0]和fd[1]。
@@ -476,6 +477,180 @@ int main(int argc, char * argv[])
 }
 \end{code-block}
 
-与无名管道相对应的，则是有名管道。所谓有名管道，其实也是一个管道，但是，他是存在于文件系统当中的，并不是仅仅只是在内存当中。
-有名管道的文件，每个文件节点都含有inode编号，并且其文件为p类型（即管道类型）。管道文件只含有inode编号，不占用磁盘存储空间，与套接字，字符设备
-以及块设备一样。
+与无名管道相对应的，则是命名管道，命名管道可以实现无亲缘关系的进程间通信。所谓命名管道，其实也是一个管道，但是，他是存在于文件系统
+当中的，并不是仅仅只是在内存当中。命名管道的文件，每个文件节点都含有inode编号，并且其文件为p类型（即管道类型）。管道文件只含有inode
+编号，不占用磁盘存储空间，与套接字，字符设备以及块设备一样。管道文件的创建，需要使用mkfifo函数（需要包含<sys/stat.h>头文件），不过，
+该函数只是创建了管道文件的inode信息，并没有在内核当中创建管道，只有通过open函数打开这个创建成功的管道文件时，才会在内核空间创建对应
+的管道。创建命名管道文件的示例如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <sys/stat.h>
+
+int main(int argc, char * argv[])
+{
+        int ret = 0;
+        if (0> (ret = mkfifo("/var/run/zhangjl", 0644)))
+        {
+                printf("Cannot create fifo file zhangjl\n");
+                return -1;
+        }
+        printf("Create fifo file sucess\n");
+        return 0;
+}
+\end{code-block}
+
+而命名管道的使用，通常就是用于不同进程之间的相互通信。比如下面的例子：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+int main(int argc, char * argv[])
+{
+        int ret = 0;
+        if (0> (ret = mkfifo("/var/run/zhangjl", 0644)))
+        {
+                printf("Cannot create fifo file zhangjl\n");
+                return -1;
+        }
+        printf("Create fifo file sucess\n");
+
+        int fd = 0;
+        if (0 > (fd = open("/var/run/zhangjl", O_WRONLY)))
+        {
+                printf("Cannot open the named pipe\n");
+                return -1;
+        }
+
+        for(ret = 0;ret < 5; ret++)
+        {
+                printf("This is first process [%d]\n", ret);
+                usleep(100);
+        }
+
+        int completed_signal = 0;
+        completed_signal = 100;
+        write(fd, &completed_signal, 1);
+        while(1);
+        close(fd);
+        return 0;
+}
+\end{code-block}
+
+而另外的进程可以直接从该管道当中读取数据，如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+int main(int argc, char * argv[])
+{
+        int fd = 0;
+        if (0 > (fd = open("/var/run/zhangjl", O_RDONLY)))
+        {
+                printf("Cannot open the named pipe\n");
+                return -1;
+        }
+        int completed_signal = 0;
+        read(fd, &completed_signal, 1);
+        while(!completed_signal);
+
+        int ret = 0;
+        for(ret = 0;ret < 5; ret++)
+        {
+                printf("This is client process [%d]\n", ret);
+                usleep(100);
+        }
+
+        close(fd);
+        return 0;
+}
+\end{code-block}
+
+\subsubsection{信号通信}
+除了使用管道之外，还可以使用信号的方式进行通信。与管道不太一样的是，信号对象存在于内核当中，无需创建，本身已经存在了，并且，无法在用户空间进行信号的发送和接收。
+在Linux当中，可以通过kill -l查看总共有多少信号（总共64种），如图\nameref{fig:signal}所示:
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.4]{signal.png}
+  \caption{Linux的信号种类}
+  \label{fig:signal}
+\end{figure}
+
+使用信号，可以简单的实现kill的功能。在实现kill命令功能的时候，需要使用kill函数，具体示例如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <stdlib.h>
+#include <signal.h>
+
+int main(int argc, char *argv[])
+{
+        if(argc != 3)
+        {
+                printf("Usage kill signal pid\n");
+                return -1;
+        }
+        int sig = 0, pid = 0;
+        sig = atoi(argv[1]);
+        pid = atoi(argv[2]);
+        printf("sig is %d and pid in %d\n", sig, pid);
+        kill(pid, sig);
+        return 0;
+}
+\end{code-block}
+
+除了使用kill进行信号的发送之外，还可以使用其他的函数进行信号的发送，比如常用的的raise，alarm等;信号的接收，通常采用pause，sleep
+以及while(1)等方式；而信号的处理则通常交给signal进行。
+
+Raise函数只会发送信号给自己，基本上等价于kill(getpid(), sig)，即希望通过内核给自己发信号，常用于杀掉自身的进程，如下
+\begin{code-block}{c}
+#include <stdio.h>
+#include <signal.h>
+
+int main(int argc, char *argv[])
+{
+        printf("Raise before\n");
+        raise(9);
+        printf("Raise after\n");
+        return 0;
+}
+\end{code-block}
+
+上述代码，在编译之后运行，只有before能够输出，raise调用之后，自身进程被直接杀死，因此后续的after无法输出。
+
+而alarm函数只会发送一个定时器信号，当程序接收到定时器信号之后，会终止对应的进程，如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+
+int main(int argc, char * argv[])
+{
+        printf("Alarm Before\n");
+        alarm(9);
+        while(1); //等待9秒之后，该进程自动被终止
+        printf("Alarm After\n");
+        return 0;
+}
+\end{code-block}
+
+因此，上述代码当中，after也是无法进行输出的。
+
+而信号的接收，处理方式则有些不同。Pause函数会直接暂停当前的进程，如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+
+int main(int argc, char * argv[])
+{
+        printf("Pause Before\n");
+        pause();
+        printf("Pause After\n");
+        return 0;
+}
+\end{code-block}
+
+Pasue函数一旦调用，则对应的进程会直接变为暂停状态，ps -ajx可以看到状态变为S。退出暂停状态的进程，可以直接使用Ctrl+C进行，而Ctrl+C本身
+发送的就是一个终止信号。
+
