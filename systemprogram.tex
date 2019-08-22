@@ -654,3 +654,402 @@ int main(int argc, char * argv[])
 Pasue函数一旦调用，则对应的进程会直接变为暂停状态，ps -ajx可以看到状态变为S。退出暂停状态的进程，可以直接使用Ctrl+C进行，而Ctrl+C本身
 发送的就是一个终止信号。
 
+上述的信号处理，通用的方式都是终止/暂停对应的进程，很明显并不是所有的场景都需要。因此，如何进行信号处理的自定义呢？我们需要采用signal
+函数。Signal函数的定义如下：
+\begin{code-block}{c}
+void (*signal(int sig, void (*func)(int)))(int);
+\end{code-block}
+
+其中，func为一个函数指针，指向自定义的型号处理函数。除了自定义的信号处理函数之外，func这个函数指针还可以的取值为SIG\_IGN（忽略该信号）
+和SIG\_DFL（采用系统默认方式处理信号）。简单的signal函数的使用如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+#include <signal.h>
+
+static int quit = 0;
+void handler(int signalnum)
+{
+        printf("Recevied signal %d\n", signalnum);
+        quit = 1;
+}
+
+int main(int argc, char * argv[])
+{
+        signal(SIGALRM, handler);
+        alarm(9);
+        while(!quit);
+        printf("Using self defined function to handle signal\n");
+        return 0;
+}
+\end{code-block}
+
+Signal函数在用于子进程的退出处理当中，是比较常用的，比如：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+
+void handler(int signum)
+{
+        int i = 0;
+        while( i < 5)
+        {
+                printf("Receved signum %d\n", signum);
+                i++;
+        }
+}
+
+void clean(int signum)
+{
+        printf("Recevied signum %d, clean up the child process\n", signum);
+        wait(NULL); // 需要使用wait函数，回收对应的进程，否则，子进程会成为僵尸进程
+}
+
+int main(int argc, char * argv[])
+{
+        pid_t pid;
+        pid = fork();
+        signal(SIGUSR1, handler);
+        signal(SIGCHLD, clean);
+        if (0 < pid)
+        {
+                int i =0;
+                while(1)
+                {
+                        printf("This is the parent process [%d]\n", i++);
+                        sleep(1);
+                }
+        }
+        if(0 == pid)
+        {
+                sleep(5);
+                //kill(getpid(), SIGUSR1);
+                raise(SIGUSR1); // 可以直接替代上面的kill函数
+                exit(0); // kill(getpid(), SIGCHLD); // 在子进程当中调用exit函数
+                                                     // 相当于调用了kill函数，只不过
+                                                     // 发送的信号是SIGCHLD，即杀死子进程
+        }
+        return 0;
+}
+\end{code-block}
+
+需要注意，无名管道，命名管道以及信号，都是发生在内核空间当中，并没有发生在用户空间。
+除了使用上述的方式实现进程间通信之外，在Linux当中，还可以使用IPC实现。而IPC对象包含了3种方式：
+\begin{itemize}
+  \item 共享内存
+  \item 消息队列
+  \item 信号量/灯
+\end{itemize}
+
+这些IPC对象同样是在内核空间，并没有发生在用户空间，IPC类似于Linux的文件IO操作的相关思想，可以针对文件IO与IPC做一个简单的类比，
+如图\nameref{fig:IPC}所示
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.8]{IPC.png}
+  \caption{文件IO与IPC的对比}
+  \label{fig:IPC}
+\end{figure}
+
+\subsubsection{共享内存}
+共享内存通常需要使用shmget函数进行创建，而这个函数包含3个参数：
+\begin{itemize}
+  \item key：IPC\_PRIVATE或者是ftok函数的返回值
+  \item size：共享内存的大小，bit
+  \item shmflg：共享内存的权限，同open函数
+\end{itemize}
+共享内存的具体使用示例如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <sys/shm.h>
+
+int main(int argc, char * argv[])
+{
+        int shmid = 0;
+        if (0 > (shmid = shmget(IPC_PRIVATE, 128, 0777)))
+        {
+                printf("Create shared memory failed\n");
+                return -1;
+        }
+        return 0;
+}
+\end{code-block}
+
+共享内存创建完毕之后，可以直接使用Linux提供的命令进行查看和删除。
+\begin{code-block}{c}
+# 查看IPC对象，包括共享内存, 或者直接ipcs
+ipcs -m -q -s
+# 删除IPC对象
+ipcrm -m <id>
+\end{code-block}
+在上述代码当中，创建共享内存使用的是IPC\_PRIVATE这个宏，因此，创建出来的共享内存的
+key永远为0。可以改为使用ftok函数，给不同的共享内存分配不同的标识符（key），如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
+
+int main(int argc, char * argv[])
+{
+        int shmid = 0;
+        int key = ftok("sharedmem.c", 's');
+        if (0 > key)
+        {
+                printf("Failed to create shamred memory key\n");
+                return -1;
+        }
+        if (0 > (shmid = shmget(key, 128, IPC_CREAT | 0777)))
+        {
+                printf("Create shared memory failed\n");
+                return -1;
+        }
+        printf("Shared memory object id is %d\n", shmid);
+        return 0;
+}
+\end{code-block}
+
+IPC\_PRIVATE与ftok创建的共享内存，其关系类似与无名管道和命名管道，也就是说，IPC\_PRIVATE只能用于有亲缘关系的进程间通信，
+而ftok的共享内存，则是任意进程间都可以进行通信。共享内存创建完成之后，整个是放在内核空间的，因此，用户空间无法访问，但是，
+可以通过映射的方式，将共享内存将这些共享内存映射到用户空间，用户空间可以直接操作这些内存。共享内存的映射，需要使用函数shmat实现。
+Shmat函数包含3个参数：id表示共享内存的id号，shmaddr表示映射的地址，NULL表示自动分配，shmflg表示映射内存的权限，0可读可写。
+与管道不同，共享内存是可以反复读取的，并且，一直存在与内核当中，直到被删除或者系统关闭。
+
+而共享内存的删除，包含了2部分的操作：1是断开与用户空间的内存映射，这个操作可以使用shmdt函数实现；2是回收内核空间当中的共享内存，
+需要使用函数shmctl函数进行操作。Shmctl函数的参数如下：
+\begin{itemize}
+  \item hmid：表示共享内存的id
+  \item cmd：表示针对共享内存的操作，可选的有3个，IPC\_STAT，获取对象属性，IPC\_SET，设置对象属性，以及IPC\_RMID删除共享内存对象
+  \item buf：当cmd为IPC\_SET或IPC\_STAT时，需要使用该参数表示对象属性
+\end{itemize}
+
+共享内存的整体使用，如下示例：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
+
+int main(int argc, char * argv[])
+{
+        int shmid = 0;
+        int key = ftok("sharedmem.c", 's');
+        if (0 > key)
+        {
+                printf("Failed to create shamred memory key\n");
+                return -1;
+        }
+        if (0 > (shmid = shmget(key, 128, IPC_CREAT | 0777)))
+        {
+                printf("Create shared memory failed\n");
+                return -1;
+        }
+        printf("Shared memory object id is %d\n", shmid);
+        char * buffer = NULL;
+        if (NULL == (buffer = (char *)shmat(shmid, NULL, 0)))
+        {
+                printf("Cannot mapping shared memory to user namespace\n");
+                return -1;
+        }
+
+        fgets(buffer, 128, stdin);
+        printf("Shared memory data :%s\n", buffer);
+
+        shmdt(buffer); // 删除用户空间的共享内存映射
+        buffer = NULL;
+
+        shmctl(shmid, IPC_RMID, NULL); // 删除内核空间的共享内存
+
+        return 0;
+}
+\end{code-block}
+
+共享内存也常常用于进程间通信，比如父子进程之间的通信，如下所示：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
+#include <unistd.h>
+#include <signal.h>
+
+void parent_handler(int signum)
+{
+}
+
+void child_handler(int signum)
+{
+}
+
+int main(int argc, char * argv[])
+{
+        int shmid = 0;
+        pid_t pid = 0;
+        if (0 > (shmid = shmget(IPC_PRIVATE, 128, 0777)))
+        {
+                printf("Create shared memory failed\n");
+                return -1;
+        }
+        printf("Shared memory object id is %d\n", shmid);
+
+        pid = fork();
+        char * buffer = NULL;
+        if (0 < pid)
+        {
+                signal(SIGUSR2, parent_handler);
+                printf("In parent process\n");
+                if (NULL == (buffer = (char *)shmat(shmid, NULL, 0)))
+                {
+                        printf("Cannot mapping shared memory to user namespace in parent process\n");
+                        return -1;
+                }
+                while(1)
+                {
+                        fgets(buffer, 128, stdin);
+                        kill(pid, SIGUSR1); // 发送信号给子进程，唤醒子进程
+                        pause(); // 暂停
+                }
+        }
+
+        if (0 == pid)
+        {
+                signal(SIGUSR1, child_handler);
+                if (NULL == (buffer = (char *)shmat(shmid, NULL, SHM_RDONLY)))
+                {
+                        printf("Cannot mapping shared memory to user namespace in child process\n");
+                        return -1;
+                }
+                while(1)
+                {
+                        pause();
+                        printf("The shared memory data is %s\n", buffer);
+                        kill(getppid(), SIGUSR2); //发送信号给主进程，唤醒主进程
+                }
+        }
+
+        shmdt(buffer);
+        buffer = NULL;
+
+        shmctl(shmid, IPC_RMID, NULL);
+
+        return 0;
+}
+\end{code-block}
+
+共享内存也可以使用实现没有亲缘关系的进程间的通信，示例如下：
+\begin{code-block}{c}
+// 服务端的代码
+#include <stdio.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+typedef struct _buffer{
+        int pid;
+        char buf[128];
+}buffer_t;
+
+void hanlder(int signum){}
+
+int main(int argc, char * argv[])
+{
+        signal(SIGUSR2, hanlder);
+        pid_t pid = 0;
+        int shmid = 0;
+        buffer_t *buffer = NULL;
+
+        int key = ftok("server.c", 's');
+        if (0 > key)
+        {
+                printf("Failed to create shamred memory key\n");
+                return -1;
+        }
+        if (0 > (shmid = shmget(key, sizeof(buffer_t), IPC_CREAT | 0777)))
+        {
+                printf("Create shared memory failed\n");
+                return -1;
+        }
+        if (NULL == (buffer = (buffer_t *)shmat(shmid, NULL, 0)))
+        {
+                printf("Mapping shared memory failed \n");
+                return -1;
+        }
+
+        buffer->pid = getpid(); // 通过共享内存，向客户端发送自己的pid
+        pause(); // 等待客户端的输入，等待信号SIGUSR2唤醒
+        pid = buffer->pid; // 获得客户端的pid
+
+        while(1)
+        {
+                printf("Server process start write share memory\n");
+                fgets(buffer->buf, 128, stdin);
+                kill(pid, SIGUSR1); // 使用信号SIGUSR1唤醒客户端
+                pause();
+        }
+
+        shmdt(buffer);
+        buffer = NULL;
+        shmctl(shmid, IPC_RMID, NULL);
+
+        return 0;
+}
+
+// 客户端代码
+#include <stdio.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+typedef struct _buffer{
+        int pid;
+        char buf[128];
+}buffer_t;
+
+void handler(int signum){}
+
+int main(int argc, char * argv[])
+{
+        signal(SIGUSR1, handler);
+        int shmid = 0;
+        buffer_t *buffer = NULL;
+
+        pid_t pid = 0;
+        int key = ftok("server.c", 's');
+        if (0 > key)
+        {
+                printf("Failed to create shamred memory key\n");
+                return -1;
+        }
+        if (0 > (shmid = shmget(key, sizeof(buffer_t), IPC_CREAT | 0777)))
+        {
+                printf("Create shared memory failed\n");
+                return -1;
+        }
+        if (NULL == (buffer = (buffer_t *)shmat(shmid, NULL, 0)))
+        {
+                printf("Mapping shared memory failed \n");
+                return -1;
+        }
+
+        pid = buffer->pid; // 通过共享内存获取服务端的pid
+        buffer->pid = getpid(); // 输入客户端本身的pid
+        kill(pid, SIGUSR2); // 使用信号SIGUSR2唤醒服务端
+
+        while(1)
+        {
+                pause();
+                printf("Client process recevied data from shared memory: %s\n",
+                        buffer->buf);
+                kill(pid, SIGUSR2);
+        }
+
+        shmdt(buffer);
+        buffer = NULL;
+        shmctl(shmid, IPC_RMID, NULL);
+
+        return 0;
+}
+\end{code-block}
