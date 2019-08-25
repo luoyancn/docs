@@ -378,7 +378,7 @@ gcc -pthread -o test test.c
 
 \subsubsection{管道通信}
 管道是一种特殊的文件，由队列来实现，遵循先进先出的顺序。与open函数类似，open函数打开的文件描述符为0，1，2，而管道函数（pipe）
-打开的文件描述符则固定为3，4，分别对应fd[0]和fd[1]。
+打开的文件描述符则固定为3，4，分别对应fd[0]和fd[1]。在内核当中，管道实际上是使用数组进行实现的。
 \begin{code-block}{c}
 #include <stdio.h>
 #include <unistd.h>
@@ -1053,3 +1053,597 @@ int main(int argc, char * argv[])
         return 0;
 }
 \end{code-block}
+
+\subsubsection{消息队列}
+消息队列和管道不一样，它是一种双端循环链表数据结构实现的对象；不过消息队列与共享内存同属于IPC对象，因此，大部分的宏定义对于消息队列都是通用的。
+消息队列的创建和删除示例如下（注意，消息队列无法在WSL1下运行）：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <sys/msg.h>
+
+int main(int argc, char * argv[])
+{
+        int msgid = 0;
+        if (0 > (msgid = msgget(IPC_PRIVATE, 0777)))
+        {
+                printf("Faild to create msg queue\n");
+                return -1;
+        }
+        printf("Msg queue id is %d\n", msgid);
+        msgctl(msgid, IPC_RMID, NULL);
+        return 0;
+}
+\end{code-block}
+
+消息队列创建成功之后，就可以向其中进行消息的发送和收取。其中消息的发送需要使用函数msgsnd，该函数包含了4个参数：
+\begin{itemize}
+  \item msgid：消息队列的id
+  \item msgp：指向消息的指针
+  \item size：发送的消息正文的字节数
+  \item flag：IPC\_NOWAIT，消息没有发送完成，函数也立即返回；0表示必须等待消息发送完毕之后，才返回
+\end{itemize}
+特别需要注意的是，消息通常使用结构体进行表述，其中至少需要包含2个要素：1是消息的类型；2是消息的正文。常见的消息结构体如下：
+\begin{code-block}{c}
+struct msgbuf{
+        long mtype; // 消息类型
+        char mtext[N]; // 消息正文，size的大小就表示该元素的长度
+};
+\end{code-block}
+注意，消息结构体最好只包含上述的元素，如果需要使用额外的字段，或者包含其他的结构体，则必须将其他字段放在
+上述结构体原本必须存在的字段的后面，否则可能导致消息无法被读取。合理的自定义消息结构体如下：
+struct msgbuf{
+        long msgtype;
+        char msgtext[N];
+        int msgid;
+        struct {
+            char * child_name;
+            uint8_t child_age;
+        };
+};
+\end{code-block}
+
+消息发送到消息队列之后，就可以从消息队列当中进行读取了。读取消息队列当中的内容，需要使用msgrcv函数，该函数包含了5个参数：
+\begin{itemize}
+  \item msgid：消息队列的id
+  \item msgp：指向消息的指针，同消息发送的参数
+  \item size：接收的消息正文字节数
+  \item msgtype：0表示接受消息队列当中的第一个消息；>0表示接收消息队列当中第一个类型为msgtype的消息；<0表示接收消息队列中类型值不大于msgtype绝对值，但是类型值最小的消息
+  \item flag：0表示没有消息则一直阻塞；IPC\_NOWAIT表示如果没有消息，则立即返回ENOMSG
+\end{itemize}
+
+特别注意的是，如果使用的是自定义的消息结构体，并且需要读取消息结构体当中的其他字段内容，则发送和接收时，size的大小需要进行变更，
+不再是msgtext的大小，而是消息结构体的整体大小。
+
+消息队列简单的示例如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <sys/msg.h>
+#include <string.h>
+
+typedef struct _msgbuffer{
+        long msgtype;
+        char mtext[128]; // 第一个和第二个字段必须为long和char，否则，调用msgrcv会无法收到任何消息
+        int msgid;
+        struct {
+            char * child_name;
+            unsigned char child_age;
+        };
+}msgbuffer_t;
+
+int main(int argc, char * argv[])
+{
+        int msgid = 0;
+        if (0 > (msgid = msgget(IPC_PRIVATE, 0777)))
+        {
+                printf("Faild to create msg queue\n");
+                return -1;
+        }
+
+        printf("Msg queue id is %d\n", msgid);
+
+        msgbuffer_t buffer, recv;
+        buffer.msgtype = 100;
+        memset(buffer.mtext, 0, 128);
+        strcpy(buffer.mtext, "hello");
+        buffer.child_name = "lucifer";
+        buffer.child_age = 18;
+        buffer.msgid = 18;
+        msgsnd(msgid, &buffer, sizeof(buffer), 0);
+
+        memset(recv.mtext, 0, 128);
+        int readret = msgrcv(msgid, &recv,
+                sizeof(recv), 100, 0);
+        printf("Recv msg :%s\n", recv.mtext);
+        printf("Read size %d\n", readret);
+        printf("Msg.msgid :%d, msg.child_name: %s, msg.child_age: %d\n",
+            recv.msgid, recv.child_name, recv.child_age);
+
+        msgctl(msgid, IPC_RMID, NULL);
+        return 0;
+}
+\end{code-block}
+
+消息队列可以实现无亲缘关系的进程间的通信，包括半双工和双工通信。简单的半双工通信方式如下：
+\begin{code-block}{c}
+// server端的代码
+#include <stdio.h>
+#include <sys/msg.h>
+#include <string.h>
+#include <unistd.h>
+
+typedef struct _msgbuffer{
+        long msgtype;
+        char mtext[128];
+        int msgid;
+        struct {
+            char * child_name;
+            unsigned char child_age;
+        };
+}msgbuffer_t;
+
+int main(int argc, char * argv[])
+{
+        int msgid = 0;
+        int ipckey= 0;
+        if (0 > (ipckey = ftok("/var/run", 'r')))
+        {
+                printf("Failed to create ipc key\n");
+                return -1;
+        }
+        if (0 > (msgid = msgget(ipckey, IPC_CREAT|0777)))
+        {
+                printf("Faild to create msg queue\n");
+                return -1;
+        }
+
+        printf("Msg queue id is %d\n", msgid);
+
+        msgbuffer_t buffer;
+        buffer.msgtype = 1;
+        while(1)
+        {
+                memset(buffer.mtext, 0, 128);
+                strcpy(buffer.mtext, "This is a message");
+                buffer.child_name = "lucifer";
+                buffer.child_age = 18;
+                buffer.msgid = 0;
+                msgsnd(msgid, &buffer, sizeof(buffer), 0);
+                sleep(2);
+        }
+
+        msgctl(msgid, IPC_RMID, NULL);
+        return 0;
+}
+
+// client端的代码
+#include <stdio.h>
+#include <sys/msg.h>
+#include <string.h>
+#include <unistd.h>
+
+typedef struct _msgbuffer{
+        long msgtype;
+        char mtext[128];
+        int msgid;
+        struct {
+            char * child_name;
+            unsigned char child_age;
+        };
+}msgbuffer_t;
+
+int main(int argc, char * argv[])
+{
+        int msgid = 0;
+        int ipckey= 0;
+        if (0 > (ipckey = ftok("/var/run", 'r')))
+        {
+                printf("Failed to create ipc key\n");
+                return -1;
+        }
+        if (0 > (msgid = msgget(ipckey, IPC_CREAT|0777)))
+        {
+                printf("Faild to create msg queue\n");
+                return -1;
+        }
+
+        printf("Msg queue id is %d\n", msgid);
+
+        msgbuffer_t buffer;
+        int readret = 0;
+        while(1)
+        {
+                readret = msgrcv(msgid, &buffer,
+                        sizeof(msgbuffer_t), 1, 0);
+                printf("Recv msg :%s\n", buffer.mtext);
+                printf("Read size %d\n", readret);
+                printf("msg.child_name: %s, msg.child_age: %d, msg.msgid: %d\n",
+                        buffer.child_name, buffer.child_age, buffer.msgid);
+        }
+
+        msgctl(msgid, IPC_RMID, NULL);
+        return 0;
+}
+\end{code-block}
+
+而消息队列的全双工通信模式的代码基本如下：
+\begin{code-block}{c}
+// sever端的代码
+#include <stdio.h>
+#include <sys/msg.h>
+#include <string.h>
+#include <unistd.h>
+
+typedef struct _msgbuffer{
+        long msgtype;
+        char mtext[128];
+        int msgid;
+        struct {
+            char * child_name;
+            unsigned char child_age;
+        };
+}msgbuffer_t;
+
+int main(int argc, char * argv[])
+{
+        int msgid = 0;
+        int ipckey= 0;
+        if (0 > (ipckey = ftok("/var/run", 'r')))
+        {
+                printf("Failed to create ipc key\n");
+                return -1;
+        }
+        if (0 > (msgid = msgget(ipckey, IPC_CREAT|0777)))
+        {
+                printf("Faild to create msg queue\n");
+                return -1;
+        }
+
+        printf("Msg queue id is %d\n", msgid);
+
+        pid_t pid = 0;
+        if (0 < (pid = fork()))
+        {
+                msgbuffer_t buffer;
+                buffer.msgtype = 1;
+                while(1)
+                {
+                        memset(buffer.mtext, 0, 128);
+                        strcpy(buffer.mtext,
+                                "Hello client, this is server");
+                        buffer.child_name = "lucifer";
+                        buffer.child_age = 18;
+                        buffer.msgid = 0;
+                        msgsnd(msgid, &buffer, sizeof(buffer), 0);
+                        sleep(5);
+                }
+        }
+        if (0==pid)
+        {
+                msgbuffer_t buffer;
+                int readret = 0;
+                while(1)
+                {
+                        memset(buffer.mtext, 0, 128);
+                        readret = msgrcv(msgid,
+                                &buffer, sizeof(msgbuffer_t), 2, 0);
+                        printf("Recv msg :%s\n", buffer.mtext);
+                        printf("Read size %d\n", readret);
+                        printf("Recv data child_age: %d\n",
+                                buffer.child_age);
+                }
+        }
+
+
+        msgctl(msgid, IPC_RMID, NULL);
+        return 0;
+}
+
+
+// 客户端代码
+#include <stdio.h>
+#include <sys/msg.h>
+#include <string.h>
+#include <unistd.h>
+
+typedef struct _msgbuffer{
+        long msgtype;
+        char mtext[128];
+        int msgid;
+        struct {
+            char * child_name;
+            unsigned char child_age;
+        };
+}msgbuffer_t;
+
+int main(int argc, char * argv[])
+{
+        int msgid = 0;
+        int ipckey= 0;
+        if (0 > (ipckey = ftok("/var/run", 'r')))
+        {
+                printf("Failed to create ipc key\n");
+                return -1;
+        }
+        if (0 > (msgid = msgget(ipckey, IPC_CREAT|0777)))
+        {
+                printf("Faild to create msg queue\n");
+                return -1;
+        }
+
+        printf("Msg queue id is %d\n", msgid);
+
+        pid_t pid = 0;
+        if(0 < (pid=fork()))
+        {
+                msgbuffer_t buffer;
+                int readret = 0;
+                while(1)
+                {
+                        readret = msgrcv(msgid, &buffer,
+                                sizeof(msgbuffer_t), 1, 0);
+                        printf("Recv msg :%s\n", buffer.mtext);
+                        printf("Read size %d\n", readret);
+                }
+
+        }
+        if (0 == pid)
+        {
+                msgbuffer_t buffer;
+                buffer.msgtype = 2;
+                while(1)
+                {
+                        memset(buffer.mtext, 0, 128);
+                        strcpy(buffer.mtext,
+                                "Hello server, this is client");
+                        buffer.child_name = "lucifer";
+                        buffer.child_age = 18;
+                        buffer.msgid = 0;
+                        msgsnd(msgid, &buffer, sizeof(buffer), 0);
+                        sleep(5);
+                }
+        }
+
+        msgctl(msgid, IPC_RMID, NULL);
+        return 0;
+}
+\end{code-block}
+
+\subsubsection{信号量/灯}
+信号灯是信号量的集合，可以含有多个信号量。信号灯的创建需要使用函数semget，该函数总共有3个参数，其含义如下：
+\begin{itemize}
+  \item key_t：与型号等级关联的key值，可以使用IPC\_PRIVATE和ftok，与其他的ipc对象相同
+  \item nsems：信号灯集所包含的信号灯数量
+  \item semflg：信号灯集的访问权限
+\end{itemize}
+而信号灯的删除，则需要使用semctl函数，该函数与其他的ipc对象的操作类似：
+\begin{itemize}
+  \item semid：信号灯集的id
+  \item semnum：要改变的信号灯的编号
+  \item cmd：GETVAL，获取信号灯的值；SETVAL，设置信号灯的值；IPC\_RMID，删除信号灯集合
+  \item semun arg：修改或获取信号灯的属性时需要，本身为可选参数
+\end{itemize}
+信号灯的简单创建和删除，如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <sys/sem.h>
+
+int main(int argc, char * argv[])
+{
+        int semid = 0;
+        if (0 > (semid = semget(IPC_PRIVATE, 3, 0777)))
+        {
+                printf("Faild to create sem \n");
+                return -1;
+        }
+        printf("sem id is %d\n", semid);
+        semctl(semid, 0, IPC_RMID); // 等效于semctl(semid, 0, IPC_RMID,NULL);
+        return 0;
+}
+\end{code-block}
+
+信号灯集可以在进程间，也可以在线程间进行通信。如下的，在线程中通信使用信号灯：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <sys/sem.h>
+#include <sys/ipc.h>
+#include <stdlib.h>
+
+int semid = 0;
+
+typedef union _semun {
+        int val;
+        struct semid_ds *buf;
+        unsigned short  *array;
+        struct seminfo  *__buf;
+}semun_u;
+
+struct sembuf sbuf;
+
+void * func(void * var)
+{
+        int i = 0;
+        sbuf.sem_op = -1;
+        semop(semid, &sbuf, 1);
+        while(i< 10)
+        {
+                usleep(100);
+                printf("This is func i=%d\n", i++);
+        }
+}
+
+int main(int argc, char * argv[])
+{
+        int i = 0;
+        char buf[] = "hello world";
+        pthread_t tid = 0;
+        int ret = 0;
+        if (0 > (semid = semget(IPC_PRIVATE, 3, 0777)))
+        {
+                printf("Failed to create sem\n");
+                return -1;
+        }
+        printf("%d\n", sizeof(buf));
+        semun_u se;
+        se.val = 0;
+        semctl(semid, 0, SETVAL, se);
+        sbuf.sem_flg = 0;
+        sbuf.sem_num = 0;
+
+        if(0 > (ret = pthread_create(&tid, NULL, func, buf)))
+        {
+                printf("Failed to create thread \n");
+                return -1;
+        }
+
+        while(i < 10)
+        {
+                usleep(100);
+                printf("This is man fun i=%d\n",i++);
+        }
+        sbuf.sem_op = 1;
+        semop(semid, &sbuf, 1);
+        sleep(5);
+        return 0;
+}
+
+// 信号量的版本
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <semaphore.h>
+
+sem_t sem;
+
+void * func(void * var)
+{
+        int i = 0;
+        sem_wait(&sem);
+        while(i< 10)
+        {
+                usleep(100);
+                printf("This is func i=%d\n", i++);
+        }
+}
+
+int main(int argc, char * argv[])
+{
+        int i = 0;
+        char buf[] = "hello world";
+        pthread_t tid = 0;
+        int ret = 0;
+        sem_init(&sem, 0, 0);
+        if(0 > (ret = pthread_create(&tid, NULL, func, buf)))
+        {
+                printf("Failed to create thread \n");
+                return -1;
+        }
+
+        while(i < 10)
+        {
+                usleep(100);
+                printf("This is man fun i=%d\n",i++);
+        }
+        sem_post(&sem);
+        sleep(5);
+        return 0;
+}
+\end{code-block}
+
+由于使用了pthread，因此，编译的时候，需要加上参数：
+\begin{code-block}{bash}
+gcc -pthread -o sem sem.c
+\end{code-block}
+
+信号量也可以用于进程间的通信，具体的可见如下示例：
+\begin{code-block}{c}
+// 服务器端
+#include <stdio.h>
+#include <sys/sem.h>
+
+typedef union _semun {
+        int val;
+        struct semid_ds *buf;
+        unsigned short  *array;
+        struct seminfo  *__buf;
+}semun_u;
+
+int main(int argc, char * argv[])
+{
+        key_t key = 0;
+        if (0 > (key = ftok("/var/run", 'v')))
+        {
+                printf("Failed to creat key\n");
+                return -1;
+        }
+        int semid = 0;
+        if (0 > (semid = semget(key, 3, IPC_CREAT|0777)))
+        {
+                printf("Failed to create sem\n");
+                return -1;
+        }
+        //semun_u se;
+        //se.val = 0;
+        //semctl(semid, 0, SETVAL, se);
+
+        struct sembuf sbuf;
+        sbuf.sem_flg = 0;
+        sbuf.sem_num = 0;
+
+        int i = 0;
+        while(i < 10)
+        {
+                usleep(100);
+                printf("This is man fun i=%d\n",i++);
+        }
+        sbuf.sem_op = 1;
+        semop(semid, &sbuf, 1);
+        return 0;
+}
+
+// 客户端
+#include <stdio.h>
+#include <sys/sem.h>
+
+typedef union _semun {
+        int val;
+        struct semid_ds *buf;
+        unsigned short  *array;
+        struct seminfo  *__buf;
+}semun_u;
+
+struct sembuf sbuf;
+
+int main(int argc, char * argv[])
+{
+        key_t key = 0;
+        if (0 > (key = ftok("/var/run", 'v')))
+        {
+                printf("Failed to creat key\n");
+                return -1;
+        }
+        int semid = 0;
+        if (0 > (semid = semget(key, 3, IPC_CREAT|0777)))
+        {
+                printf("Failed to create sem\n");
+                return -1;
+        }
+        semun_u se;
+        se.val = 0;
+        semctl(semid, 0, SETVAL, se);
+        sbuf.sem_flg = 0;
+        sbuf.sem_num = 0;
+        sbuf.sem_op = -1;
+        semop(semid, &sbuf, 1);
+
+        int i = 0;
+        while(i < 10)
+        {
+                usleep(100);
+                printf("This is man fun i=%d\n",i++);
+        }
+        return 0;
+}
+\end{code-block}
+
