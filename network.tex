@@ -21,3 +21,73 @@ OVS_EXTRA="set bridge br-ex other-config:hwaddr=$MACADDR"
 具体说来，如果虚拟机的网卡使用virtio时，通过ethtool命令无法获取网卡的信息。
 但是，如果网卡使用rtl8139或者其他驱动时，ethtool可以正确读取网卡信息。
 如果在虚拟机当中的应用需要读取网卡信息时，建议不要使用virtio的驱动模式。
+
+\section{Linux网络编程}
+简单的Linux TCP网络编程需要几个步骤：
+\begin{itemize}
+  \item 建立套接字
+  \item 设置网络服务器/客户端的网络信息
+  \item 绑定套接字，监听端口/连接端口
+  \item 等待连接/接收返回
+  \item 关闭套接字
+\end{itemize}
+
+\begin{code-block}{c}
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
+int main(int argc, char * argv[])
+{
+
+        int listenfd = 0, sockfd = 0;
+        if(0 > (listenfd = socket(AF_INET, SOCK_STREAM, 0)))
+        {
+                perror("Create socket faild");
+                return -1;
+        }
+
+        struct sockaddr_in server, client;
+        memset(&server, 0, sizeof(struct sockaddr_in));
+
+        server.sin_family = AF_INET;
+        server.sin_port = htons(8888);
+        server.sin_addr.s_addr = htonl(INADDR_ANY);
+
+        int len = sizeof(struct sockaddr_in);
+
+        if(0 >(bind(listenfd,
+                (struct sockaddr*)&server, sizeof(struct sockaddr_in))))
+        {
+                perror("Bind failed");
+                return -1;
+        }
+
+        listen(listenfd, 5);
+
+        while (1)
+        {
+                if (0 > (sockfd = accept(
+                        listenfd, (struct sockaddr*)&client, &len)))
+                {
+                        perror("Accept error");
+                        return -1;
+                }
+
+                char buffer[1024];
+                memset(buffer, 0, 1024);
+
+                time_t now = time(NULL);
+                char * timestr = ctime(&now);
+                memcpy(buffer, timestr, strlen(timestr));
+                write(sockfd, buffer, sizeof(buffer));
+
+                close(sockfd);
+        }
+        return 0;
+}
+\end{code-block}

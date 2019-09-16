@@ -1091,6 +1091,7 @@ struct msgbuf{
 \end{code-block}
 注意，消息结构体最好只包含上述的元素，如果需要使用额外的字段，或者包含其他的结构体，则必须将其他字段放在
 上述结构体原本必须存在的字段的后面，否则可能导致消息无法被读取。合理的自定义消息结构体如下：
+\begin{code-block}{c}
 struct msgbuf{
         long msgtype;
         char msgtext[N];
@@ -1411,7 +1412,7 @@ int main(int argc, char * argv[])
 \subsubsection{信号量/灯}
 信号灯是信号量的集合，可以含有多个信号量。信号灯的创建需要使用函数semget，该函数总共有3个参数，其含义如下：
 \begin{itemize}
-  \item key_t：与型号等级关联的key值，可以使用IPC\_PRIVATE和ftok，与其他的ipc对象相同
+  \item key\_t：与型号等级关联的key值，可以使用IPC\_PRIVATE和ftok，与其他的ipc对象相同
   \item nsems：信号灯集所包含的信号灯数量
   \item semflg：信号灯集的访问权限
 \end{itemize}
@@ -1647,3 +1648,141 @@ int main(int argc, char * argv[])
 }
 \end{code-block}
 
+\subsection{多线程}
+进程是一个正在执行的程序，是资源分配的最小单位。进程需要按照一定的循序逐次执行。线程称之为轻量级的进程，是程序执行的最小单位，系统
+独立调度和分配cpu的基本单位，是进程中的一个实体。一个进程可以有多个线程，所有线程共享进程的所有资源。进程是资源的拥有者，但是，创建，
+删除以及切换需要消耗较大的时间和空间开销，并且子进程需要复制父进程的所有资源；而对称多处理机（SMP）可以满足多个运行单位。
+获取线程id的方式如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <unistd.h>
+#include <pthread.h>
+
+int main(int argc, char * argv[])
+{
+        pid_t pid = 0;
+        pthread_t tid = 0;
+        pid = getpid();
+        tid = pthread_self();
+        printf("The pid is %u and tid is %x\n", pid, tid);
+        return 0;
+}
+\end{code-block}
+
+需要注意的是，pthread\_id在Linux当中是整形的别名，但是Unix当中是结构体，2者不一样。线程的创建需要使用函数pthread\_create，该函数有4个参数：
+\begin{itemize}
+  \item thread：如果创建成功，返回的新线程的id
+  \item attr：线程属性，包括调度策略，继承性和分离性
+  \item start\_routine：回调函数，即新线程需要执行的功能
+  \item arg：回调函数的参数
+\end{itemize}
+如果线程传递成功，则返回0， 反之返回错误码。简单的示例如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+
+void print_id(char * s)
+{
+        pid_t pid;
+        pthread_t tid;
+        pid = getpid();
+        tid = pthread_self();
+        printf("%s Pid is %u, and tid is %x\n", s, pid, tid);
+}
+
+void * fun(void * arg)
+{
+        print_id(arg);
+        return NULL;
+}
+
+int main(int argc, char * argv[])
+{
+        pthread_t npid;
+        int err = 0;
+        if (err=pthread_create(&npid, NULL, fun, "newthread"))
+        {
+                printf("Faild to creat thread\n");
+                return -1;
+        }
+        print_id("main thread");
+        int ret = 0;
+        pthread_exit(&ret);
+        return 0;
+}
+\end{code-block}
+
+程序运行时，首先运行的是main函数，即主线程或称之为初始线程。在初始线程当中，可以做任何普通线程可以做的事情。但是，主线程在main函数返回或者退出的时候，
+会导致进程结束，因此，通常的，需要在主线程当中调用pthread\_exit函数，等待所有线程结束之后才终止。绝大多数情况下，主线程在默认堆栈上
+运行，但是普通线程的堆栈，是受限制的，一旦溢出，就会出现错误。
+
+主线程是随着进程的创建而创建的，新的线程可能在pthread\_create返回之前就已经运行，甚至运行完毕了。多线程也可以进行结构体的传递，如下：
+\begin{code-block}{c}
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+
+typedef struct _student {
+        unsigned char age;
+        char name[32];
+}student_t;
+
+// 定义函数指针别名，如果不如此定义，则线程的函数，则必须写作
+// void * func (void *)的形式，需要在线程函数内部做类型的强制类型转换
+typedef void *(*start_routine)(void *);
+
+void * printstu(student_t * stu_t)
+{
+        printf("The student info is name :%s, and age: %d\n",
+                stu_t->name, stu_t->age);
+        return NULL;
+}
+
+int main(int argc, char * argv[])
+{
+        pthread_t npid;
+        int err = 0;
+        student_t stu = {18, "zhangjl"};
+        if (err=pthread_create(
+                &npid, NULL, (start_routine)printstu, &stu))
+        {
+                printf("Faild to creat thread\n");
+                return -1;
+        }
+        int ret = 0;
+        pthread_exit(&ret);
+        return 0;
+}
+\end{code-block}
+
+与进程一样，线程也有自己的状态：
+\begin{itemize}
+  \item 就绪：线程能够运行，但在等待可用的处理器
+  \item 运行：线程正在运行
+  \item 阻塞：线程在等待其他条件就绪
+  \item 终止：线程声明周期结束
+\end{itemize}
+线程的状态转换如图\nameref{fig:status_of_thread}所示
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=1]{status_of_thread.png}
+  \caption{线程的状态转换}
+  \label{fig:status_of_thread}
+\end{figure}
+
+线程的分离属性：分离一个正在运行的线程并不影响他，仅仅是通知当前系统，如果该线程结束，其所属的资源可以回收；一个没有被分离的线程在终止时
+会保留它的虚拟内存，包括对应的堆栈和其他系统资源，这种线程通称为僵尸线程。需要注意的是，线程创建时，默认是非分离的。
+
+如果线程具有分离属性，则线程终止是会被立刻回收，回收操作将释放所有在线程终止是为释放的系统资源和进程资源，包括保存线程返回值的内存空间。
+终止被分离的线程会释放所有的系统资源，并且必须释放由该线程所占有的程序资源。
+
+线程的退出最好不要使用exit函数，该函数会导致整个进程的终止。正常的线程终止操作通常如下：
+\begin{itemize}
+  \item 从启动线程中返回，返回值是线程的退出码
+  \item 可以被同一进程的其他线程取消
+  \item 调用pthread\_exit函数退出
+\end{itemize}
+
+阻塞线程通常使用pthread\_join函数，调用该函数，对应的线程会一直阻塞，直到指定的线程调用pthread\_exit，或者从启动的线程返回，或者被取消。
+一点调用pthread\_join函数，会使指定的线程处于分离状态。如果调用函数pthread\_detach，也会分离线程。

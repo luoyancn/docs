@@ -439,7 +439,12 @@ virt-filesystems -a ironic-vm-200.qcow2 --long -h --all
 qemu-img convert -c -O qcow2 ironic-vm-resized.qcow2 ironic-vm.qcow2
 
 # 直接挂载磁盘到虚拟机
-virsh attach-disk --domain kubernetes1  /home/zhangjl/gfs1 --target vdd --targetbus virtio  --sourcetype file --live --config
+virsh attach-disk --domain kubernetes1  /home/zhangjl/gfs1 --target vdd --targetbus virtio  \
+    --sourcetype file --live --config
+
+# 挂载qcow2的磁盘
+virsh attach-disk --domain kubernetes1  /home/zhangjl/gfs1 --target vdd --targetbus virtio  \
+    --sourcetype file --live --config --cache none --driver qemu --subdriver qcow2
 \end{code-in-enumerate}
 
 \1 直接修改rbd存储内容
