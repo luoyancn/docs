@@ -1,5 +1,6 @@
 % openany可以去除章节之间的空白页
-\documentclass[openany,twoside]{book}
+%\documentclass[b5paper,openany,twoside]{book}
+\documentclass[b5paper]{book}
 \usepackage{xeCJK}
 \usepackage{indentfirst}
 \usepackage{fancyhdr}
@@ -8,7 +9,6 @@
 \usepackage{geometry}
 % hyphens用于处理过长url，如果和hyperref一起使用，一定要放在
 % hyperref之前
-\usepackage[hyphens]{url}
 \usepackage{hyperref}
 \usepackage{graphicx}
 \usepackage[utf8]{inputenc}
@@ -24,6 +24,7 @@
 \usepackage{enumitem}
 \usepackage{verbatim}
 \usepackage{attachfile2}
+\usepackage{xurl}
 
 \usetikzlibrary{calc}
 \usetikzlibrary{arrows, decorations.pathmorphing,
@@ -84,7 +85,7 @@
   \begin{mdframed}[topline=true, bottomline=true, leftline=true,
                    rightline=true, backgroundcolor=lbcolor,
                    userdefinedwidth=\textwidth]
-  \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true]{#1}}
+  \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
  {\end{minted}\end{mdframed}}
 
 \newenvironment{code-in-enumerate}[1]
@@ -93,7 +94,7 @@
   \begin{mdframed}[topline=true, bottomline=true, leftline=true,
                    rightline=true, backgroundcolor=lbcolor,
                    userdefinedwidth=\textwidth]
-  \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true]{#1}}
+  \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
  {\end{minted}\end{mdframed}\par}
 
 % 设置警示表格

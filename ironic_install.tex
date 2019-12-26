@@ -38,7 +38,8 @@ yum install diskimage-builder -y
 export DIB_DEV_USER_PASSWORD="awcloud"
 export DIB_DEV_USER_PWDLESS_SUDO="yes"
 export DIB_DEV_USER_USERNAME="awcloud"
-export DIB_REPOREF_ironic_agent="stable/mitaka"
+#export DIB_REPOREF_ironic_agent="stable/mitaka"
+export DIB_REPOREF_ironic_agent="60cd324ecd43d6c59e84d1f6a8a7735bee62f0fb"
 # 针对在ubuntu下制作centos的镜像，有可能需要设置一些额外的参数
 # export DIB_RELEASE="GenericCloud"
 disk-image-create ironic-agent enable-serial-console devuser source-repositories centos7 -o centos7-deploy
@@ -346,7 +347,7 @@ ipmitool -I lanplus -H 192.168.132.14  -U ADMIN -P ADMIN chassis power status
 以Dell PowerEdge R510为例，如果命令执行不成功，需要勾选图 \nameref{fig:ipmi}中的红色部分。
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.5]{ipmi.png}
+  \includegraphics[width=\linewidth]{ipmi.png}
   \caption{Dell PowerEdge R510 IPMI设置}
   \label{fig:ipmi}
 \end{figure}

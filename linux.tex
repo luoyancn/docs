@@ -412,6 +412,13 @@ tar -jcvf test.tar.bz2 a.txt
 xfreerdp /u:Administrator /p:'123456' /v:192.168.1.1  /h:1000 /w:1920
 \end{code-in-enumerate}
 
+\1 端口转发
+\begin{code-in-enumerate}{bash}
+# 将远程主机的端口映射到本地，将远程的8888端口映射到本地的8000端口
+# 工具可以使用windows10 自带的wsl
+ssh -L8000:0.0.0.0:8888 root@10.1.4.24
+\end{code-in-enumerate}
+
 \1 通过qemu-guest-agent执行命令
 \begin{code-in-enumerate}{bash}
 # 获取agent支持的命令列表
@@ -494,7 +501,7 @@ fdisk -l -u /dev/sda
 如图\nameref{fig:backup}所示，标红部分即为我们所需的max\_size:
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.5]{backup.png}
+  \includegraphics[width=\linewidth]{backup.png}
   \caption{获取磁盘结束位置}
   \label{fig:backup}
 \end{figure}

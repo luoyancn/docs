@@ -13,7 +13,7 @@ kube-controller-manager；而node则包含了kubelet和kube-proxy。当然，可
 创建一组pod时，其内部大致流程如图 \nameref{fig:create_pod}所示
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.5]{create_pod.png}
+  \includegraphics[width=\linewidth]{create_pod.png}
   \caption{新建pod}
   \label{fig:create_pod}
 \end{figure}
@@ -29,7 +29,7 @@ kube-controller-manager；而node则包含了kubelet和kube-proxy。当然，可
 而通过外部访问pod时，其内部流程又存在一些区别，其大致如图\nameref{fig:visit_pod}所示
 \begin{figure}[H]
     \centering
-    \includegraphics[scale=0.4]{visit_pod.png}
+    \includegraphics[width=\linewidth]{visit_pod.png}
     \caption{访问pod}
     \label{fig:visit_pod}
 \end{figure}
@@ -674,7 +674,7 @@ service依然可以创建，只是service不可用而已。
 反之，则不存在。因此，操作顺序上一般是先创建service，再创建deployment。
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.3]{k8s_service.png}
+  \includegraphics[width=\linewidth]{k8s_service.png}
   \caption{新建service}
   \label{fig:k8s_service}
 \end{figure}

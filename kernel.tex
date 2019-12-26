@@ -50,7 +50,7 @@ grub2-mkconfig -o /boot/grub2/grub.cfg
 图 \nameref{fig:new-kernel}
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.6]{new-kernel.png}
+  \includegraphics[width=\linewidth]{new-kernel.png}
   \caption{新编译内核 \protect\footnotemark}
   \label{fig:new-kernel}
 \end{figure}
@@ -221,7 +221,7 @@ Linux常见的进程间通信模式主要如下：
 当一个管道建立时，它会创建两个文件描述符：fd[0]为读而打开，fd[1]为写而打开。如下图:\nameref{fig:pipe}
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.8]{pipe.png}
+  \includegraphics[width=\linewidth]{pipe.png}
   \caption{管道}
   \label{fig:pipe}
 \end{figure}
@@ -231,7 +231,7 @@ fd[1]写入。如果fd的使用搞反，则会导致消息无法正常传递。
 单个进程中的管道几乎没有任何用处。所以，通常调用 pipe 的进程接着调用 fork，这样就创建了父进程与子进程之间的 IPC 通道。如下图所示:\nameref{fig:fork_pipe}
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.6]{fork_pipe.png}
+  \includegraphics[width=\linewidth]{fork_pipe.png}
   \caption{fork管道}
   \label{fig:fork_pipe}
 \end{figure}
@@ -421,7 +421,7 @@ int main(int argc, char * argv[])
 每一个客户端必须预先知道服务器提供的FIFO接口，下图显示了这种安排\nameref{fig:fifo}
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.6]{fifo.png}
+  \includegraphics[width=\linewidth]{fifo.png}
   \caption{FIFO管道}
   \label{fig:fifo}
 \end{figure}
