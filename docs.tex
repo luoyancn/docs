@@ -7,14 +7,14 @@
 \usepackage{minted}
 \usepackage{pifont}
 \usepackage{geometry}
-% hyphens用于处理过长url，如果和hyperref一起使用，一定要放在
 % hyperref之前
 \usepackage{hyperref}
 \usepackage{graphicx}
 \usepackage[utf8]{inputenc}
 \usepackage[dvipsnames,table]{xcolor}
 \usepackage{caption}
-\usepackage{tabularx}
+%\usepackage{tabularx}
+\usepackage{ltablex}
 \usepackage[tikz]{bclogo,rotating}
 \usepackage{mdframed}
 \usepackage{tikz}
@@ -24,7 +24,12 @@
 \usepackage{enumitem}
 \usepackage{verbatim}
 \usepackage{attachfile2}
+% 用于处理过长url
 \usepackage{xurl}
+\usepackage{charter}
+\usepackage{tcolorbox}
+\usepackage[explicit]{titlesec}
+\usepackage{titletoc}
 
 \usetikzlibrary{calc}
 \usetikzlibrary{arrows, decorations.pathmorphing,
@@ -42,11 +47,11 @@
     pdftitle={综合手册},
     % 设置文档属性的作者
     pdfauthor={张家龙},
-    pdfborder = {0 0 0},
+    pdfborder={0 0 0},
     pdfsubject={OpenStack},
     pdfkeywords={OpenStack, Develop, Federation},
-    colorlinks = true,
-    linkcolor=cyan,
+    colorlinks=true,
+    linkcolor=black,
     citecolor=green,
     filecolor=green,
     urlcolor=cyan!50!black!90
@@ -54,10 +59,77 @@
 
 % 设置字体
 \setCJKmainfont{SimSun}
-\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
-% 修改Figure为图
+\geometry{left=2.5cm,right=2.5cm,top=2.4cm,bottom=2.4cm}
+% 修改图注为 图1-1 xxx
+% 修改表注为 表1-1 xxx
 \renewcommand{\figurename}{图}
 \renewcommand{\tablename}{表}
+\renewcommand {\thetable} {\thechapter{}-\arabic{table}}
+\renewcommand {\thefigure} {\thechapter{}-\arabic{figure}}
+% 去除冒号
+\captionsetup{labelformat=default,labelsep=space}
+% 修改图注和标注的字体大小
+\captionsetup{font={small}}
+
+\definecolor{DarkGray}{gray}{0.2}
+\definecolor{doc}{RGB}{105,105,105}
+\definecolor{mybluei}{RGB}{105,105,105}
+\definecolor{myblueii}{RGB}{105,105,105}
+\newcommand\ChapterFont{\rmfamily\selectfont\huge}
+\newcommand\SectionFont{\bfseries\rmfamily\selectfont\Large}
+
+%~~~~~~~~~~~~~~~~~章设置~~~~~~~~~~~~~~~~~~~~~~
+\titleformat{\chapter}[block]
+ {\normalfont\ChapterFont\huge\color{myblueii}}%\raisebox{-0.6\height}
+ {\tcbset{colframe=mybluei, boxrule=0.8pt, left=0pt, right=0pt, top=0pt, bottom=0pt}\raisebox{-0.48\height}{\rotatebox{90}{\tcbox[boxsep=4pt, colback= white ]{\color{mybluei}\Large\chaptertitlename}}}\hskip 0.25em\mbox{\tcbox[ boxsep=12pt, colback=mybluei, tcbox raise = -35pt]{\color{white}\bfseries\fontsize{70}{70}\selectfont\thechapter}}}
+ {0.5em}
+ {#1\vskip0.6ex\endgraf\titlerule[1ex]}[]
+
+ \titleformat{name=\chapter,numberless}[block]
+ {\normalfont\selectfont\huge\color{myblueii}}
+ {}
+ {0pt}
+ {\parbox[b]{70pt}{\mbox{}}%
+ \hspace{15pt}%
+ \parbox[b]{\dimexpr\textwidth-15pt}{%
+ \raggedright\bfseries#1\vskip6pt%
+ }%
+ }
+ \titleformat{\section}
+ {\normalfont\small\sffamily\SectionFont\color{myblueii}}
+ {\colorbox{mybluei}{%
+        \parbox[c][16pt][c]{40pt}{%
+            \centering\textcolor{white}{\SectionFont\Large\rmfamily\thesection}%
+        }%
+    }%
+ }
+ {1em}
+ {#1}
+ [\vspace{-0.755\baselineskip}%
+ \color{myblueii}\hspace*{\dimexpr40pt+2\fboxsep\relax}%
+ \rule{\dimexpr\textwidth-40pt-2\fboxsep\relax}{1pt}%
+ ]
+
+%~~~~~~~~~~~~~~~~~节设置~~~~~~~~~~~~~~~~~~~~~~
+%\titleformat{\section}[block]
+%  {\normalfont\huge\bfseries}
+%  {\tikz\node[
+%      font=\huge\bfseries\color{white},
+%      fill=gray!50,
+%      rounded corners=20pt,
+%      minimum height=1.6cm,
+%      text width=3em,
+%      align=center,
+%      inner xsep=0pt] {\parbox{1.5em}{\thesection\hfill}};%
+%  }
+%  {-1em}
+%  {\tikz\node[
+%      fill=gray,
+%      font=\Large\sffamily\color{white},
+%      minimum height=1.6cm,
+%      text width=\the\dimexpr\textwidth-40pt-\fboxsep\relax,
+%      align=center,inner xsep=0pt] {#1};%
+%  }
 
 \pagestyle{fancy}
 \fancyhf{}
@@ -176,6 +248,7 @@
 \include{zmq}
 \part{操作系统}
 \include{linux}
+\include{arm}
 \include{network}
 
 \end{document}

@@ -28,8 +28,9 @@ EOF
 \end{code-block}
 
 \section{安装windows字体}
-在/usr/share/fonts目录下新建一个目录，目录名随意，以zh\_CN为例；将Windows系统文件夹中的Fonts文件夹下的以“sim”开头的文件和tahoma.ttf,verdana.ttf,verdanab.ttf,verdanaz.ttf,tahomabd.ttf,
-verdanai.ttf,MSY*等文件复制到新建的目录中，并修改权限为755。
+在/usr/share/fonts目录下新建一个目录，目录名随意，以zh\_CN为例；将Windows系统文件夹中的Fonts文件夹下的以“sim”开头的文件和
+tahoma.ttf，verdana.ttf，verdanab.ttf，verdanaz.ttf，tahomabd.ttf，
+verdanai.ttf，MSY*等文件复制到新建的目录中，并修改权限为755。
 \begin{code-block}{bash}
 cd /usr/share/fonts/zh_CN
 mkfontscale
@@ -607,8 +608,8 @@ systemctl enable polipo
 systemctl start polipo
 \end{code-block}
 
-和polipo相同，shadowsocks也可以作为daemon运行。具体可以参考\textattachfile{shadowsocks.service}{\textcolor{blue}{shadowsocks.service}}
-
+和polipo相同，shadowsocks也可以作为daemon运行。具体可以参考
+\newline\textattachfile{shadowsocks.service}{\textcolor{blue}{shadowsocks.service}}
 通过以上的方式，就可以将socket5的代理转换为http代理。
 
 \input{awk}

@@ -139,23 +139,22 @@ WantedBy=multi-user.target
 
   \1 准备对应的二进制文件
 
-需要的二进制文件主要包含了网络（calico:https://docs.projectcalico.org/
-v3.1/releases/），安全（cfssl），kubernetes以及其他插件。
-相关的软件（除kubernetes之外）最好都是最新版本。
+需要的二进制文件主要包含了网络（calico:\url{https://docs.projectcalico.org/v3.1/releases/}），
+安全（cfssl），kubernetes以及其他插件。相关的软件（除kubernetes之外）最好都是最新版本。
 \par\parshape0 \linewidth\textwidth
 \begin{center}
   \rowcolors{2}{green!80!yellow!50}{green!70!yellow!40}
   \begin{tabularx}{\textwidth}{|l|X|}
   \hline
   Binary & Download URL\\ \hline
-  calico & https://github.com/projectcalico/cni-plugin/releases/download/v2.0.0/calico\\
-  calicoctl & https://github.com/projectcalico/calicoctl/releases/download/v2.0.0/calicoctl \\
-  calico-ipam & https://github.com/projectcalico/cni-plugin/releases/download/v2.0.0/calico-ipam \\
-  kube-controllers & https://github.com/projectcalico/kube-controllers/releases/download/v2.0.0/kube-controllers-linux-amd64 \\
-  cnitool & https://github.com/containernetworking/plugins/releases/download/v0.6.0/cni-plugins-amd64-v0.6.0.tgz \\
-  loopback & https://github.com/containernetworking/cni/releases/download/v0.6.0/cni-amd64-v0.6.0.tgz \\
-  kubernetes & https://github.com/kubernetes \\
-  cfssl & https://pkg.cfssl.org/ \\
+  calico & \url{https://github.com/projectcalico/cni-plugin/releases/download/v2.0.0/calico}\\
+  calicoctl & \url{https://github.com/projectcalico/calicoctl/releases/download/v2.0.0/calicoctl} \\
+  calico-ipam & \url{https://github.com/projectcalico/cni-plugin/releases/download/v2.0.0/calico-ipam} \\
+  kube-controllers & \url{https://github.com/projectcalico/kube-controllers/releases/download/v2.0.0/kube-controllers-linux-amd64} \\
+  cnitool & \url{https://github.com/containernetworking/plugins/releases/download/v0.6.0/cni-plugins-amd64-v0.6.0.tgz} \\
+  loopback & \url{https://github.com/containernetworking/cni/releases/download/v0.6.0/cni-amd64-v0.6.0.tgz} \\
+  kubernetes & \url{https://github.com/kubernetes} \\
+  cfssl & \url{https://pkg.cfssl.org/} \\
   \hline
   \end{tabularx}
   \label{tab:Binary files}
@@ -1132,7 +1131,7 @@ Ingress同样使用容器的方式进行部署，部署过程中需要使用的y
 \textattachfile{configmap.yaml}{\textcolor{blue}{configmap.yaml}}，
 \textattachfile{default-backend.yaml}{\textcolor{blue}{default-backend.yaml}}
 和\textattachfile{nginx-ingress-controller.yaml}{\textcolor{blue}{nginx-ingress-controller.yaml}}
-需要注意，ingress-controller已经不再放到gcr上了，同步的更新地址为https://github.com/kubernetes/ingress-nginx/releases。
+需要注意，ingress-controller已经不再放到gcr上了，同步的更新地址为\url{https://github.com/kubernetes/ingress-nginx/releases}。
 \begin{code-in-enumerate}{bash}
 sed -i -r \
     -e "s|__KUBE_NGINX_INGRESS_CONTROLLER_IMAGE__|quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.12.0" \
