@@ -59,7 +59,9 @@
 
 % 设置字体
 \setCJKmainfont{SimSun}
-\geometry{left=2.5cm,right=2.5cm,top=2.4cm,bottom=2.4cm}
+% 设置页边距
+%\geometry{left=2.5cm,right=2.5cm,top=2.4cm,bottom=2.4cm}
+\geometry{top=2.4cm,bottom=2.4cm}
 % 修改图注为 图1-1 xxx
 % 修改表注为 表1-1 xxx
 \renewcommand{\figurename}{图}
@@ -131,23 +133,23 @@
 %      align=center,inner xsep=0pt] {#1};%
 %  }
 
-\pagestyle{fancy}
-\fancyhf{}
-\fancyhead[RE,LO]{综合手册}
-\fancyhead[LE,RO]{\includegraphics[scale=0.08]{vim.png}}
-\renewcommand{\headrulewidth}{0.5pt}
-\renewcommand{\footrulewidth}{0.5pt}
-\cfoot{\thepage}
-
-% 设置chapter章节页的页眉页脚
-\fancypagestyle{plain}{
-    \fancyhf{}
-    \fancyhead[RE,LO]{综合手册}
-    \fancyhead[LE,RO]{\includegraphics[scale=0.08]{vim.png}}
-    \renewcommand{\headrulewidth}{0.5pt}
-    \renewcommand{\footrulewidth}{0.5pt}
-    \cfoot{\thepage}
-}
+%\pagestyle{fancy}
+%\fancyhf{}
+%\fancyhead[RE,LO]{综合手册}
+%\fancyhead[LE,RO]{\includegraphics[scale=0.08]{vim.png}}
+%\renewcommand{\headrulewidth}{0.5pt}
+%\renewcommand{\footrulewidth}{0.5pt}
+%\cfoot{\thepage}
+%
+%% 设置chapter章节页的页眉页脚
+%\fancypagestyle{plain}{
+%    \fancyhf{}
+%    \fancyhead[RE,LO]{综合手册}
+%    \fancyhead[LE,RO]{\includegraphics[scale=0.08]{vim.png}}
+%    \renewcommand{\headrulewidth}{0.5pt}
+%    \renewcommand{\footrulewidth}{0.5pt}
+%    \cfoot{\thepage}
+%}
 
 % 设置代码段格式。只使用minted，会出现代码过长无法显示，也会出现代码无法分页的情况
 % 配合mdframed则不会出现这些问题
@@ -210,7 +212,8 @@
 
 \newpage
 % 去除目录前后的空白页
-\let\cleardoublepage\clearpage
+%\let\cleardoublepage\clearpage
+
 \frontmatter
 {
   \renewcommand*\contentsname{目录}
