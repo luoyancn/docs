@@ -113,6 +113,145 @@ clean:
 rmmod hello\_kernel，在/var/log/message当中，会发现有goodbyd的输出。整个简单的模块
 就算完成了。
 
+需要注意这里的license问题。如果license存在问题，或者没有license，会导致编译的内核模块
+被加载时，会提示被污染。而合法可用的license如下：
+\begin{itemize}
+  \item GPL-1.0
+  \item ISC
+  \item Linux-OpenIB
+  \item X11
+  \item Apache-2.0
+  \item CDDL-1.0
+  \item MPL-1.1
+  \item GCC-exception-2.0
+  \item BSD-2-Clause
+  \item Linux-syscall-note
+  \item BSD-3-Clause
+  \item BSD-3-Clause-Clear
+  \item GPL-2.0
+  \item LGPL-2.0
+  \item LGPL-2.1
+  \item MIT
+  \item Proprietary
+\end{itemize}
+
+其中Proprietary表示私有协议。
+
+\subsection{导出内核函数}
+\begin{code-block}{c}
+#include <linux/init.h>
+#include <linux/module.h>
+
+#define DRIVER_VERSION  "1.0.0"
+#define DRIVER_AUTHOR   "zhangjl luoyan_cn@outlook.com"
+#define DRIVER_DESC     "export for example"
+#define DRIVER_LICENSE  "Apache-2.0"
+
+int add_int(int a, int b)
+{
+        return a+b;
+}
+
+int sub_int(int a, int b)
+{
+        return a-b;
+}
+
+MODULE_VERSION(DRIVER_VERSION);
+MODULE_AUTHOR(DRIVER_AUTHOR);
+MODULE_DESCRIPTION(DRIVER_DESC);
+MODULE_LICENSE(DRIVER_LICENSE);
+
+EXPORT_SYMBOL(add_int); // 导出函数
+EXPORT_SYMBOL(sub_int); // 导出函数
+\end{code-block}
+
+该模块进行编译之后，通过insmod加载到内核空间之后，可以通过grep指令进行查询。
+\begin{code-block}{bash}
+grep add_int /proc/kallsyms
+\end{code-block}
+一切正常的话，结果大致如下图\nameref{fig:export}所示：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{export.png}
+  \caption{内核函数导出}
+  \label{fig:export}
+\end{figure}
+
+在其他的内核模块当中使用导出的函数，则需要修改相关的定义即可，大致的代码如下：
+\begin{code-block}{c}
+#include <linux/module.h>
+...
+extern int add_int(int, int);
+extern int sub_int(int, int);
+...
+static __init int hello_init(void)
+{
+    int result = 0;
+    result = add_int(4, 5);
+...
+}
+\end{code-block}
+
+\subsection{内核模块参数支持}
+\begin{code-block}{c}
+#include <linux/module.h>
+#include <linux/init.h>
+
+#define DRIVER_VERSION  "1.0.0"
+#define DRIVER_AUTHOR   "zhangjl luoyan_cn@outlook.com"
+#define DRIVER_DESC     "Params Modules for example"
+#define DRIVER_LICENSE  "Apache-2.0"
+
+static char * book_name = "Dive into Linux Kernel";
+static int num = 400;
+
+static __init int params_init(void)
+{
+        printk(KERN_INFO "This is my params modules\n");
+        printk(KERN_INFO "Book name is %s\n", book_name);
+        printk(KERN_INFO "Book num is %d\n", num);
+        return 0;
+}
+
+static __exit void params_exit(void)
+{
+        printk(KERN_INFO "Goodbye, my kernel module\n");
+}
+
+module_param(num, int, S_IRUGO); // 表示内核加载时可以接收参数，参数类型为int
+module_param(book_name, charp, S_IRUGO); // 表示内核加载的参数为chapr，即char*类型
+
+MODULE_VERSION(DRIVER_VERSION);
+MODULE_AUTHOR(DRIVER_AUTHOR);
+MODULE_DESCRIPTION(DRIVER_DESC);
+MODULE_LICENSE(DRIVER_LICENSE);
+
+module_init(params_init);
+module_exit(params_exit);
+\end{code-block}
+
+内核模块编译完成之后，可以使用modinfo进行查看，比如modinfo params.ko，其结果大致
+如下图\nameref{fig:params}所示：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{params.png}
+  \caption{内核模块函数参数}
+  \label{fig:params}
+\end{figure}
+
+使用的时候，可以直接在insmod之后添加参数：
+\begin{code-block}{bash}
+insmod params.ko book_name=zhangjl num=100
+\end{code-block}
+内核模块加载之后，查看日志，会有如下图\nameref{fig:params_out}的输出：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{params_out.png}
+  \caption{内核模块函数参数}
+  \label{fig:params_out}
+\end{figure}
+
 \subsection{Linux的进程遍历}
 一个进程是由进程控制块（PCB），代码段和数据段组成的；并且，OS通常是通过PCB来感知
 一个进程的存在。其实PCB就是操作系统对每个进程的代码描述。linux内核中使用task\_struct
