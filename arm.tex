@@ -85,8 +85,6 @@ apt-get install libjpeg-dev libtiff5-dev libjasper-dev libpng12-dev \
     libxvidcore-dev libx264-dev libgtk2.0-dev libatlas-base-dev \
     libglib2.0-dev gfortran python2.7-dev python3-dev ffmpeg libgtk-3-dev -y
 \end{code-in-enumerate}
-当然，如果相关的文件已经安装好了，也可以通过直接复制拷贝的方式，将上面的链接库文件直接拷贝到
-交叉编译环境的相对应的路径。
 
 回到X86交叉编译环境，执行下面命令，以上面安装的libgtk2.0-dev为例：
 \begin{code-in-enumerate}{bash}
@@ -94,7 +92,7 @@ arm-linux-gnueabihf-pkg-config --list-all | grep gtk
 arm-linux-gnueabihf-pkg-config --libs gtk+-2.0
 arm-linux-gnueabihf-pkg-config --cflags gtk+-2.0
 \end{code-in-enumerate}
-如果出现下面的显示，则说明交叉编译的依赖关系没有问题了，可以进行编译了。
+如果出现下面图\nameref{fig:cross_cv}的显示，则说明交叉编译的依赖关系没有问题了，可以进行编译了。
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{cross_cv.png}
@@ -159,7 +157,7 @@ cmake -DENABLE_NEON=ON -DENABLE_VFPV3=ON  -D WITH_V4L=ON  -D WITH_GTK=ON \
     /root/opencv/ -D OPENCV_EXTRA_MODULES_PATH=/root/opencv_contrib/modules ..
 \end{code-in-enumerate}
 
-如果cmake的信息当中，提示GUI没有支持，一定要在嵌入式平台端安装GTK或者QT等图形化开发
+如果cmake的信息当中，提示GUI没有支持，如图\nameref{fig:cross_gui}所示，一定要在嵌入式平台端安装GTK或者QT等图形化开发
 的lib库，否则，OpenCV在运行时，将无法显示图像。
 \begin{figure}[H]
   \centering
@@ -174,7 +172,7 @@ make
 make install
 \end{code-in-enumerate}
 如果一切顺利，将在opencv/build\_arm/install生成我们所需要的OpenCV文件，包括头文件，
-so文件和其他的文件，大致如下：
+so文件和其他的文件，大致如下图\nameref{fig:cross_finish}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{cross_finish.png}
@@ -198,7 +196,7 @@ fusermount -u /mnt
 ldconfig -v
 \end{code-in-enumerate}
 
-如果输出结果类似下面，则说明编译OpenCV移植成功，则ARM的嵌入式系统当中，可以正常使用。
+如果输出结果类似下面图\nameref{fig:cross_transplant}所示，则说明编译OpenCV移植成功，则ARM的嵌入式系统当中，可以正常使用。
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{cross_transplant.png}
@@ -258,3 +256,130 @@ clean:
 问题了，整个移植过程成功了。
 
 \end{outline}
+
+\section{构建ARM的rootfs}
+首先是生成一个rootfs。
+\begin{code-block}{bash}
+apt-get install qemu-user-static
+mkdir -p /opt/armhf-16.04-glibc-2.23
+cd /opt/armhf-16.04-glibc-2.23
+wget http://cdimage.ubuntu.com/ubuntu-base/releases/16.04/release/ubuntu-base-16.04.6-base-armhf.tar.gz
+tar -zxvf ubuntu-base-16.04.6-base-armhf.tar.gz && rm -rf ubuntu-base-16.04.6-base-armhf.tar.gz
+cp /usr/bin/qemu-arm-static usr/bin
+cp /etc/resolv.conf etc/resolv.conf
+\end{code-block}
+
+创建一个脚本，用于进入rootfs环境，脚本内容大致如下：
+\begin{code-block}{bash}
+#!/bin/bash
+function mnt() {
+    echo "MOUNTING"
+    sudo mount -t proc /proc ${2}proc
+    sudo mount -t sysfs /sys ${2}sys
+    sudo mount -o bind /dev ${2}dev
+    sudo mount -o bind /dev/pts ${2}dev/pts
+    sudo chroot ${2} /bin/bash --login
+}
+
+function umnt() {
+    echo "UNMOUNTING"
+    sudo umount ${2}proc
+    sudo umount ${2}sys
+    sudo umount ${2}dev/pts
+    sudo umount ${2}dev
+}
+
+if [ "$1" == "-m" ] && [ -n "$2" ] ;
+then
+    mnt $1 $2
+elif [ "$1" == "-u" ] && [ -n "$2" ];
+then
+    umnt $1 $2
+else
+    echo ""
+    echo "Either 1'st, 2'nd or both parameters were missing"
+    echo ""
+    echo "1'st parameter can be one of these: -m(mount) OR -u(umount)"
+    echo "2'nd parameter is the full path of rootfs directory(with trailing '/')"
+    echo ""
+    echo "For example: ch-mount -m /media/sdcard/"
+    echo ""
+    echo 1st parameter : ${1}
+    echo 2nd parameter : ${2}
+fi
+\end{code-block}
+
+执行该脚本，进入rootfs环境：
+\begin{code-block}{bash}
+./ch-mount -m /opt/armhf-16.04-glibc-2.23
+\end{code-block}
+
+升级rootfs，并安装必要的软件包：
+\begin{code-block}{bash}
+apt-get update -y && apt-get upgrade -y
+apt-get install vim pkg-config git sudo ssh net-tools ethtool wireless-tools \
+    lxde xfce4-power-manager xinit xorg network-manager iputils-ping rsyslog \
+    lightdm-gtk-greeter alsa-utils lightdm bash-completion lxtask htop \
+    python-gobject-2 python-gtk2 synaptic libjpeg-dev libtiff5-dev libjasper-dev \
+    libpng12-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev \
+    libxvidcore-dev libx264-dev libgtk2.0-dev libatlas-base-dev libglib2.0-dev \
+    gfortran libgtk-3-dev gcc cmake ifupdown qt5-default -y
+\end{code-block}
+
+添加必要的服务：
+\begin{code-block}{bash}
+ln -s /lib/systemd/system/serial-getty\@.service \
+    /etc/systemd/system/getty.target.wants/serial-getty@ttyS0.service
+echo "auto eth0" > /etc/network/interfaces.d/eth0
+echo "iface eth0 inet dhcp" >> /etc/network/interfaces.d/eth0
+echo "127.0.0.1    localhost.localdomain localhost" > /etc/hosts
+echo "127.0.0.1    armhf" >> /etc/hosts
+\end{code-block}
+
+修改登录选项：
+\begin{code-block}{bash}
+cd /usr/share/lightdm/lightdm.conf.d/
+# 在所有文件当中添加下面一行：
+# greeter-show-manual-login=true
+\end{code-block}
+
+退出rootfs环境：
+\begin{code-block}{bash}
+exit
+/opt/ch-mount -u /opt/armhf-16.04-glibc-2.23
+\end{code-block}
+
+
+基本到此处，整个rootfs已经定制完成。当然，还可以根据需要，添加用户，修改用户密码等。
+
+\section{利用rootfs编译ARM的软件}
+既然可以构建一个ARM的rootfs，这个rootfs当中，所有的类库都是armhf架构的，那是否可以
+直接在rootfs当中编译ARM或者运行的软件？答案是肯定的。以编译ARM的OpenCV为例。
+
+首先是进入ARM的rootfs，然后安装OpenCV相关的编译依赖包。退出rootfs，在X86的主机上，
+下载OpenCV和OpenCV-Contribe的代码，统一放到/opt/opencv下，然后挂载到rootfs环境：
+\begin{code-block}{bash}
+bindfs -u root -g root -p +rw /opt/opencv/ /opt/arm-16.04-glibc-2.23/mnt
+\end{code-block}
+
+然后再次进入rootfs，按照前面所述，修改Opencv-Contrib的代码。注意，由于我们是在rootfs
+下进行编译，该环境中的软件架构已经是ARM的了，因此，无需修改OpenCV的Cmake文件。紧接着开始进行
+编译安装：
+\begin{code-block}{bash}
+cmake -DENABLE_NEON=ON -DENABLE_VFPV3=ON  -D WITH_V4L=ON  \
+    -D WITH_GTK=ON -D CMAKE_BUILD_TYPE=Release -D BUILD_TESTS=OFF  \
+    /mnt/opencv -D OPENCV_EXTRA_MODULES_PATH=/mnt/opencv_contrib/modules ..
+make
+make install
+\end{code-block}
+
+如果一切正常，在rootfs的/usr/local下，将生成相关的OpenCV文件。余下的操作和交叉编译OpenCV
+的操作类似。
+
+最后退出rootfs，并卸载相关的目录：
+\begin{code-block}{bash}
+umount /opt/arm-16.04-glibc-2.23/mnt
+\end{code-block}
+
+注意，该种编译方式的效率其实是比较低的，因此，大多数情况下，除非条件不允许，一般不推荐
+使用rootfs的方式进行交叉编译。但是，也可以换一个思路：使用rootfs的文件，替换远程链接的嵌入式系统。
