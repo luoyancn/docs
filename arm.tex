@@ -1142,3 +1142,192 @@ umount /opt/arm-16.04-glibc-2.23/mnt
 使用rootfs的方式进行交叉编译。但是，也可以换一个思路：使用rootfs的文件，替换远程链接的嵌入式系统。
 经过测试，使用rootfs替换远程链接的的方式进行编译（不使用chroot），功能上能够完全满足，编译时间
 也能够完全控制在合理的范围内。
+
+\section{编译自己的BSP}
+SoC的BSP（即操作系统）通常需要根据自己的需要添加不同的功能或者模块，因此需要进行定制。以支持OpenCL，图形化以及USB相机
+为例，进行BSP的编译。
+\footnote{来源：\url{https://github.com/thinkoco/c5soc_opencl/tree/master/documents}}
+
+\subsection{下载必要的代码}
+\begin{code-block}{bash}
+git clone https://github.com/thinkoco/c5soc_opencl.git
+git clone https://github.com/thinkoco/c5soc_opencl_rte.git
+git clone https://github.com/thinkoco/linux-socfpga.git thinkoco-linux-socfpga
+cd thinkoco-linux-socfpga && git checkout origin/socfpga-4.9.78-aocl
+\end{code-block}
+
+由于内核代码有部分bug，需要进行部分的修改，修改如下：
+\begin{code-block}{bash}
+vi include/linux/fpga/fpga-mgr.h +110
+# 修改为如下的模样：
+u64 (*status)(struct fpga_manager *mgr);
+\end{code-block}
+
+\subsection{安装工具集}
+需要安装的工具包括Quaruts18.1，\url{gcc-linaro-7.5.0-2019.12-x86\_64\_arm-linux-gnueabihf}。
+假设Quartus安装在/opt/intelFPGA/18.1，gcc-linaro安装在\url{/opt/gcc-linaro-7.5.0-2019.12-x86\_64\_arm-linux-gnueabihf}，
+\begin{code-block}{bash}
+cd c5soc_opencl
+cp -rf de1soc_sharedonly_vga /opt/intelFPGA/18.1/hld/board/c5soc/hardware
+cp -rf de10_nano_sharedonly_hdmi /opt/intelFPGA/18.1/hld/board/c5soc/hardware
+cp -rf de10_standard_sharedonly_vga /opt/intelFPGA/18.1/hld/board/c5soc/hardware
+\end{code-block}
+
+编写环境变量文件，并设定：
+\begin{code-block}{bash}
+export QUARTUS_HOME=/opt/intelFPGA/18.1
+export QSYS_ROOTDIR=/opt/intelFPGA/18.1/quartus/sopc_builder/bin
+export INTELFPGAOCLSDKROOT=/opt/intelFPGA/18.1/hld
+export QUARTUS_ROOTDIR=$QUARTUS_HOME/quartus
+export QUARTUS_64BIT=1
+export AOCL_BOARD_PACKAGE_ROOT=$INTELFPGAOCLSDKROOT/board/c5soc
+export LD_LIBARY_PATH=$LD_LIBARY_PATH:$INTELFPGAOCLSDKROOT/host/arm32/lib
+export PATH=$PATH:$QUARTUS_ROOTDIR/bin:$QUARTUS_HOME/embedded/ds-5/bin:$QUARTUS_HOME/embedded/ds-5/sw/gcc/bin:$INTELFPGAOCLSDKROOT/bin:$INTELFPGAOCLSDKROOT/host/arm32/bin
+\end{code-block}
+
+\subsection{生成rbf文件}
+\begin{code-block}{bash}
+mkdir sdcard
+echo -e  "__kernel void hello_world(int thread_id_from_which_to_print_message) { \n\tunsigned thread_id = get_global_id(0);\n\tif(thread_id == thread_id_from_which_to_print_message) {\n\t\tprintf(\"Thread #%u: Hello from Altera's OpenCL Compiler! \\\n \", thread_id);\n\t}\n}" > hello_world.cl
+aoc -report -v -o hello_world.aocx hello_world.cl -board=de10_standard_sharedonly_vga
+cp hello_world/top.rbf sdcard/opencl.rbf
+\end{code-block}
+
+\subsection{生成u-boot文件}
+\begin{code-block}{bash}
+/opt/intelFPGA/18.1/embedded/embedded_command_shell.sh
+cd hello_world
+bsp-editor
+\end{code-block}
+选择“New HPS BSP”菜单，然后设置“Preloader settings directory”指向目标目录为hello\_world/hps\_isw\_handoff/system\_acl\_iface\_hps，
+然后选择ok与生成，如下图\nameref{fig:bsp}所示：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{bsp.png}
+  \caption{生成u-boot}
+  \label{fig:bsp}
+\end{figure}
+
+然后进行后续操作：
+\begin{code-block}{bash}
+cd hello_world/software/spl_bsp/
+make
+cp preloader-mkpimage.bin ~/sdcard/
+export CROSS_COMPILE=arm-linux-gnueabihf-
+cd uboot-socfpga/
+make
+cp u-boot.img ~/sdcard/
+\end{code-block}
+
+生成u-boot配套文件：
+\begin{code-block}{bash}
+wget https://releases.rocketboards.org/release/2017.10/gsrd/src/boot.script
+sed -i 's/soc_system/opencl/g' boot.script
+mkimage   -A arm -O linux -T script -C none -a 0 -e 0 -n "My script" -d boot.script u-boot.scr
+mv u-boot.scr ~/sdcard/
+\end{code-block}
+
+\subsection{编译内核}
+\begin{code-block}{bash}
+cd thinkoco-linux-socfpga
+cp ../c5soc_opencl_rte/socfpga-4.9.78-ltsi/c5socl_defconfig .config
+export ARCH=arm
+export CROSS_COMPILE=/opt/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-
+export LOADADDR=0x8000
+make menuconfig
+\end{code-block}
+
+勾选所有的USB摄像头驱动，如图\nameref{fig:usb_camera}所示：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{usb_camera.png}
+  \caption{Usb摄像头驱动}
+  \label{fig:usb_camera}
+\end{figure}
+
+然后进行编译：
+\begin{code-block}{bash}
+make zImage
+make socfpga_cyclone5_de10_nano.dtb
+make modules
+make modules_install INSTALL_MOD_PATH=~/sdcard/
+cp arch/arm/boot/zImage ~/sdcard
+cp arch/arm/boot/dts/socfpga_cyclone5_de10_nano.dtb  ~/sdcard/socfpga.dtb
+\end{code-block}
+
+\subsection{编译rootfs}
+\begin{code-block}{bash}
+apt-get install qemu-user-static -y
+mkdir sdcard/rootfs
+wget http://cdimage.ubuntu.com/ubuntu-base/releases/18.04/release/ubuntu-base-18.04.4-base-armhf.tar.gz
+tar -xvf  ubuntu-base-18.04.4-base-armhf.tar.gz -C rootfs/
+cp /usr/bin/qemu-arm-static rootfs/usr/bin/
+cp -r sdcard/lib/ rootfs
+/ch-mount.sh -m rootfs/
+
+echo nameserver 114.114.114.114 > /etc/resolv.conf
+apt-get update
+apt-get install language-pack-en-base vim sudo ssh net-tools ethtool wireless-tools \
+    lxde xfce4-power-manager xinit xorg xserver-xorg-video-fbdev xserver-xorg-input-all \
+    network-manager iputils-ping rsyslog lightdm-gtk-greeter alsa-utils mplayer lightdm \
+    bash-completion lxtask htop python-gobject-2 python-gtk2 synaptic
+apt-get install locales-all tzdata resolvconf
+echo "c5soc">/etc/hostname
+echo "127.0.0.1 localhost" >> /etc/hosts
+echo "127.0.1.1 c5soc" >> /etc/hosts
+
+# Now add a user of your choice and include him in suitable groups
+adduser knat && addgroup knat adm && addgroup knat sudo && addgroup knat audio
+# set root without password
+sed -i 's/^root\:\*/root\:/g' /etc/shadow
+# modify getty@.service
+sed -i 's/^ExecStart=-\/sbin\/agetty.*$/ExecStart=-\/sbin\/agetty --noclear %I $TERM/' /lib/systemd/system/getty@.service
+# set lightdm.conf
+echo -e "[SeatDefaults]\nautologin-user=root\nautologin-user-timeout=0" > /etc/lightdm/lightdm.conf
+# set rc.local
+echo -e '#!/bin/sh -e\n#\n# rc.local\n#\n#In order to enable or disable this script just change the execution bits\n\nmodprobe altvipfb\nservice lightdm start\n\nexit 0' > /etc/rc.local
+chmod +x /etc/rc.local
+# update DNS automatically,Set ‘timezone’,Make X used by ‘anyuser’
+dpkg-reconfigure tzdata
+dpkg-reconfigure resolvconf
+dpkg-reconfigure x11-common
+echo 'ACTION=="add|change", SUBSYSTEM=="block", ENV{UDISKS_IGNORE}="1"' > /etc/udev/rules.d/10-udisks.rules
+exit
+\end{code-block}
+
+\subsection{编译opencl驱动}
+\begin{code-block}{bash}
+cd c5soc_opencl_rte/socfpga-4.9.78-ltsi/opencl_rte
+tar -xvf aocl-rte-18.1.0-625.arm32.4.9.tar.xz
+cd aocl-rte-18.1.0-625.arm32.4.9/board/c5soc/arm32/driver
+# 修改Makefile
+KDIR ?= /opt/thinkoco-linux-socfpga
+make
+#然后拷贝到rootfs当中
+cp -r c5soc_opencl_rte/socfpga-4.9.78-ltsi/opencl_rte/aocl-rte-18.1.0-625.arm32.4.9 sdcard/rootfs/root/
+cp c5soc_opencl_rte/socfpga-4.9.78-ltsi/opencl_rte/init_opencl_18.1_4.9.sh sdcard/rootfs/root/init_opencl_18.1_4.9.sh
+\end{code-block}
+
+\subsection{生成镜像文件}
+\begin{code-block}{bash}
+cd sdcard
+python make_sdimage.py -f -P preloader-mkpimage.bin,u-boot.img,num=3,format=raw,size=10M,type=A2 \
+    -P rootfs/*,num=2,format=ext4,size=3500M \
+    -P zImage,u-boot.scr,opencl.rbf,socfpga.dtb,num=1,format=fat32,size=500M \
+    -s 4G -n u18.img
+\end{code-block}
+
+\subsection{使用OpenCL BSP}
+使用生成的镜像对sd卡进行烧录，然后插入开发板，启动，启动之后，进行如下操作，
+即可在图形化条件下进行OpenCL的实验：
+\begin{code-block}{bash}
+systemctl stop lightdm
+rmmod -f altvipfb
+rmmod cfbfillrect
+rmmod cfbimgblt
+rmmod cfbcopyarea
+aocl program /dev/acl0 yourtarget.aocx
+modprobe altvipfb
+systemctl start lightdm
+export DISPLAY=:0
+\end{code-block}

@@ -368,6 +368,16 @@ rpm -q openstack-nova-compute --changelog
 mount -o loop cloudbase-init.iso /mnt/
 \end{code-in-enumerate}
 
+\1 apt设置代理
+\begin{code-in-enumerate}{bash}
+apt-get -o Acquire::http::proxy="http://127.0.0.1:8000/" update
+\end{code-in-enumerate}
+
+\1 ubuntu取消自动挂载u盘
+\begin{code-in-enumerate}{bash}
+echo 'ACTION=="add|change", SUBSYSTEM=="block", ENV{UDISKS_IGNORE}="1"' > /etc/udev/rules.d/10-udisks.rules
+\end{code-in-enumerate}
+
 \1 解压ramdisk文件
 \begin{code-in-enumerate}{bash}
 mkdir tmp
