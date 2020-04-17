@@ -130,6 +130,17 @@ git submodule update --init --recursive
 git submodule update --init --recursive src/github.com/luoyancn/merak
 \end{code-block}
 
+\section{Gitlab的使用}
+\begin{code-block}{bash}
+git remote add upstream xxxx
+git checkout -b feature/new
+git push -u origin feature/new
+git checkout master
+git fetch upstream
+git merge upstream/master
+git push -u origin master
+\end{code-block}
+
 \section{禁用ipv6}
 \begin{code-block}{bash}
 cat >> /etc/sysctl.conf <<EOF
