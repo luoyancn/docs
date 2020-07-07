@@ -111,7 +111,8 @@ clean:
 然后执行make。执行完毕之后，会在当前目录生成hello\_kernel.ko，这个文件即是我们
 所需要的内核模块。执行insmod hello\_kernel.ko，在/var/log/message当中，会发现有hello的输出，执行
 rmmod hello\_kernel，在/var/log/message当中，会发现有goodbyd的输出。整个简单的模块
-就算完成了。
+就算完成了。另外，printk函数带缓冲，如果格式化是不添加换行符，则printk所打印的日志并不会
+立刻打印出来，有可能会等到模块退出，或者遇到另外一个换行符才会输出。
 
 需要注意这里的license问题。如果license存在问题，或者没有license，会导致编译的内核模块
 被加载时，会提示被污染。而合法可用的license如下：
@@ -243,6 +244,8 @@ module_exit(params_exit);
 使用的时候，可以直接在insmod之后添加参数：
 \begin{code-block}{bash}
 insmod params.ko book_name=zhangjl num=100
+# 传递包含空格的字符串
+insmod params.ko book_name='"zhangjl and his family"' num=100
 \end{code-block}
 内核模块加载之后，查看日志，会有如下图\nameref{fig:params_out}的输出：
 \begin{figure}[H]
@@ -267,6 +270,531 @@ insmod params.ko book_name=zhangjl num=100
 信息id会保存在内核代码的include/generated/utsrelease.h和include/config/kernel.release文件当中，
 在编译内核模块时，如果需要修改这个版本信息，只需要修改include/generated/utsrelease.h当中的
 信息即可。
+
+\subsection{字符设备驱动开发}
+字符设备的注册，需要在init函数当中调用register\_chrdev函数，该函数有几个参数：
+\begin{itemize}
+    \item \mint{c}|unsigned int major| 表示字符设备的主设备号。
+    \item \mint{c}|const char *name|表示字符设备的名称
+    \item \mint{c}|const struct file_operations *fops| 表示字符设备的对应操作函数结构体
+\end{itemize}
+
+在Linux当中，每个设备都对应了一个设备号，而设备号分为主设备号与次设备号。主设备号
+表示某一个具体的驱动，次设备号表示使用该驱动的各个设备。表示设备号的数据结构是dev\_t，
+其定义在include/linux/types.h当中，不过实际上，dev\_t就是unsigned int的这么一个无符号的32位
+整型数据。而dev\_t的高12位为主设备号，低20位为次设备号，因此，主设备号的取值范围为1-4095（2的12次方）。
+而关于设备号的处理，在include/linux/kdev\_t.h当中提供了几个宏定义：
+
+\begin{code-block}{c}
+#define MINORBITS     20     // 表示次设备号位数
+#define MINORMASK     ((1U << MINORBITS) - 1) // 次设备号掩码
+#define MAJOR(dev)    ((unsigned int) ((dev) >> MINORBITS)) // 从dev_t当中获取主设备号
+#define MINOR(dev)    ((unsigned int) ((dev) & MINORMASK))  // 从dev_t当中获取次设备号
+#define MKDEV(ma,mi)  (((ma) << MINORBITS) | (mi)) // 使用主设备号与次设备号组合成dev_t的设备号
+\end{code-block}
+在使用的时候，通常无需直接导入kdev\_t.h，只需要使用include/linux/fs.h即可。
+
+默认情况下，使用register\_chrdev会注册字符设备，但是不会创建对应的设备文件（/dev），因此，需要
+手动的创建。手动创建字符设备的操作如下：
+\begin{code-block}{bash}
+mknod /dev/starter c 200 0
+\end{code-block}
+其中，c表示字符设备，200表示对应设备的主设备号，0表示对应设备的次设备号。
+
+而结构体file\_operations包含了很多的文件操作函数，这些操作函数与用户空间的特定的操作函数
+是一一对应的。
+\begin{itemize}
+    \item open对应open函数（fcntl.h）
+    \item release对应close函数（unistd.h）
+    \item read对应read函数（unistd.h）
+    \item write对应write函数（unistd.h）
+\end{itemize}
+
+一个简单的字符驱动的框架大致如下：
+\begin{code-block}{c}
+#include <linux/fs.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+
+#define MARJOR 200
+#define DEV_NAME "starter"
+
+static int open_starter_chrdev(struct inode *inodep, struct file *filep)
+{
+        printk(KERN_INFO "Open the starter char dev \n");
+        return 0;
+}
+
+static int release_starter_chrdev(struct inode *inodep, struct file *filp)
+{
+        printk(KERN_INFO "Close the starter char dev \n");
+        return 0;
+}
+
+static ssize_t read_starter_chrdev(struct file *filp,
+                char __user * buffer, size_t count, loff_t *ppos)
+{
+        printk(KERN_INFO "Read the starter char dev \n");
+        return 0;
+}
+
+static ssize_t write_starter_chrdev(struct file *filp,
+                const char __user *buffer, size_t count, loff_t *ppos)
+{
+        printk(KERN_INFO "Write the starter char dev \n");
+        return 0;
+}
+
+static struct file_operations starter_fops = {
+        .owner = THIS_MODULE,
+        .open = open_starter_chrdev,
+        .release = release_starter_chrdev,
+        .read = read_starter_chrdev,
+        .write = write_starter_chrdev,
+};
+
+static int __init starter_init(void)
+{
+        int result = 0;
+        result = register_chrdev(MARJOR, DEV_NAME, &starter_fops);
+        if (0 > result) {
+                printk(KERN_ERR
+                        "Failed to register the starter char device\n");
+                return result;
+        }
+        printk(KERN_INFO
+                "This is a starter module for char dev init function\n");
+        return 0;
+}
+
+static void __exit starter_exit(void)
+{
+        printk(KERN_INFO
+                "This is a starter module for char dev exit function\n");
+        unregister_chrdev(MARJOR, DEV_NAME);
+}
+
+MODULE_LICENSE("Apache-2.0");
+MODULE_AUTHOR("zhangjl");
+MODULE_DESCRIPTION("This is a simple example!\n");
+MODULE_ALIAS("A simplest example");
+
+module_init(starter_init);
+module_exit(starter_exit);
+\end{code-block}
+
+\subsection{驱动的读写操作函数}
+在Linux驱动的操作函数当中，read/write是比较常用的。其中内核驱动的read/write函数接口定义如下：
+\begin{code-block}{c}
+ssize_t (*read) (struct file *, char __user *, size_t, loff_t *);
+ssize_t (*write) (struct file *, const char __user *, size_t, loff_t *);
+\end{code-block}
+read函数，通常的功能在于，从内核空间读取数据到用户空间；而write则反过来，从用户
+空间写数据到内核空间。常见的read/write函数的实现大致如下：
+\begin{code-block}{c}
+// linux/uaccess.h copy_to_user, copy_from_user
+
+/*
+*** buffer：用户空间缓冲区，在内核空间当中，无法直接访问，不能进行printk
+*** count：用户空间读取的缓冲区大小
+*** ppos：偏移地址
+*/
+static ssize_t read_starter_chrdev(struct file *filp,
+                char __user * user_buffer, size_t count, loff_t *ppos)
+{
+        int ret = 0;
+        char kernel_data[] = "hello read char dev function";
+        size_t data_len = sizeof(kernel_data) / sizeof(char);
+        if (count > data_len){
+                count = data_len;
+        }
+        if ((ret = copy_to_user(user_buffer, kernel_data, count))){
+                printk(KERN_ERR "Failed to read data from kernel\n");
+                return -EFAULT;
+        }
+        printk(KERN_INFO "The count of copy_to_user is %d\n",
+                ret);
+        return ret;
+}
+
+/*
+*** buffer：用户空间缓冲区，在内核空间当中，无法直接访问，不能进行printk
+*** count：用户空间写入的缓冲区大小
+*** ppos：偏移地址
+*/
+static ssize_t write_starter_chrdev(struct file *filp,
+                const char __user * user_buffer, size_t count, loff_t *ppos)
+{
+        int ret = 0;
+        printk(KERN_INFO
+                "The count of user namespace write is %ld\n",
+                count);
+        if(count > WRITE_LEN){
+                count = WRITE_LEN;
+        }
+        if ((ret = copy_from_user(writebuf, user_buffer, count))){
+                printk(KERN_ERR "Failed write to char device\n");
+                return -EFAULT;
+        }
+        printk(KERN_INFO "Write to the starter char dev with content %s\n",
+                writebuf);
+        return 0;
+}
+\end{code-block}
+
+需要注意，用户空间缓冲区，在内核空间是不能直接进行操作的，必须通过copy\_to\_user和copy\_from\_user
+进行，否则会导致操作系统直接卡住。
+
+另外，在上述的代码当中，首次出现了一个-EFAULT的标记，这个表示Linux的内核错误代码。在Linux内核代码当中，
+存在一系列关于各种错误的定义，这些错误的定义全部都在include/uapi/asm-generic/errno-base.h当中，而典型的
+Linux错误代码包括如下的内容：
+\begin{code-block}{c}
+#define EPERM   1  /* Operation not permitted */
+#define ENOENT  2  /* No such file or directory */
+#define ESRCH   3  /* No such process */
+#define EINTR   4  /* Interrupted system call */
+#define EIO     5  /* I/O error */
+#define ENXIO   6  /* No such device or address */
+#define E2BIG   7  /* Argument list too long */
+#define ENOEXEC 8  /* Exec format error */
+#define EBADF   9  /* Bad file number */
+#define ECHILD  10 /* No child processes */
+#define EAGAIN  11 /* Try again */
+#define ENOMEM  12 /* Out of memory */
+#define EACCES  13 /* Permission denied */
+#define EFAULT  14 /* Bad address */
+#define ENOTBLK 15 /* Block device required */
+#define EBUSY   16 /* Device or resource busy */
+#define EEXIST  17 /* File exists */
+#define EXDEV   18 /* Cross-device link */
+#define ENODEV  19 /* No such device */
+#define ENOTDIR 20 /* Not a directory */
+#define EISDIR  21 /* Is a directory */
+#define EINVAL  22 /* Invalid argument */
+#define ENFILE  23 /* File table overflow */
+#define EMFILE  24 /* Too many open files */
+#define ENOTTY  25 /* Not a typewriter */
+#define ETXTBSY 26 /* Text file busy */
+#define EFBIG   27 /* File too large */
+#define ENOSPC  28 /* No space left on device */
+#define ESPIPE  29 /* Illegal seek */
+#define EROFS   30 /* Read-only file system */
+#define EMLINK  31 /* Too many links */
+#define EPIPE   32 /* Broken pipe */
+#define EDOM    33 /* Math argument out of domain of func */
+#define ERANGE  34 /* Math result not representable */
+\end{code-block}
+
+\subsection{设备号的动态分配}
+在上述操作当中，我们必须手动的指定设备号，并且手动的创建设备节点，才可以对其进行
+操作和访问。但是，Linux提供了一套设备驱动的框架，支持进行自动的设备号分配，以及
+设备节点的自动创建。
+
+自动申请设备号采用下列函数进行操作：
+\begin{code-block}{c}
+/**
+* dev 表示设备号，
+* baseminor 表示基础的次设备号，即从多少开始进行次设备号的分配
+* count 表示申请多少个
+* name 表示设备的名称
+*/
+int alloc_chrdev_region(dev_t *dev, unsigned baseminor,
+    unsigned count, const char *name);
+
+// 其使用方式大致如下：
+
+ret = alloc_chrdev_region(&devid, 0, MAX_COUNT, "device_name");
+// 获取主设备号
+major = MAJOR(devid);
+minor = MINOR(devid);
+\end{code-block}
+
+如果指定了主设备号，但是自动分配次设备号，可以采用下面的类似代码进行：
+\begin{code-block}{c}
+int register_chrdev_region(dev_t from, unsigned count, const char *name);
+
+// 其使用方式大致如下：
+devid = MKDEV(major,0);
+ret = register_chrdev_region(devid, MAX_COUNT, "device_name");
+\end{code-block}
+
+相应的，卸载设备则应该使用对应的函数：
+\begin{code-block}{c}
+void unregister_chrdev_region(dev_t from, unsigned count)
+\end{code-block}
+
+\subsection{字符设备的注册}
+虽然可以使用register\_chrdev进行字符设备的注册，但是，很多时候，我们通常采用的是
+更为现代的方式和函数。新的字符设备的注册，需要使用到一个特殊的结构体——cdev：
+\begin{code-block}{c}
+// linux/cdev.h
+struct cdev {
+        struct kobject kobj;
+        struct module *owner;
+        const struct file_operations *ops;
+        struct list_head list;
+        dev_t dev;
+        unsigned int count;
+} __randomize_layout;
+\end{code-block}
+然后，使用cdev\_init函数对字符设备进行注册，随后使用cdev\_add函数将字符设备添加到
+Linux操作系统当中。基本的操作大致如下，定义一个设备结构体，包含上述的cdev结构体，并且
+包含主设备号，次设备号以及本身的设备号dev\_id：
+\begin{code-block}{c}
+struct devframework {
+        dev_t dev_id;
+        unsigned int major;
+        unsigned int minor;
+        struct cdev frame_cdev;
+};
+
+static struct devframework item;
+
+static struct file_operations devframework_fops = {
+        .owner = THIS_MODULE,
+        .open = open_devframework_chrdev,
+        .release = release_devframework_chrdev,
+        .read = read_devframework_chrdev,
+        .write = write_devframework_chrdev,
+};
+
+static int __init devframework_init(void)
+{
+        int result = 0;
+        // 从Linux系统当中申请设备号
+        result = alloc_chrdev_region(&item.dev_id, 0, 1, DEV_NAME);
+        if (result) {
+                printk(KERN_ERR
+                        "Faild devframework to register"
+                        " the devframework char device\n");
+                return -EFAULT;
+        }
+
+        // 获取主设备号与次设备号
+        item.major = MAJOR(item.dev_id);
+        item.minor = MINOR(item.dev_id);
+        item.frame_cdev.owner = THIS_MODULE;
+        // 初始化设备，进行注册，包含了设备的文件操作函数
+        cdev_init(&item.frame_cdev, &devframework_fops);
+        // 添加设备到操作系统当中
+        if ((result = cdev_add(&item.frame_cdev, item.dev_id, 1))){
+                printk(KERN_ERR "Faild to add devframework"
+                                " into Linux system\n");
+                return -ENODEV;
+        }
+        printk(KERN_INFO
+                "This is a devframework module"
+                " for char dev init function,"
+                " and major is %d, minor is %d\n",
+                item.major, item.minor);
+        return result;
+}
+
+static void __exit devframework_exit(void)
+{
+        printk(KERN_INFO
+                "This is a devframework module"
+                " for char dev exit function\n");
+        // 从操作系统当中卸载设备
+        cdev_del(&item.frame_cdev);
+        // 回收注册的设备号
+        unregister_chrdev_region(item.dev_id, 1);
+}
+\end{code-block}
+
+\subsection{自动创建设备文件}
+之前创建设备采用的是mknod的方式（即devfs），属于静态创建的方式。从Linux2.6之后，
+采用了udev的方式，进行设备的创建。而udev的方式，直接可以管理/dev下的设备文件，并且支持
+热插拔方式，因此，得到极大的发展。自动创建设备文件，通常采用函数device\_create完成。
+将上述的内容的综合到一起，得到一个比较完整的字符驱动（以框架的形式运行），其代码大致如下：
+\begin{code-block}{c}
+#include <linux/cdev.h>
+#include <linux/fs.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/uaccess.h>
+
+#define DEV_NAME "chrdev"
+
+#define WRITE_LEN 1024
+static char writebuf[WRITE_LEN];
+
+// 定义设备结构体
+struct chrdev {
+        dev_t dev_id;          // 设备id
+        unsigned int major;    // 主设备号
+        unsigned int minor;    // 次设备号
+        struct device *device; // device结构体指针，用于创建对应的设备文件
+        struct class *class;   // class结构体指针，用于创建对应的设备类型
+        struct cdev cdev;      // cdev结构体，用于注册字符设备
+};
+
+static struct chrdev char_device;
+
+static int open_chrdev(struct inode *inodep, struct file *filp)
+{
+        // 设置文件的私有变量，后续在驱动的其他操作当中，可以直接
+        // 使用filp指针，而无需操作全局的char_device变量
+        filp->private_data = &char_device;
+        printk(KERN_INFO "Open the char dev named chrdev\n");
+        return 0;
+}
+
+static int release_chrdev(struct inode *inodep, struct file *filp)
+{
+        // 从文件的私有变量当中提取设备结构体
+        struct chrdev * char_device = (struct chrdev*)filp->private_data;
+        printk(KERN_INFO "Close the chrdev char dev \n");
+        return 0;
+}
+
+static ssize_t read_chrdev(struct file *filp,
+                char __user * user_buffer, size_t count, loff_t *ppos)
+{
+        int ret = 0;
+        char kernel_data[] = "hello read char dev function";
+        size_t data_len = sizeof(kernel_data) / sizeof(char);
+        printk(KERN_INFO "The count of user"
+                        " namespace requested is %ld\n", count);
+        if (count > data_len){
+                count = data_len;
+        }
+        if ((ret = copy_to_user(user_buffer, kernel_data, count))){
+                printk(KERN_ERR "Faichrdev to read data from kernel\n");
+                return -EFAULT;
+        }
+        printk(KERN_INFO "The count of copy_to_user is %d\n",
+                ret);
+        return ret;
+}
+
+static ssize_t write_chrdev(struct file *filp,
+                const char __user * user_buffer, size_t count, loff_t *ppos)
+{
+        int ret = 0;
+        printk(KERN_INFO
+                "The count of user namespace write is %ld\n",
+                count);
+        if(count > WRITE_LEN){
+                count = WRITE_LEN;
+        }
+        if ((ret = copy_from_user(writebuf, user_buffer, count))){
+                printk(KERN_ERR "Faichrdev write to char device\n");
+                return -EFAULT;
+        }
+        printk(KERN_INFO "Write to the chrdev"
+                        " char dev with content %s\n",
+                writebuf);
+        return ret;
+}
+
+static struct file_operations chrdev_fops = {
+        .owner = THIS_MODULE,
+        .open = open_chrdev,
+        .release = release_chrdev,
+        .read = read_chrdev,
+        .write = write_chrdev,
+};
+
+static int __init chrdev_init(void)
+{
+        int result = 0;
+        // 申请设备号，0表示次设备号的起始编号，1表示设备的数量
+        result = alloc_chrdev_region(&char_device.dev_id, 0, 1, DEV_NAME);
+        if (result) {
+                printk(KERN_ERR
+                        "Faild to allock char device number for"
+                        " the chrdev char device\n");
+                result = -EFAULT;
+                goto dev_id_fail;
+        }
+
+        // 获取主设备号
+        char_device.major = MAJOR(char_device.dev_id);
+        // 获取次设备号
+        char_device.minor = MINOR(char_device.dev_id);
+        char_device.cdev.owner = THIS_MODULE;
+
+        // 初始化字符设备，包含字符设备的操作函数
+        cdev_init(&char_device.cdev, &chrdev_fops);
+
+        // 添加字符设备到操作系统，1表示添加的数量
+        if ((result = cdev_add(&char_device.cdev, char_device.dev_id, 1))){
+                printk(KERN_ERR "Faild to add chrdev"
+                                " into Linux system\n");
+                result = -EFAULT;
+                goto dev_add_fail;
+        }
+
+        // 创建字符设备类型
+        char_device.class = class_create(THIS_MODULE, DEV_NAME);
+        if(IS_ERR(char_device.class)){
+                result = PTR_ERR(char_device.class);
+                goto dev_class_fail;
+        }
+
+        // 创建字符设备文件，即/dev/下的文件，device_create的4个参数
+        // 第一个表示设备类型
+        // 第二个表示设备的父设备
+        // 第三个表示设备号
+        // 第四个表示设备数据
+        // 第五个为可变参数，即可以是多个，表示设备的名称
+        char_device.device = device_create(char_device.class, NULL,
+                char_device.dev_id, NULL, DEV_NAME);
+        if(IS_ERR(char_device.device)){
+                result = PTR_ERR(char_device.device);
+                goto dev_device_fail;
+        }
+
+        printk(KERN_INFO
+                "This is a chrdev module"
+                " for char dev init function,"
+                " and major is %d, minor is %d\n",
+                char_device.major, char_device.minor);
+        return result;
+
+dev_device_fail:
+        class_destroy(char_device.class);
+dev_class_fail:
+        cdev_del(&char_device.cdev);
+dev_add_fail:
+        unregister_chrdev_region(char_device.dev_id, 1);
+dev_id_fail:
+        return result;
+}
+
+static void __exit chrdev_exit(void)
+{
+        printk(KERN_INFO
+                "This is a chrdev module"
+                " for char dev exit function\n");
+        // 销毁设备文件
+        device_destroy(char_device.class, char_device.dev_id);
+        // 销毁设备类型
+        class_destroy(char_device.class);
+        // 从系统当中删除字符设备
+        cdev_del(&char_device.cdev);
+        // 回收申请到的设备号
+        unregister_chrdev_region(char_device.dev_id, 1);
+}
+
+module_init(chrdev_init);
+module_exit(chrdev_exit);
+
+MODULE_LICENSE("GPL"); // 必须为GPL的license
+MODULE_AUTHOR("zhangjl");
+\end{code-block}
+
+需要注意的是，一旦使用了上述的这种方式，则内核模块的license必须为GPL，原因是
+device\_destroy和class\_destroy都属于GPL的导出函数，与其他的协议不兼容。如果
+强制使用其他的协议，则会出现类似下列的错误：
+\begin{code-block}{bash}
+FATAL: modpost: GPL-incompatible module private.ko uses GPL-only symbol 'device_destroy'
+scripts/Makefile.modpost:93: recipe for target '__modpost' failed
+make[2]: *** [__modpost] Error 1
+\end{code-block}
 
 \subsection{Linux的进程遍历}
 一个进程是由进程控制块（PCB），代码段和数据段组成的；并且，OS通常是通过PCB来感知

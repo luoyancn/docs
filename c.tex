@@ -512,6 +512,8 @@ Linux 内核当中存在2个非常特殊的宏定义，如下：
 \section{匿名结构体}
 在定义结构体时，可以嵌入一个另外的结构体
 \begin{code-block}{c}
+#include <stdint.h>
+typedef struct _user * user;
 typedef struct _user {
     char * name;
     uint8_t age;
@@ -543,3 +545,8 @@ a |= (0x1<<n)
 // 设置某一位为低电平（0），其余位不变
 a &= (~(0x1<<n))
 \end{code-block}
+
+\section{特殊的类型说明}
+
+C/C++当中，通常用到size\_t和ssize\_t，其中，size\_t等价于unsigned int，而
+ssize\_t则等价于signed int。
