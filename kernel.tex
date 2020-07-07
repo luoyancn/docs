@@ -623,15 +623,19 @@ static char writebuf[WRITE_LEN];
 
 // 定义设备结构体
 struct chrdev {
-        dev_t dev_id;          // 设备id
-        unsigned int major;    // 主设备号
-        unsigned int minor;    // 次设备号
-        struct device *device; // device结构体指针，用于创建对应的设备文件
-        struct class *class;   // class结构体指针，用于创建对应的设备类型
-        struct cdev cdev;      // cdev结构体，用于注册字符设备
+        dev_t          dev_id;   // 设备id
+        unsigned int   major;    // 主设备号
+        unsigned int   minor;    // 次设备号
+        struct device  *device;  // device结构体指针，用于创建对应的设备文件
+        struct class   *class;   // class结构体指针，用于创建对应的设备类型
+        struct cdev    cdev;     // cdev结构体，用于注册字符设备
 };
 
 static struct chrdev char_device;
+// 默认的主设备号为0
+static unsigned int major = 0;
+// 添加内核模块的参数支持，支持通过参数传递major的数值
+module_param(major, uint, S_IRUGO)
 
 static int open_chrdev(struct inode *inodep, struct file *filp)
 {
@@ -645,13 +649,13 @@ static int open_chrdev(struct inode *inodep, struct file *filp)
 static int release_chrdev(struct inode *inodep, struct file *filp)
 {
         // 从文件的私有变量当中提取设备结构体
-        struct chrdev * char_device = (struct chrdev*)filp->private_data;
+        struct chrdev *char_device = (struct chrdev *)filp->private_data;
         printk(KERN_INFO "Close the chrdev char dev \n");
         return 0;
 }
 
 static ssize_t read_chrdev(struct file *filp,
-                char __user * user_buffer, size_t count, loff_t *ppos)
+                char __user *user_buffer, size_t count, loff_t *ppos)
 {
         int ret = 0;
         char kernel_data[] = "hello read char dev function";
@@ -671,7 +675,7 @@ static ssize_t read_chrdev(struct file *filp,
 }
 
 static ssize_t write_chrdev(struct file *filp,
-                const char __user * user_buffer, size_t count, loff_t *ppos)
+                const char __user *user_buffer, size_t count, loff_t *ppos)
 {
         int ret = 0;
         printk(KERN_INFO
@@ -691,18 +695,28 @@ static ssize_t write_chrdev(struct file *filp,
 }
 
 static struct file_operations chrdev_fops = {
-        .owner = THIS_MODULE,
-        .open = open_chrdev,
+        .owner   = THIS_MODULE,
+        .open    = open_chrdev,
         .release = release_chrdev,
-        .read = read_chrdev,
-        .write = write_chrdev,
+        .read    = read_chrdev,
+        .write   = write_chrdev,
 };
 
 static int __init chrdev_init(void)
 {
         int result = 0;
-        // 申请设备号，0表示次设备号的起始编号，1表示设备的数量
-        result = alloc_chrdev_region(&char_device.dev_id, 0, 1, DEV_NAME);
+        if (major > 0) {
+                // 根据insmod xxx.ko major=yyy的参数，得到major
+                // 然后生成字符设备的设备号
+                char_device.dev_id = MKDEV(major, 0);
+                // 注册设备的设备号到操作系统
+                result = register_chrdev_region(
+                        char_device.dev_id, 1, DEV_NAME);
+        } else {
+                // 申请设备号，0表示次设备号的起始编号，1表示设备的数量
+                result = alloc_chrdev_region(
+                        &char_device.dev_id, 0, 1, DEV_NAME);
+        }
         if (result) {
                 printk(KERN_ERR
                         "Faild to allock char device number for"
@@ -721,7 +735,7 @@ static int __init chrdev_init(void)
         cdev_init(&char_device.cdev, &chrdev_fops);
 
         // 添加字符设备到操作系统，1表示添加的数量
-        if ((result = cdev_add(&char_device.cdev, char_device.dev_id, 1))){
+        if ((result = cdev_add(&char_device.cdev, char_device.dev_id, 1))) {
                 printk(KERN_ERR "Faild to add chrdev"
                                 " into Linux system\n");
                 result = -EFAULT;
@@ -795,6 +809,8 @@ FATAL: modpost: GPL-incompatible module private.ko uses GPL-only symbol 'device_
 scripts/Makefile.modpost:93: recipe for target '__modpost' failed
 make[2]: *** [__modpost] Error 1
 \end{code-block}
+利用上述的框架，除了在/dev下生成对应的设备文件之外，在/sys/class下也会生成对应的
+文件。
 
 \subsection{Linux的进程遍历}
 一个进程是由进程控制块（PCB），代码段和数据段组成的；并且，OS通常是通过PCB来感知
