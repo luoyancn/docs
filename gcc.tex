@@ -272,6 +272,26 @@ int *e = a;
 __must_be_array(e); // 同样是编译提示错误
 \end{code-in-enumerate}
 
+\1 \_\_arm\_\_
+
+该属性用于判断当前的编译器或者代码是否针对arm结构，具体的使用如下：
+\begin{code-in-enumerate}{c}
+#if defined(__arm__)
+        printf("This is build for arm arch\n");
+#else
+        printf("This is build for no-arm arch\n");
+#endif
+\end{code-in-enumerate}
+除了针对ARM之外，还有其他的一些特殊的宏定义，大致如下：
+\begin{enumerate}
+  \item 针对x86-64：\_\_amd64\_\_, \_\_amd64, \_\_x86\_64\_\_, \_\_x86\_64
+  \item 针对x86：\_\_i386，\_\_i386\_\_
+  \item 针对arm：\_\_arm\_\_，\_\_ARM\_ARCH\_2\_\_，\_\_ARM\_ARCH\_3\_\_，\_\_ARM\_ARCH\_3M\_\_，\_\_ARM\_ARCH\_4T\_\_，\_\_TARGET\_ARM\_4T
+  \item 针对arm64：\_\_aarch64\_\_
+  \item 针对alpha：\_\_alpha\_\_
+\end{enumerate}
+这些宏定义可以在内核代码以及普通代码当中直接使用。
+
 \end{outline}
 
 \section{Makefile}

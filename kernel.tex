@@ -271,6 +271,28 @@ insmod params.ko book_name='"zhangjl and his family"' num=100
 在编译内核模块时，如果需要修改这个版本信息，只需要修改include/generated/utsrelease.h当中的
 信息即可。
 
+\subsection{代码判断内核版本号和系统架构}
+不同的内核版本，头文件路径可能不同，结构体定义可能不同，函数或者宏定义也可能不同。因此，针对
+不同的版本，相应的内核驱动代码通常需要进行适配。而这个适配工作可以直接在代码当中自动完成。如下
+代码所示：
+\begin{code-block}{c}
+#include <linux/version.h>
+
+// 如果内核代码版本小于5.0.0版本
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+#include <linux/device.h>
+#endif
+
+...
+#if defined(__arm__)
+        printk(KERN_INFO
+                "The count of user namespace write is %d\n", count);
+#else
+        printk(KERN_INFO
+                "The count of user namespace write is %ld\n", count);
+#endif
+\end{code-block}
+
 \subsection{字符设备驱动开发}
 字符设备的注册，需要在init函数当中调用register\_chrdev函数，该函数有几个参数：
 \begin{itemize}
@@ -401,21 +423,38 @@ read函数，通常的功能在于，从内核空间读取数据到用户空间�
 *** ppos：偏移地址
 */
 static ssize_t read_starter_chrdev(struct file *filp,
-                char __user * user_buffer, size_t count, loff_t *ppos)
+        char __user * user_buffer, size_t count, loff_t *ppos)
 {
         int ret = 0;
-        char kernel_data[] = "hello read char dev function";
-        size_t data_len = sizeof(kernel_data) / sizeof(char);
-        if (count > data_len){
-                count = data_len;
+        struct chrdev * char_device = (struct chrdev*)filp->private_data;
+#if defined(__arm__)
+        printk(KERN_INFO "The count of user"
+                        " namespace requested is %d\n", count);
+#else
+        printk(KERN_INFO "The count of user"
+                        " namespace requested is %ld\n", count);
+#endif
+        // 偏移量超过了最大的长度
+        if (*ppos > BUFFER_LEN) {
+                return count ? -ENXIO : 0;
         }
-        if ((ret = copy_to_user(user_buffer, kernel_data, count))){
-                printk(KERN_ERR "Failed to read data from kernel\n");
+        // 偏移量超过了剩余长度
+        if (count > (BUFFER_LEN - *ppos)) {
+                count = BUFFER_LEN - *ppos;
+        }
+        // *ppos表示偏移量的地址
+        if ((ret = copy_to_user(
+                user_buffer, (void *)(char_device->buffer + *ppos), count))) {
+                printk(KERN_ERR "Faichrdev to read data from kernel\n");
                 return -EFAULT;
         }
-        printk(KERN_INFO "The count of copy_to_user is %d\n",
-                ret);
-        return ret;
+        *ppos += count; // 必须进行该操作，否则会出现不可预知的问题
+#if defined(__arm__)
+        printk(KERN_INFO "The count of copy_to_user is %d\n", count);
+#else
+        printk(KERN_INFO "The count of copy_to_user is %ld\n", count);
+#endif
+        return count;
 }
 
 /*
@@ -424,27 +463,41 @@ static ssize_t read_starter_chrdev(struct file *filp,
 *** ppos：偏移地址
 */
 static ssize_t write_starter_chrdev(struct file *filp,
-                const char __user * user_buffer, size_t count, loff_t *ppos)
+        const char __user * user_buffer, size_t count, loff_t *ppos)
 {
         int ret = 0;
+        struct chrdev * char_device = (struct chrdev*)filp->private_data;
+#if defined(__arm__)
         printk(KERN_INFO
-                "The count of user namespace write is %ld\n",
-                count);
-        if(count > WRITE_LEN){
-                count = WRITE_LEN;
+                "The count of user namespace write is %d\n", count);
+#else
+        printk(KERN_INFO
+                "The count of user namespace write is %ld\n", count);
+#endif
+        if (count >= BUFFER_LEN) {
+                return count ? -ENXIO : 0;
         }
-        if ((ret = copy_from_user(writebuf, user_buffer, count))){
-                printk(KERN_ERR "Failed write to char device\n");
+        if (count > (BUFFER_LEN - *ppos)) {
+                count = BUFFER_LEN - *ppos;
+        }
+
+        if ((ret = copy_from_user(char_device->buffer+*ppos,
+                                user_buffer, count))) {
+                printk(KERN_ERR "Faichrdev write to char device\n");
                 return -EFAULT;
         }
-        printk(KERN_INFO "Write to the starter char dev with content %s\n",
-                writebuf);
-        return 0;
+
+        *ppos += count; // 必须进行该操作，否则会出现不可预知的问题
+        printk(KERN_INFO "Write to the chrdev"
+                " char dev with content %s\n",                                                                                                                               char_device->buffer);
+        return count;
 }
 \end{code-block}
 
 需要注意，用户空间缓冲区，在内核空间是不能直接进行操作的，必须通过copy\_to\_user和copy\_from\_user
-进行，否则会导致操作系统直接卡住。
+进行，否则会导致操作系统直接卡住。除此之外，需要特别注意，read/write函数的返回值，如果一切运行正常，
+返回值应当为操作的数量（即count），不能随意返回0，否则，在使用cat/echo等命令对字符设备文件进行操作时，
+会导致操作系统卡住（使用代码进行读写的方式运行正常）。
 
 另外，在上述的代码当中，首次出现了一个-EFAULT的标记，这个表示Linux的内核错误代码。在Linux内核代码当中，
 存在一系列关于各种错误的定义，这些错误的定义全部都在include/uapi/asm-generic/errno-base.h当中，而典型的
@@ -609,6 +662,7 @@ static void __exit devframework_exit(void)
 热插拔方式，因此，得到极大的发展。自动创建设备文件，通常采用函数device\_create完成。
 将上述的内容的综合到一起，得到一个比较完整的字符驱动（以框架的形式运行），其代码大致如下：
 \begin{code-block}{c}
+#include <linux/version.h>
 #include <linux/cdev.h>
 #include <linux/fs.h>
 #include <linux/init.h>
@@ -616,19 +670,23 @@ static void __exit devframework_exit(void)
 #include <linux/module.h>
 #include <linux/uaccess.h>
 
-#define DEV_NAME "chrdev"
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+#include <linux/device.h>
+#endif
 
-#define WRITE_LEN 1024
-static char writebuf[WRITE_LEN];
+#define DEV_NAME "chrdev"
+#define BUFFER_LEN 1024
 
 // 定义设备结构体
+// 定义设备结构体
 struct chrdev {
-        dev_t          dev_id;   // 设备id
-        unsigned int   major;    // 主设备号
-        unsigned int   minor;    // 次设备号
-        struct device  *device;  // device结构体指针，用于创建对应的设备文件
-        struct class   *class;   // class结构体指针，用于创建对应的设备类型
-        struct cdev    cdev;     // cdev结构体，用于注册字符设备
+        dev_t          dev_id;  // 设备id
+        unsigned int   major;   // 主设备号
+        unsigned int   minor;   // 次设备号
+        struct device  *device; // device结构体指针，用于创建对应的设备文件
+        struct class   *class;  // class结构体指针，用于创建对应的设备类型
+        struct cdev    *cdev;   // cdev结构体指针，用于注册字符设备
+        char           buffer[BUFFER_LEN];
 };
 
 static struct chrdev char_device;
@@ -649,49 +707,72 @@ static int open_chrdev(struct inode *inodep, struct file *filp)
 static int release_chrdev(struct inode *inodep, struct file *filp)
 {
         // 从文件的私有变量当中提取设备结构体
-        struct chrdev *char_device = (struct chrdev *)filp->private_data;
+        struct chrdev *char_device = (struct chrdev*)filp->private_data;
         printk(KERN_INFO "Close the chrdev char dev \n");
         return 0;
 }
 
 static ssize_t read_chrdev(struct file *filp,
-                char __user *user_buffer, size_t count, loff_t *ppos)
+        char __user *user_buffer, size_t count, loff_t *ppos)
 {
         int ret = 0;
-        char kernel_data[] = "hello read char dev function";
-        size_t data_len = sizeof(kernel_data) / sizeof(char);
+        struct chrdev *char_device = (struct chrdev*)filp->private_data;
+#if defined(__arm__)
         printk(KERN_INFO "The count of user"
-                        " namespace requested is %ld\n", count);
-        if (count > data_len){
-                count = data_len;
+                " namespace requested is %d\n", count);
+#else
+        printk(KERN_INFO "The count of user"
+                " namespace requested is %ld\n", count);
+#endif
+        if (*ppos > BUFFER_LEN) {
+                return count ? -ENXIO : 0;
         }
-        if ((ret = copy_to_user(user_buffer, kernel_data, count))){
+        if (count > (BUFFER_LEN - *ppos)) {
+                count = BUFFER_LEN - *ppos;
+        }
+        if ((ret = copy_to_user(user_buffer,
+                (void *)(char_device->buffer + *ppos), count))) {
                 printk(KERN_ERR "Faichrdev to read data from kernel\n");
                 return -EFAULT;
         }
-        printk(KERN_INFO "The count of copy_to_user is %d\n",
-                ret);
-        return ret;
+        *ppos += count;
+#if defined(__arm__)
+        printk(KERN_INFO "The count of copy_to_user is %d\n", count);
+#else
+        printk(KERN_INFO "The count of copy_to_user is %ld\n", count);
+#endif
+        return count;
 }
 
 static ssize_t write_chrdev(struct file *filp,
-                const char __user *user_buffer, size_t count, loff_t *ppos)
+        const char __user *user_buffer, size_t count, loff_t *ppos)
 {
         int ret = 0;
+        struct chrdev *char_device = (struct chrdev*)filp->private_data;
+#if defined(__arm__)
         printk(KERN_INFO
-                "The count of user namespace write is %ld\n",
-                count);
-        if(count > WRITE_LEN){
-                count = WRITE_LEN;
+                "The count of user namespace write is %d\n", count);
+#else
+        printk(KERN_INFO
+                "The count of user namespace write is %ld\n", count);
+#endif
+        if (count >= BUFFER_LEN) {
+                return count ? -ENXIO : 0;
         }
-        if ((ret = copy_from_user(writebuf, user_buffer, count))){
+        if (count > (BUFFER_LEN - *ppos)) {
+                count = BUFFER_LEN - *ppos;
+        }
+
+        if ((ret = copy_from_user(
+                char_device->buffer+*ppos, user_buffer, count))) {
                 printk(KERN_ERR "Faichrdev write to char device\n");
                 return -EFAULT;
         }
+
+        *ppos += count;
         printk(KERN_INFO "Write to the chrdev"
-                        " char dev with content %s\n",
-                writebuf);
-        return ret;
+                " char dev with content %s\n", char_device->buffer);
+        return count;
 }
 
 static struct file_operations chrdev_fops = {
@@ -719,23 +800,30 @@ static int __init chrdev_init(void)
         }
         if (result) {
                 printk(KERN_ERR
-                        "Faild to allock char device number for"
+                        "Faild chrdev to register"
                         " the chrdev char device\n");
                 result = -EFAULT;
                 goto dev_id_fail;
+        }
+
+        char_device.cdev = cdev_alloc();
+        if (!char_device.cdev) {
+                printk(KERN_ERR "Faild to alloc cdev struct \n");
+                result = -EFAULT;
+                goto alloc_cdev_fail;
         }
 
         // 获取主设备号
         char_device.major = MAJOR(char_device.dev_id);
         // 获取次设备号
         char_device.minor = MINOR(char_device.dev_id);
-        char_device.cdev.owner = THIS_MODULE;
+        char_device.cdev->owner = THIS_MODULE;
 
         // 初始化字符设备，包含字符设备的操作函数
-        cdev_init(&char_device.cdev, &chrdev_fops);
+        cdev_init(char_device.cdev, &chrdev_fops);
 
         // 添加字符设备到操作系统，1表示添加的数量
-        if ((result = cdev_add(&char_device.cdev, char_device.dev_id, 1))) {
+        if ((result = cdev_add(char_device.cdev, char_device.dev_id, 1))) {
                 printk(KERN_ERR "Faild to add chrdev"
                                 " into Linux system\n");
                 result = -EFAULT;
@@ -757,13 +845,14 @@ static int __init chrdev_init(void)
         // 第五个为可变参数，即可以是多个，表示设备的名称
         char_device.device = device_create(char_device.class, NULL,
                 char_device.dev_id, NULL, DEV_NAME);
-        if(IS_ERR(char_device.device)){
+        if (IS_ERR(char_device.device)) {
                 result = PTR_ERR(char_device.device);
                 goto dev_device_fail;
         }
 
-        printk(KERN_INFO
-                "This is a chrdev module"
+        memset(char_device.buffer, 0, BUFFER_LEN);
+
+        printk(KERN_INFO "This is a chrdev module"
                 " for char dev init function,"
                 " and major is %d, minor is %d\n",
                 char_device.major, char_device.minor);
@@ -772,8 +861,9 @@ static int __init chrdev_init(void)
 dev_device_fail:
         class_destroy(char_device.class);
 dev_class_fail:
-        cdev_del(&char_device.cdev);
+        cdev_del(char_device.cdev);
 dev_add_fail:
+alloc_cdev_fail:
         unregister_chrdev_region(char_device.dev_id, 1);
 dev_id_fail:
         return result;
@@ -789,7 +879,7 @@ static void __exit chrdev_exit(void)
         // 销毁设备类型
         class_destroy(char_device.class);
         // 从系统当中删除字符设备
-        cdev_del(&char_device.cdev);
+        cdev_del(char_device.cdev);
         // 回收申请到的设备号
         unregister_chrdev_region(char_device.dev_id, 1);
 }
