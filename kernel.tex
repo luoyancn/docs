@@ -731,7 +731,7 @@ static ssize_t read_chrdev(struct file *filp,
                 count = BUFFER_LEN - *ppos;
         }
         if ((ret = copy_to_user(user_buffer,
-                (void *)(char_device->buffer + *ppos), count))) {
+                (void *)(char_device->buffer), count))) {
                 printk(KERN_ERR "Faichrdev to read data from kernel\n");
                 return -EFAULT;
         }
@@ -758,9 +758,6 @@ static ssize_t write_chrdev(struct file *filp,
 #endif
         if (count >= BUFFER_LEN) {
                 return count ? -ENXIO : 0;
-        }
-        if (count > (BUFFER_LEN - *ppos)) {
-                count = BUFFER_LEN - *ppos;
         }
 
         if ((ret = copy_from_user(
@@ -901,6 +898,218 @@ make[2]: *** [__modpost] Error 1
 \end{code-block}
 利用上述的框架，除了在/dev下生成对应的设备文件之外，在/sys/class下也会生成对应的
 文件。
+
+如果将上述代码再次进行改写，全部使用指针的形式，则需要在内核当中使用kmalloc/kzalloc/kfree等函数，
+用于在内核空间当中申请对应的内存空间，具体的代码如下：
+\begin{code-block}{c}
+#include <linux/version.h>
+#include <linux/cdev.h>
+#include <linux/fs.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+#include <linux/device.h>
+#endif
+
+#define DEV_NAME "chrdev"
+#define BUFFER_LEN 1024
+
+struct chrdev {
+        dev_t         dev_id;
+        unsigned int  major;
+        unsigned int  minor;
+        struct device *device;
+        struct class  *class;
+        struct cdev   *cdev;
+        char          buffer[BUFFER_LEN];
+};
+
+// 定义设备结构体指针，而不再是结构体
+static struct chrdev *dev;
+static unsigned int major = 0;
+module_param(major, uint, S_IRUGO);
+
+static int open_chrdev(struct inode *inodep, struct file *filp)
+{
+        filp->private_data = dev;
+        printk(KERN_INFO "Open the char dev named chrdev\n");
+        return 0;
+}
+
+static int release_chrdev(struct inode *inodep, struct file *filp)
+{
+        struct chrdev *dev = (struct chrdev*)filp->private_data;
+        printk(KERN_INFO "Close the char dev \n");
+        return 0;
+}
+
+static ssize_t read_chrdev(struct file *filp,
+        char __user * user_buffer, size_t count, loff_t *ppos)
+{
+        int ret = 0;
+        struct chrdev *dev = (struct chrdev*)filp->private_data;
+#if defined(__arm__)
+        printk(KERN_INFO "The count of user"
+                " namespace requested is %d\n", count);
+#else
+        printk(KERN_INFO "The count of user"
+                " namespace requested is %ld\n", count);
+#endif
+        if (*ppos > BUFFER_LEN) {
+                return count ? -ENXIO : 0;
+        }
+
+        if (count > (BUFFER_LEN - *ppos)) {
+                count = BUFFER_LEN - *ppos;
+        }
+
+        if ((ret = copy_to_user(
+                user_buffer, (void *)(dev->buffer+*ppos), count))) {
+                printk(KERN_ERR "Failed to read data from kernel\n");
+                return -EFAULT;
+        }
+
+        *ppos += count;
+        return count;
+}
+
+static ssize_t write_chrdev(struct file *filp,
+        const char __user *user_buffer, size_t count, loff_t *ppos)
+{
+        int ret = 0;
+        struct chrdev *dev = (struct chrdev*)filp->private_data;
+#if defined(__arm__)
+        printk(KERN_INFO "The count of user namespace write is %d\n", count);
+#else
+        printk(KERN_INFO "The count of user namespace write is %ld, %lld\n",
+                count, *ppos);
+#endif
+        if (count >= BUFFER_LEN) {
+                return count ? -ENXIO : 0;
+        }
+        // 如果需要每次都覆盖内存当中的内容，需要进行原始内容清空
+        // memset(dev->buffer, 0, BUFFER_LEN);
+        if ((ret = copy_from_user(dev->buffer+*ppos, user_buffer, count))) {
+                printk(KERN_ERR "Faichrdev write to char device\n");
+                return -EFAULT;
+        }
+        *ppos += count;
+        printk(KERN_INFO "Write to the char dev with content %s\n",
+                dev->buffer);
+        return count;
+}
+
+static struct file_operations chrdev_fops = {
+        .owner   = THIS_MODULE,
+        .open    = open_chrdev,
+        .release = release_chrdev,
+        .read    = read_chrdev,
+        .write   = write_chrdev,
+};
+
+static int __init chrdev_init(void)
+{
+        int result = 0;
+        // 申请内核空间的内存使用kmalloc和kzalloc，但是通常使用kzalloc
+        // 原因在于kzalloc申请内存之后，自动将对应的内存区域进行清空置零
+        // 而kmalloc并不会。另外，kzalloc在底层默认就是调用kmalloc函数进行的
+        // 操作
+        // dev = kmalloc(sizeof(struct chrdev), GFP_KERNEL);
+        dev = kzalloc(sizeof(struct chrdev), GFP_KERNEL);
+        if (!dev) {
+                result = -ENOMEM;
+                goto alloc_kernel_fail;
+        }
+        if (major > 0) {
+                dev->dev_id = MKDEV(major, 0);
+                result = register_chrdev_region(dev->dev_id, 1, DEV_NAME);
+        } else {
+                result = alloc_chrdev_region(&(dev->dev_id), 0, 1, DEV_NAME);
+        }
+        if (result) {
+                printk(KERN_ERR "Faild to register the char device\n");
+                result = -EFAULT;
+                goto dev_id_fail;
+        }
+
+        dev->major = MAJOR(dev->dev_id);
+        dev->minor = MINOR(dev->dev_id);
+
+        // 申请一个cdev指针
+        dev->cdev = cdev_alloc();
+        if (!dev->cdev) {
+                printk(KERN_ERR "Faild to alloc cdev struct \n");
+                result = -EFAULT;
+                goto alloc_cdev_fail;
+        }
+
+        dev->cdev->owner = THIS_MODULE;
+
+        // 初始化cdev结构体指针
+        cdev_init(dev->cdev, &chrdev_fops);
+
+        if ((result = cdev_add(dev->cdev, dev->dev_id, 1))) {
+                printk(KERN_ERR "Faild to add chrdev into Linux system\n");
+                result = -EFAULT;
+                goto dev_add_fail;
+        }
+
+        dev->class = class_create(THIS_MODULE, DEV_NAME);
+        if (IS_ERR(dev->class)) {
+                result = PTR_ERR(dev->class);
+                goto dev_class_fail;
+        }
+
+        dev->device = device_create(dev->class, NULL,
+                dev->dev_id, NULL, DEV_NAME);
+        if (IS_ERR(dev->device)) {
+                result = PTR_ERR(dev->device);
+                goto dev_device_fail;
+        }
+
+        memset(dev->buffer, 0, BUFFER_LEN);
+
+        printk(KERN_INFO "This is a chrdev module"
+                " for char dev init function,"
+                " and major is %d, minor is %d\n",
+                dev->major, dev->minor);
+        return result;
+
+dev_device_fail:
+        class_destroy(dev->class);
+dev_class_fail:
+        cdev_del(dev->cdev);
+dev_add_fail:
+alloc_cdev_fail:
+        unregister_chrdev_region(dev->dev_id, 1);
+dev_id_fail:
+        kfree(dev);
+alloc_kernel_fail:
+        return result;
+}
+
+static void __exit chrdev_exit(void)
+{
+        printk(KERN_INFO "This is a chrdev module"
+                " for char dev exit function\n");
+        device_destroy(dev->class, dev->dev_id);
+        class_destroy(dev->class);
+        cdev_del(dev->cdev);
+        unregister_chrdev_region(dev->dev_id, 1);
+        // 释放申请的设备结构体指针内存
+        kfree(dev);
+}
+
+module_init(chrdev_init);
+module_exit(chrdev_exit);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("zhangjl");
+\end{code-block}
 
 \subsection{Linux的进程遍历}
 一个进程是由进程控制块（PCB），代码段和数据段组成的；并且，OS通常是通过PCB来感知
