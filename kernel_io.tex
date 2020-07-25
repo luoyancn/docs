@@ -880,5 +880,98 @@ static const struct file_operations awcloud_fifo_fops = {
 };
 \end{code-block}
 
-\subsection{异步I/O}
-异步IO，有时也称之为信号驱动IO。
+\subsection{信号I/O}
+信号IO，有时也称之为异步IO。也就是说，每次IO事件发生之后，内核驱动发送
+一个信号，通知内核或者用户空间的程序；而对应监听该信号的程序，一旦接收到该
+信号，则采取相应的行动。
+信号驱动IO，其主要就是需要实现一个异步等待队列，通过这个异步队列，进行信号的
+发送。如果在上述代码的基础上，做一些简要的修改，就可以实现该驱动的信号驱动
+模式。相应的改动如下：
+\begin{code-block}{c}
+struct awcloud_async {
+        dev_t                dev_id;                                                                                   unsigned int         major;
+        unsigned int         minor;
+        unsigned int         used_len;
+        struct device        *device;
+        struct class         *class;
+        struct cdev          *cdev;
+        // 定义一个异步队列
+        struct fasync_struct *async_queue;
+        char                 buffer[BUFFER_LEN];
+        struct semaphore     sem;
+        wait_queue_head_t    r_wait;
+        wait_queue_head_t    w_wait;
+};
+
+static int fasync_awcloud_async(int fd, struct file *filp, int on)
+{
+        struct awcloud_async *dev = (struct awcloud_async *)filp->private_data;
+
+        // 通过fasync_helper实现异步队列的初始化操作
+        return fasync_helper(fd, filp, on, &dev->async_queue);
+}
+
+static ssize_t write_awcloud_async(struct file *filp,
+        const char __user *user_buffer, size_t count, loff_t *ppos)
+{
+        ...
+        wake_up_interruptible(&dev->r_wait);
+        ret = count;
+
+        // 判断异步队列是否为空
+        if (dev->async_queue) {
+                // 向异步队列发送SIGIO信号，POLL_IN表示用户空间可以进行读取了
+                kill_fasync(&dev->async_queue, SIGIO, POLL_IN);
+                pr_debug("%s kill SIGIO", __func__);
+        }
+
+again_err:
+copy_from_user_err:
+        up(&dev->sem);
+
+out:
+        remove_wait_queue(&dev->w_wait, &wait);
+        set_current_state(TASK_RUNNING);
+
+        return ret;
+}
+
+static ssize_t read_awcloud_async(struct file *filp,
+        char __user *user_buffer, size_t count, loff_t *ppos)
+{
+        ...
+        wake_up_interruptible(&dev->w_wait);
+        if (dev->async_queue) {
+                // 向异步队列发送SIGIO信号，POLL_OUT表示用户可以进行写操作了
+                kill_fasync(&dev->async_queue, SIGIO, POLL_OUT);
+                pr_debug("%s kill SIGIO", __func__);
+        }
+        ret = count;
+
+again_err:
+copy_to_user_err:
+        up(&dev->sem);
+
+out:                                                                                                                   remove_wait_queue(&dev->r_wait, &wait);
+        set_current_state(TASK_RUNNING);
+
+        return ret;
+}
+
+static const struct file_operations awcloud_async_fops = {
+        .owner          = THIS_MODULE,
+        .open           = open_awcloud_async,                                                                          .release        = release_awcloud_async,
+        .read           = read_awcloud_async,
+        .write          = write_awcloud_async,
+        .llseek         = llseek_awcloud_async,
+        .poll           = poll_awcloud_async,
+        // 实现异步IO，则必须实现fasync函数
+        .fasync         = fasync_awcloud_async,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+        .ioctl          = ioctl_awcloud_async,
+#else
+        .compat_ioctl   = ioctl_awcloud_async,
+        .unlocked_ioctl = ioctl_awcloud_async,
+#endif
+};
+\end{code-block}
