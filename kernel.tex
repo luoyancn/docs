@@ -1139,7 +1139,40 @@ MODULE_AUTHOR("zhangjl");
 \end{code-block}
 
 \section{内核的并发与同步}
-内核当中的并发，通常采用自旋锁以及信号量进行。
+内核当中也会涉及到并发与同步。最简单的并发控制，便是使用原子操作，限制设备的
+并发访问。对上述代码进行改动，就变成了一个只允许同一时间只能有一个访问请求的
+驱动，代码的改动如下：
+\begin{code-block}{c}
+...
+static unsigned int major;
+// 定义设备同一时间只有一个可用
+static atomic_t awcloud_available = ATOMIC_INIT(1);
+module_param(major, uint, 0444);
+...
+
+static int open_awcloud_mem(struct inode *inodep, struct file *filp)
+{
+        // 设备已经被打开
+        if (!atomic_dec_and_test(&awcloud_available)) {
+                atomic_inc(&awcloud_available);
+                // 设备正忙
+                return -EBUSY;
+        }
+        filp->private_data = dev;
+        return 0;
+}
+
+static int release_awcloud_mem(struct inode *inodep, struct file *filp)
+{
+        // 释放设备
+        atomic_inc(&awcloud_available);
+        return 0;
+}
+...
+\end{code-block}
+
+但是，同时只允许一个进程访问的设备驱动毕竟是少数，
+因此内核当中的并发，通常采用自旋锁以及信号量进行。
 自旋锁的主要特点如下：
 \begin{itemize}
   \item 忙等待，无调度开销

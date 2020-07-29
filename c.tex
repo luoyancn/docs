@@ -491,6 +491,10 @@ int main(int argc, char * argv[])
         return 0;
 }
 \end{code-in-enumerate}
+\begin{attention}
+需要注意一下，container\_of在使用的时候，第三个参数应当是结构体当中的
+非指针变量。如果第三个参数是指针变量，则导致在使用时出现错误。
+\end{attention}
 
 \1 发现编译时的错误
 
