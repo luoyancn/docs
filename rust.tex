@@ -73,16 +73,20 @@ cargo build --release --target=x86_64-pc-windows-gnu
 针对ARM V7和ARM X64的编译过程稍微复杂一些，以ARM V7为例，其操作如下：
 \begin{enumerate}
   \item 创建配置文件：进入rust工程的根目录
-\begin{mdframed}[topline=false, bottomline=false, leftline=false, rightline=false, backgroundcolor=lbcolor]
-\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}
+\begin{mdframed}[topline=false, bottomline=false, leftline=false,
+    rightline=false, backgroundcolor=lbcolor]
+\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,
+    breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}
 mkdir .cargo
 touch .cargo/config
 \end{minted}
 \end{mdframed}
 
   \item 修改配置文件，设置交叉编译工具
-\begin{mdframed}[topline=false, bottomline=false, leftline=false, rightline=false, backgroundcolor=lbcolor]
-\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}
+\begin{mdframed}[topline=false, bottomline=false, leftline=false,
+    rightline=false, backgroundcolor=lbcolor]
+\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,
+    breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}
 cat >.cargo/config<<EOF
 [target.armv7-unknown-linux-gnueabihf]
 linker = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc"
@@ -92,10 +96,100 @@ EOF
 \end{mdframed}
 
   \item 进行交叉编译：
-\begin{mdframed}[topline=false, bottomline=false, leftline=false, rightline=false, backgroundcolor=lbcolor]
-\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}
+\begin{mdframed}[topline=false, bottomline=false, leftline=false,
+    rightline=false, backgroundcolor=lbcolor]
+\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,
+    breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}
 cargo build --release --target=armv7-unknown-linux-gnueabihf
 \end{minted}
 \end{mdframed}
 
 \end{enumerate}
+
+\section{数组的特殊操作}
+Rust当中的数组稍微有些特殊，在定义的时候，可以指定数据类型和长度，也可以进行
+自动推导，还可以使用简便定义的方式。其基本使用如下：
+\begin{code-block}{rust}
+// the same as let array: [u32; 5] = [1,2,3,4,5];
+let array = [1, 2, 3, 4, 5];
+// the same as let a = [3,3,3,3,3]
+let a = [3; 5];
+\end{code-block}
+
+数组作为函数参数时，长度必须作为数组的一部分进行传递：
+\begin{code-block}{rust}
+fn show_array(array: [u32; 5]) {
+    ...
+}
+\end{code-block}
+
+数组元素的迭代可以使用两种方式：1种是直接迭代，一种是使用iter函数进行：
+\begin{code-block}{rust}
+for item in array.iter() {
+    println!("{}", item);
+}
+
+for item in array {
+    println!("{}", item);
+}
+\end{code-block}
+
+\section{Rust的控制流}
+Rust的控制流和其他语言相同，都包含了判断和循环。Rust的判断流通过if/else以及
+else if实现，但是并不包含switch语句。当if-else的结构过多，则会导致代码比较
+杂乱，因此Rust还提供了另外一种语法格式：match来解决这些问题。
+
+Rust的if/else可以用在普通的判断场景，但判断条件必须是bool类型的数据，不允许
+使用其他类型作为判断的依据，所以，下列的代码是错误的：
+\begin{code-block}{rust}
+let a = 10;
+
+// error, a is not a boolean type
+if a {
+    ...
+}
+\end{code-block}
+
+Rust也有自己的3元运算符，其使用基本如下：
+\begin{code-block}{rust}
+let a = 100;
+let b = 200;
+let number = if a > b {
+    b
+} else {
+    a
+};
+
+\end{code-block}
+
+Rust的循环操作比较丰富，除了常见的for，while之外，还提供了loop循环。默认情况
+下，loop语句是无限循环。
+\begin{code-block}{rust}
+loop {
+    println!("Forever loop");
+}
+\end{code-block}
+通常情况下，loop是和break配合使用的。和其他语言不太一样，在其他语言当中，break
+关键字只是用于中断当前运行的循环，但是Rust当中，break可以后接表达式，将退出
+的信息返回给调用者，如下：
+\begin{code-block}{rust}
+
+let mut counter = 0;
+
+loop {
+    println!("loop");
+    if counter > 10 {
+        break;
+    }
+    counter += 1;
+}
+
+counter = 0;
+
+let result = loop {
+    counter += 1;                                                                                                                                    ┆   if 10 == counter {
+    break counter * 2;
+    }
+};
+\end{code-block}
+当上述循环退出之后，result的值就相当于counter的2倍。
