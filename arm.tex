@@ -1255,6 +1255,18 @@ cp arch/arm/boot/zImage ~/sdcard
 cp arch/arm/boot/dts/socfpga_cyclone5_de10_nano.dtb  ~/sdcard/socfpga.dtb
 \end{code-block}
 
+如果出现编译错误，类似如下情况：
+\begin{code-block}{bash}
+/usr/bin/ld: scripts/dtc/dtc-parser.tab.o:(.bss+0x10): multiple definition of `yylloc`;
+scripts/dtc/dtc-lexer.lex.o:(.bss+0x0): first defined here
+\end{code-block}
+表明可能是由于GCC版本过高导致，则需要进行部分的修改，修改的指令如下：
+\begin{code-block}{bash}
+sed -i 's/^YYLTYPE yylloc;$/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.l
+sed -i 's/^YYLTYPE yylloc;$/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c
+\end{code-block}
+然后再次进行编译，应该就没有错误了。
+
 \subsection{编译rootfs}
 \begin{code-block}{bash}
 apt-get install qemu-user-static -y
@@ -1270,8 +1282,8 @@ apt-get update
 apt-get install language-pack-en-base vim sudo ssh net-tools ethtool wireless-tools \
     lxde xfce4-power-manager xinit xorg xserver-xorg-video-fbdev xserver-xorg-input-all \
     network-manager iputils-ping rsyslog lightdm-gtk-greeter alsa-utils mplayer lightdm \
-    bash-completion lxtask htop python-gobject-2 python-gtk2 synaptic ifupdown
-apt-get install locales-all tzdata resolvconf
+    bash-completion lxtask htop python-gobject-2 python-gtk2 synaptic ifupdown \
+    locales-all tzdata resolvconf
 echo "c5soc">/etc/hostname
 echo "127.0.0.1 localhost" >> /etc/hosts
 echo "127.0.1.1 c5soc" >> /etc/hosts
