@@ -558,8 +558,472 @@ if let Coin::Quarter(state) = coin {
 在大型项目当中，Rust同样提供了代码的管理机制。和Python、Golang等不同，Rust的
 代码管理可以分为包（crate）和模块（mod）。这2种模式有不少的区别。Mod模式类似
 于Python的管理方式，而crate则是另外一种管理方式。这2种方式可以相互嵌套使用。
-\subsection{Mod管理模式}
+在使用这2种方式之前，需要知道一个概念：Rust的路径寻找永远是从最顶层开始，即
+与Cargo.toml同级的src下开始。Src路径，被称之为crate路径，即根路径。一切从crate
+开始的路径，都称之为绝对路径；其他的方式，则称之为相对路径。
 
+\subsection{Mod管理模式}
+Mod管理模式和Python/Golang的路径管理类似，直接从当前工程的src路径一直往下进行
+查找，直到最终找到。首先看一个Rust工程结构, 如下图\nameref{fig:rust_mod}所示。
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.8]{rust_mod.png}
+  \caption{Mod管理模式}
+  \label{fig:rust_mod}
+\end{figure}
+其中，有几个特点：
+\begin{enumerate}
+  \item 从文件层次结构上，logging.rs、main.rs、common.rs、common、compute和
+utils为同一层级，但是只有 main属于crate，其他都是属于crate管辖的范围，即在
+逻辑上，logging.rs、compute、utils、common和common.rs属于main的下级模块
+  \item compute和utils无法直接使用，只能使用这2个目录下的模块（文件）
+\end{enumerate}
+
+如果logging模块不需要使用其他模块，则内部无需特别的处理，其代码如下：
+\begin{code-block}{rust}
+pub fn logging() {
+    println!("This is the logging function");
+}
+\end{code-block}
+由于main属于crate，logging归属crate管理，相当于是logging是main的子模块，因此
+在main当中，只能使用相对路径访问logging，不能使用crate的绝对路径，其使用方式
+如下：
+\begin{code-block}{rust}
+mod logging;
+
+use logging as log; // 模块别名
+\end{code-block}
+在使用模块的时候，一定注意，mod关键字必须放在use之前。而common和logging属于
+相同的层次，如果在common当中需要使用logging模块，则必须使用全路径crate。如果
+如同在main当中使用logging一样
+\begin{code-block}{rust}
+// common.rs
+mod logging;
+// mod crate::logging; 同样是错误的代码
+\end{code-block}
+则会出现下列错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_mod_error1.png}
+  \caption{模块错误1}
+  \label{fig:rust_mod_error1}
+\end{figure}
+而正确的使用方式（全路径）则如下：
+\begin{code-block}{rust}
+// common.rs
+use crate::logging;
+...
+\end{code-block}
+
+如果强行需要在common.rs文件当中，以相对路径的方式使用logging，则必须将logging.rs
+模块放到common当中，即按照上述的错误提示，将logging作为common的一个子模块。
+只有父模块可以通过相对路径的方式访问子模块，平级模块之间，或者没有亲缘关系
+的模块之间，只能通过绝对路径的方式使用。
+
+在上述的代码当中，有一个比较奇怪的现象：同时存在common和common.rs。这是Rust
+管理的一种模式。默认情况下，Rust的模块有2种模式：文件形式和文件夹形式。
+
+文件夹形式实际上就是将一个文件夹作为Rust的模块进行使用。通常情况下，文件夹
+模式的模块形式如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.5]{rust_mod_directory.png}
+  \caption{文件夹模块}
+  \label{fig:rust_mod_directory}
+\end{figure}
+其中，nova.rs当中的内容和普通的Rust文件类似，基本如下：
+\begin{code-block}{rust}
+// nova.rs
+pub fn nova() {
+    println!("This is the nova function");
+}
+\end{code-block}
+重点是mod.rs这个文件。该文件实际上是用于定义/暴露compute这个文件夹当中的模块。
+如果compute文件夹缺少mod.rs，则compute无法被识别成一个合法的Rust模块，即无法
+使用compute当中的任何代码。而mod.rs的内容比较特殊，和nova.rs的内容并不一致，
+其内容大致如下：
+\begin{code-block}{rust}
+// mod.rs
+pub mod nova;
+pub mod driver;
+\end{code-block}
+通过上述的代码，将nova.rs作为一个可供外部使用模块。同样的，由于nova.rs和
+drvier.rs属于同级目录，如果需要在nova.rs当中使用driver.rs所提供的功能，则
+需要使用绝对路径的方式对其进行引用：
+\begin{code-block}{rust}
+// nova.rs
+use crate::compute::driver;
+...
+\end{code-block}
+
+同名文件和文件夹的模式，则是另外一种模块的管理方法。这种管理方式，其文件组织
+形式如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.5]{rust_mod_file.png}
+  \caption{同名文件形式}
+  \label{fig:rust_mod_file}
+\end{figure}
+在这种模式下，calc.rs的内容和普通的相同，而重点在于外部的common.rs。该文件的
+功能实际上和上述所说的mod.rs类似，都是用于暴露模块的。该文件的内容大致如下：
+\begin{code-block}{rust}
+// common.rs
+pub mod calc; // 将calc.rs当中的内容进行导出
+
+use crate::logging;
+
+fn common() {
+    logging::logging();
+}
+\end{code-block}
+
+将上述的概念和技术进行整合，整体的工程文件内容大致如下：
+\begin{code-block}{rust}
+// common.rs
+pub mod calc;
+
+use crate::logging;
+
+fn common() {
+    logging::logging();
+}
+
+// common/calc.rs
+pub fn add() {
+    println!("This is the add function");
+}
+
+// compute/driver.rs
+pub fn call() {
+    println!("This is the driver::call function");
+}
+
+// compute/nova.rs
+use crate::compute::driver;
+use crate::logging;
+use crate::utils::tools;
+
+pub fn nova() {
+    println!("This is the nova function");
+}
+
+pub fn use_parent() {
+    println!("Use the logging function in child mod");
+    logging::logging();
+}
+
+pub fn use_other() {
+    println!("Use the logging function in child mod");
+    tools::execute();
+}
+
+pub fn deive() {
+    driver::call();
+}
+
+// compute/mod.rs
+pub mod driver;
+pub mod nova;
+
+// logging.rs
+pub fn logging() {
+    println!("This is the logging function");
+}
+
+// utils/tools.rs
+use crate::logging as log;
+
+pub fn execute() {
+    println!("This is the execute function");
+    log::logging();
+}
+
+pub mod tools;
+
+// main.rs
+mod common;
+mod compute;
+mod logging;
+mod utils;
+
+use common as com;
+use compute::nova;
+use logging as log;
+use utils::tools;
+
+fn main() {
+    log::logging();
+    nova::nova();
+    nova::use_other();
+    nova::use_parent();
+
+    tools::execute();
+    com::calc::add();
+}
+\end{code-block}
+
+\subsection{Crate管理模式}
+Crate管理模式通常用于在自己的Rust代码当中引用别人的代码或者类库。和Python以及
+Golang的直接import方式不同，Rust的mod模式并不能直接使用别人的代码（除了标准库），
+只能通过Crate的方式。Crate方式可以管理其他人的公开代码，也可以管理自己编写的
+类库代码。
+
+\subsubsection{使用第三方代码}
+一般方式下，需要修改Rust工程的Cargo.toml文件，在dependencies段当中加入需要使用
+的类库名称，如下：
+\begin{code-block}{toml}
+[dependencies]
+regex = "0.1.41"
+\end{code-block}
+然后，在自己的代码当中添加如下的语句：
+\begin{code-block}{rust}
+use regex::Regex;
+
+fn main() {
+    let re = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
+    println!("Did our date match? {}", re.is_match("2014-01-01"));
+}
+\end{code-block}
+运行cargo build指令时，会直接从cargo.io进行下载。
+
+如果需要使用的依赖库并不在cargo.io，而是放在了类似于github等地方，也可以修改
+Cargo.toml文件，类似如下：
+\begin{code-block}{toml}
+[dependencies]
+# 可以和包不同名，也可以同名
+my_rust_lib_1={package="my_lib_1",git="ssh://git@github.com/lpxxn/my_rust_lib_1.git",tag="v0.0.2"}
+my_rust_lib_2={package="my_lib_1",git="https://github.com/lpxxn/my_rust_lib_2.git",branch="master"}
+\end{code-block}
+运行cargo build指令时，同样会去github等代码管理仓库下载指定的依赖代码。
+
+Crate模式不仅可以管理外部第三方依赖代码，同样可以用于管理本地的代码。
+
+\subsubsection{Crate管理本地代码}
+在使用这种方式之前，先了解一下crate的一些概念。
+\begin{itemize}
+  \item 包是cargo的一个功能，当执行cargo new xxxx的时候就是创建了一个包。
+  \item crate是二进制或者库项目。rust约定在Cargo.toml的同级目录下包含src目录
+并且包含main.rs文件，就是与包同名的二进制crate，如果包目录中包含src/lib.rs，
+就是与包同名的库crate
+  \item 包内可以有多crate，多个crates就是一个模块的树形结构
+  \item 如果一个包内同时包含src/main.rs和src/lib.rs，那么他就有两个crate，
+如果想有多个二进制crate，rust约定需要将文件放在src/bin目录下，每个文件就是
+一个单独的crate
+  \item crate根用来描述如何构建crate的文件。比如src/main.rs或者src/lib.rs就
+是crate根。crate根文件将由Cargo传递给rustc来实际构建库或者二进制项目
+  \item 带有Cargo.toml文件的包用来描述如何构建crate，一个包可以最多有一个库
+crate，任意多个二进制crate。
+\end{itemize}
+
+包含多个二进制crate的Rust项目大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_more_bin.png}
+  \caption{多个二进制}
+  \label{fig:rust_more_bin}
+\end{figure}
+对这个项目进行编译，将会得到2个二进制文件：first和second，而不再是之前的和
+根路径同名，得到的结果类似下面：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_more_bin_res.png}
+  \caption{多个二进制编译结果}
+  \label{fig:rust_more_bin_res}
+\end{figure}
+
+创建一个包含lib的Rust项目，则稍微有些区别，首先创建一个二进制的crate：
+\begin{code-block}{bash}
+cargo new projects
+\end{code-block}
+然后，在这个二进制的crate当中，创建一个lib：
+\begin{code-block}{bash}
+cd projects
+cargo new --lib first
+\end{code-block}
+同样的，可以在这个二进制的crate当中，创建多个lib，最后的文件结构大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.6]{rust_lib.png}
+  \caption{Lib形式的crate}
+  \label{fig:rust_lib}
+\end{figure}
+
+到目前为止，src当中的代码是无法使用first和second当中的代码的，而且，first和
+second这2个路径当中的代码，也并不是合法并可用的Rust lib库。首先需要解决的，
+就是使得first和second成为合法的Rust lib库。在first和second这2个文件夹当中，
+不再拥有mod.rs，取而代之的则是lib.rs，需要在lib.rs的同级或者下级目录，添加
+合法的rs文件，然后，在lib.rs使用pub对这些模块进行导出。以first这个lib为例，
+其src目录下的文件，内容应当大致如下：
+\begin{code-block}{rust}
+// constants.rs
+pub enum VERSION {
+    V4,
+    V6,
+}
+
+// lib.rs
+pub mod constants;
+\end{code-block}
+
+经过以上的改写之后，first便成为了一个合法可用的Rust lib库。如果需要在顶层的
+main.rs当中使用这个lib库，还需要修改顶层Cargo.toml的内容，将first作为二进制
+crate的依赖：
+\begin{code-block}{toml}
+[dependencies]
+# path表示lib库的路径，version则是lib库的Cargo.toml当中所包含的version
+first = { path = "first", version = "0.1.0" }
+second = { path = "second", version = "0.1.0" }
+\end{code-block}
+
+通过上述的修改，则可以在二进制crate当中，使用first和second这2个lib库了。
+\begin{code-block}{rust}
+use first::constants;
+use second::status;
+\end{code-block}
+
+有的时候，为了更加清晰的描述当前的crate与其他crate的关系，可以直接使用extern
+进行标记：
+\begin{code-block}{rust}
+extern crate first;
+extern crate second;
+
+use first::constants;
+use second::status;
+\end{code-block}
+
+如果lib之间存在依赖关系，同样可以在lib的Cargo.toml当中添加相关的依赖关系。
+比如，假设second依赖于first模块，则可以在second的Cargo.toml当中添加如下内容：
+\begin{code-block}{toml}
+[dependencies]
+first = { path = "../first", version = "0.1.0" }
+\end{code-block}
+
+然后，直接在second的代码当中使用first的内容即可。同样的，在second当中使用first
+的内容，可以参考下面的案例：
+\begin{code-block}{rust}
+extern crate first;
+use first;
+
+...
+\end{code-block}
+
+相比于mod模式，crate模式更加清晰一些。
+
+\subsection{大规模的管理方式——workspace}
+上述的2种模块管理方式，解决了路径查找的问题。但是，如果是针对大型项目，特别是
+代码量类似于OpenStack这种规模的，mod和crate模式都有些难以管理。这时，就需要
+使用workspace的方式进行管理。Workspaces的方式，实际上是对mod和crate的综合和
+高层次总结，其使用方式大致如下：
+
+\begin{outline}[enumerate]
+\1 创建工作目录
+\begin{code-in-enumerate}{bash}
+mkdir works
+\end{code-in-enumerate}
+
+\1 创建需要的crate
+\begin{code-in-enumerate}{bash}
+cargo new first --bin
+cargo new second --bin
+cargo new shared --lib
+\end{code-in-enumerate}
+
+\1 创建工作管理的Cargo.toml文件
+\begin{code-in-enumerate}{bash}
+cat >Cargo.toml<<EOF
+[workspace]
+members = [
+    "first",
+    "second",
+    "shared",
+]
+EOF
+\end{code-in-enumerate}
+
+\1 编译所有的crate
+\begin{code-in-enumerate}{bash}
+cargo build
+# 或者
+# cargo build --workspace
+\end{code-in-enumerate}
+
+\1 编译指定的bin crate
+\begin{code-in-enumerate}{bash}
+cargo build --bin first
+\end{code-in-enumerate}
+
+\1 编译指定的包
+\begin{code-in-enumerate}{bash}
+cargo build --package first
+\end{code-in-enumerate}
+\end{outline}
+
+到目前为止，first和second为2个bin类型的crate，可以直接编译运行，而shared则是
+一个lib库，并且，上述3个crate之间没有任何关联。如果first和second需要使用shared
+当中的模块，则对应的，需要在first以及second目录下的Cargo.toml添加类似的如下
+内容：
+\begin{code-block}{toml}
+[dependencies]
+shared = { path = "../shared" , version = "0.1.0"}
+\end{code-block}
+
+然后修改second的main.rs如下即可：
+\begin{code-block}{toml}
+extern crate shared;
+use shared::utils;
+
+...
+\end{code-block}
+随后按照之前的方式进行编译和使用即可。
+
+\subsection{模块管理的其他注意事项}
+
+\begin{outline}[enumerate]
+\1 提升命名空间
+
+有的时候，Rust的代码层级非常深，比如下面：
+\begin{code-in-enumerate}{rust}
+pub mod english {
+    pub mod greetings {
+        pub fn hello() {
+            println!("Hello!")
+        }
+        pub fn hey_guies() {
+            println!("Hey, guies!")
+        }
+    }
+}
+\end{code-in-enumerate}
+如果我们需要使用hello这个方法，则可能的方式多半如下：
+\begin{code-in-enumerate}{rust}
+english::greetings::hello();
+\end{code-in-enumerate}
+如果想将hello方法的访问缩短路径，则需要对代码进行改动：
+\begin{code-in-enumerate}{rust}
+// lib.rs
+pub mod english {
+    pub mod greetings {
+        pub fn hello() {
+            println!("Hello!")
+        }
+        pub fn hey_guies() {
+            println!("Hey, guies!")
+        }
+    }
+    // 将hello提升到english::hello
+    pub use self::greetings::hello;
+}
+
+// 将hello提升到lib::hello
+pub use english::greetings::hello;
+\end{code-in-enumerate}
+经过上述修改之后，使用的时候，可以按照下面的方式进行使用：
+\begin{code-in-enumerate}{rust}
+lib::chinese::hello(); // 对应pub use self::greetings::hello
+lib::hello(); // 对应 pub use english::greetings::hello;
+\end{code-in-enumerate}
+
+\end{outline}
 
 \section{格式化输出}
 默认情况下，对于普通的数据类型（数值，字符，bool），Rust可以直接使用print语句

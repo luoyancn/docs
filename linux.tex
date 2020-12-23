@@ -97,6 +97,12 @@ vi /usr/share/texmf-dist/tex/latex/ctex/fontset/ctex-xecjk-winfonts.def
 :%s/\[SIMFANG.TTF\]/FangSong/g
 \end{code-block}
 
+有的时候，需要使用代码高亮，而常用的代码高亮包则是minted。查看minted支持的
+代码种类，则可以使用下列的代码进行：
+\begin{code-block}{bash}
+pygmentize -L lexers
+\end{code-block}
+
 \section{OpenStack社区的git设置}
 由于各种原因，如果使用ssh的方式，社区的gerrit是无法正常连接的。但是，社区的gerrit
 提供了https的连接方式，可以使用这种方式绕开相关的限制。首先，需要登录review.openstack.org，
@@ -548,6 +554,11 @@ tar cvpzf /var/local/backup.tgz --exclude=/proc --exclude=/lost+found \
 
 # 对操作系统进行还原
 tar xvpfz /var/local/backup.tgz -C /
+\end{code-in-enumerate}
+
+\1 解压squashfs文件
+\begin{code-in-enumerate}{bash}
+unsquashfs xxx.squashfs
 \end{code-in-enumerate}
 
 \end{outline}
