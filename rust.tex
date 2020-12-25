@@ -114,47 +114,6 @@ cargo build --release --target=aarch64-unknown-linux-gnu
 
 \end{enumerate}
 
-\section{数据类型}
-Rust当中的数组稍微有些特殊，在定义的时候，可以指定数据类型和长度，也可以进行
-自动推导，还可以使用简便定义的方式。其基本使用如下：
-\begin{code-block}{rust}
-// the same as let array: [u32; 5] = [1,2,3,4,5];
-let array = [1, 2, 3, 4, 5];
-// the same as let a = [3,3,3,3,3]
-let a = [3; 5];
-\end{code-block}
-
-数组作为函数参数时，长度必须作为数组的一部分进行传递：
-\begin{code-block}{rust}
-fn show_array(array: [u32; 5]) {
-    ...
-}
-\end{code-block}
-
-数组元素的迭代可以使用两种方式：1种是直接迭代，一种是使用iter函数进行：
-\begin{code-block}{rust}
-for item in array.iter() {
-    println!("{}", item);
-}
-
-for item in &array {
-    println!("{}", item);
-}
-\end{code-block}
-但是，数组是无法迭代的，能够直接迭代的是切片（slice），而数组的引用就是一个
-slice。同样的，切片也是可以进行迭代的，如下示例：
-\begin{code-block}{rust}
-fn show_array(array: &[u32; 5]) {
-    for item in array.iter() {
-        println!("{}", item);
-    }
-
-    for item in array {
-        println!("{}", item);
-    }
-}
-\end{code-block}
-
 \section{Rust的控制流}
 Rust的控制流和其他语言相同，都包含了判断和循环。Rust的判断流通过if/else以及
 else if实现，但是并不包含switch语句。当if-else的结构过多，则会导致代码比较
@@ -294,6 +253,165 @@ fn first_word(s: &str) -> &str {
 }
 \end{code-block}
 需要注意，字符串的字面量，实际就是字符串切片数据类型。
+
+\section{数据类型}
+Rust当中的数组稍微有些特殊，在定义的时候，可以指定数据类型和长度，也可以进行
+自动推导，还可以使用简便定义的方式。其基本使用如下：
+\begin{code-block}{rust}
+// the same as let array: [u32; 5] = [1,2,3,4,5];
+let array = [1, 2, 3, 4, 5];
+// the same as let a = [3,3,3,3,3]
+let a = [3; 5];
+\end{code-block}
+
+数组作为函数参数时，长度必须作为数组的一部分进行传递：
+\begin{code-block}{rust}
+fn show_array(array: [u32; 5]) {
+    ...
+}
+\end{code-block}
+
+数组元素的迭代可以使用两种方式：1种是直接迭代，一种是使用iter函数进行：
+\begin{code-block}{rust}
+for item in array.iter() {
+    println!("{}", item);
+}
+
+for item in &array {
+    println!("{}", item);
+}
+\end{code-block}
+但是，数组是无法迭代的，能够直接迭代的是切片（slice），而数组的引用就是一个
+slice。同样的，切片也是可以进行迭代的，如下示例：
+\begin{code-block}{rust}
+fn show_array(array: &[u32; 5]) {
+    for item in array.iter() {
+        println!("{}", item);
+    }
+
+    for item in array {
+        println!("{}", item);
+    }
+}
+\end{code-block}
+
+同C++相同，Rust也提供了Vector数据类型，其基本的用法和C++类似：
+\begin{code-block}{rust}
+// 初始化空的vector
+let mut v: Vec<i32> = Vec::new();
+// 自动推导生成vector
+let v1 = vec![1, 2, 3];
+\end{code-block}
+
+Vector默认只能存放相同类型的数据，无法存放不同的数据类型。如果遇到了需要存放
+不同的数据类型，则通常使用vector+enum的方式进行实现：
+\begin{code-block}{rust}
+let ips = vec![
+    IPADDR::V4(255, 255, 255, 254),
+    IPADDR::V6(String::from("fe80::708f:7183:c02b:1758")),
+];
+\end{code-block}
+
+Vector数据需要注意的是遍历操作。默认情况下，使用for-in结构对vector进行遍历
+操作，操作的是vector的值，并不是vector的引用，所以，一旦遍历结束，则该vector
+就无效了。如果并不是需要只对vector进行遍历，后续还有其他操作，则在遍历的时候，
+一定要采用引用，如下：
+\begin{code-block}{rust}
+for ele in &ips {
+    println!("{}", ele);
+}
+\end{code-block}
+
+字符串是常用的数据类型，针对字符串，也有一些需要注意。默认的情况下，所有的
+字符串字面量都是切片，不是字符串变量，但是可以转换成字符串：
+\begin{code-block}{rust}
+let s = String::from("char");
+let r = "char".to_string();
+\end{code-block}
+
+字符串的拼接与Python类似，但是需要注意有略微的不同：
+\begin{code-block}{rust}
+let s1 = String::from("Hello, ");
+let s2 = String::from("world!");
+let s3 = s1 + &s2; // 注意 s1 被移动了，不能继续使用
+\end{code-block}
+
+如果需要多次执行字符串的拼接，则最好使用format操作：
+\begin{code-block}{rust}
+let s1 = String::from("tic");
+let s2 = String::from("tac");
+let s3 = String::from("toe");
+
+let s = format!("{}-{}-{}", s1, s2, s3);
+\end{code-block}
+
+字符串在Rust当中的本质是是一个 Vec<u8> 的封装，可以按照unicode的方式（字符）
+进行处理，也可以按照原始字节（u8数据）的方式进行处理。
+\begin{code-block}{rust}
+// 按照字符类型处理
+for c in "helllo".chars() {
+    ...
+}
+
+// 按照字节进行处理
+for b in "hello".bytes() {
+    ... // 如果进行输出，则输出的都是223，123等类似的数字数据
+}
+\end{code-block}
+
+Map（映射）是Rust的另外一种容器数据类型，和Python的字典很像，但是，Rust的map
+的键只能是同种类型的，值也只能是同种类型的，无法像Python的字典一样的灵活。常
+用的map主要是HashMap和BTreeMap。构建map数据可以使用new，也可以使用collect方法：
+\begin{code-block}{rust}
+use std::collections::HashMap;
+
+let mut scores = HashMap::new();
+
+scores.insert(String::from("Blue"), 10);
+scores.insert(String::from("Yellow"), 50);
+
+let teams  = vec![String::from("Blue"), String::from("Yellow")];
+let initial_scores = vec![10, 50];
+
+// 将其他的类型组合成map
+// HashMap<_, _> 类型注解是必要的，因为可能 collect 很多不同的数据结构，
+// 而除非显式指定否则 Rust 无从得知你需要的类型。但是对于键和值的类型参数来说，
+// 可以使用下划线占位，而 Rust 能够根据 vector 中数据的类型推断出 HashMap 所包含的类型
+let scores1: HashMap<_, _> = teams.iter().zip(initial_scores.iter()).collect();
+\end{code-block}
+
+Map数据类型对于普通的数值类型数据，不会获取其所有权，但是，对于复合数据类型包括
+String，都会获得相关的所有权，如下：
+\begin{code-block}{rust}
+let field_name = String::from("Favorite color");
+let field_value = String::from("Blue");
+
+let mut map = HashMap::new();
+map.insert(field_name, field_value);
+// 在此之后，field_name和field_value无法再被访问和使用。
+\end{code-block}
+
+Map元素的获取，可以直接采用[]进行，也可以采用get的方式：
+\begin{code-block}{rust}
+let team_name = String::from("Blue");
+let score_num = scores[&team_name]
+let score = scores.get(&team_name);
+\end{code-block}
+但需要注意，上述代码当中，score的类型为Some(T)，需要按照枚举Option的方式进行处理。
+
+Map的迭代同样需要使用for-in循环，并且需要注意所有权的使用：
+\begin{code-block}{rust}
+for (key, value) in &scores {
+    println!("{}: {}", key, value);
+}
+\end{code-block}
+
+和Python有区别的是，Rust允许这样的一种操作：当只有map当中键不存在时，才进行插入，
+否则什么也不做：
+\begin{code-block}{rust}
+scores.entry(String::from("Yellow")).or_insert(50);
+scores.entry(String::from("Blue")).or_insert(50);
+\end{code-block}
 
 \section{复杂数据类型}
 \subsection{结构体}
@@ -554,6 +672,18 @@ if let Coin::Quarter(state) = coin {
 }
 \end{code-block}
 
+同样的，match也可以和其他的数据类型一起使用：
+\begin{code-block}{rust}
+let v = vec![1, 2, 3];
+// 从集合vector当中获取索引标记的数据
+let ele = match v.get(1) {
+    // Some(&ref)，即some当中的参数永远是引用数据类型
+    Some(val) => *val,
+    None => 0,
+};
+println!("{}", ele);
+\end{code-block}
+
 \section{包/模块管理}
 在大型项目当中，Rust同样提供了代码的管理机制。和Python、Golang等不同，Rust的
 代码管理可以分为包（crate）和模块（mod）。这2种模式有不少的区别。Mod模式类似
@@ -660,7 +790,7 @@ use crate::compute::driver;
 形式如下：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.5]{rust_mod_file.png}
+  \includegraphics[scale=0.3]{rust_mod_file.png}
   \caption{同名文件形式}
   \label{fig:rust_mod_file}
 \end{figure}
@@ -818,7 +948,7 @@ crate，任意多个二进制crate。
 包含多个二进制crate的Rust项目大致如下：
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{rust_more_bin.png}
+  \includegraphics[scale=0.5]{rust_more_bin.png}
   \caption{多个二进制}
   \label{fig:rust_more_bin}
 \end{figure}
@@ -1106,7 +1236,170 @@ println!("{number:>0width$}", number = 100, width = 6);
 上述代码的执行结果大致如下图\nameref{fig:rust_format}所示。
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{rust_format.png}
+  \includegraphics[scale=0.2]{rust_format.png}
   \caption{格式化输出}
   \label{fig:rust_format}
 \end{figure}
+
+\section{错误处理}
+Rust的错误有多种，有可恢复的和不可恢复的。同样的，其处理机制也有多种，包含了panic
+和Result模式。在默认的情况下，panic模式会打印程序的堆栈信息，并且清理堆栈数据，
+最后退出，这样会造成生成的二进制程序比较大。如果需要二进制程序比较小，可以使用
+abort终止堆栈信息的展开。比如，如果要禁止release模式的panic展开，可以修改Cargo.toml
+文件如下：
+\begin{code-block}{toml}
+[profile.release]
+panic = "abort"
+\end{code-block}
+
+如果需要展开所有的堆栈信息，则可如下进行操作：
+\begin{code-block}{bash}
+RUST_BACKTRACE=1 cargo run
+
+// 全展开
+RUST_BACKTRACE=full cargo run
+\end{code-block}
+则得到的效果可能如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.2]{rust_err_panic_trace.png}
+  \caption{错误堆栈}
+  \label{fig:rust_err_panic_trace}
+\end{figure}
+
+通常而言，panic处理的错误都是不可恢复的，而如果是需要继续运行的，或者对应的错误
+是可以进行处理的，则通常采用Result进行处理。Result是另外一个常用的enum类型，其定
+义如下：
+\begin{code-block}{rust}
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+\end{code-block}
+其中，T和E都是泛型数据，而T表示正常运行时返回的数据，E表示返回的错误类型数据。
+
+比如常见的打开文件操作，就可以使用Result进行错误处理：
+\begin{code-block}{rust}
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt");
+
+    let f = match f {
+        Ok(file) => file,
+        Err(error) => {
+            panic!("Problem opening the file: {:?}", error)
+        },
+    };
+}
+\end{code-block}
+
+错误是存在分类的，可以通过错误的类型，进行下一步的处理，比如，如果文件不存在，就
+新建：
+\begin{code-block}{rust}
+use std::fs::File;
+use std::io::ErrorKind;
+
+fn main() {
+    let fr = File::open("hello.txt");
+    let f = match fr {
+        Ok(file) => file,
+        // 如果出现错误，就判断错误类型
+        Err(error) => match error.kind() {
+            // 如果错误类型是没有找到，就新建文件
+            ErrorKind::NotFound => match File::create("hello.txt") {
+                Ok(fc) => fc,
+                Err(err) => panic!("{:?}", err),
+            },
+            // 其他错误。other可以替换成其他的任意字符。如果不想处理，则
+            // _ => (),
+            other => panic!("{:?}", other),
+        },
+    };
+}
+\end{code-block}
+
+如果Match的分支过多，有可能导致代码逻辑比较复杂，难以理解。因此，Result也提供了
+一种简化的方式，同样的，功能会相对较弱一些：
+\begin{code-block}{rust}
+use std::fs::File;
+
+fn main() {
+    // 如果文件不存在，则直接panic，并输出堆栈信息
+    let fr = File::open("hello.txt").unwrap();
+    // 如果文件不存在，则直接panic，但是，输出的是自定义(expect包含的)的错误信息
+    let f = File::open("hello.txt").expect("Failed to open hello.txt");
+}
+\end{code-block}
+
+如果不是在main函数当中出现错误，有的时候，实际上需要接收相关的错误，再进行处理，
+则可以使用Result进行。再次强调，Result是一个泛型的枚举类型。
+\begin{code-block}{rust}
+use std::fs::File;
+use std::io::{Error, ErrorKind, Read};
+
+fn main() {
+    match read_file() {
+       Ok(s) => println!("The content of file is {}", s),
+       Err(error) => panic!("{:?}", error),
+    };
+
+    // 或者使用变量进行接收
+    let res = match read_file() {
+        Ok(s) => s,
+        Err(err) => {
+            println!("ERROR:{:?}", err);
+            "".to_string()
+        }
+    };
+}
+
+// 如果该函数执行成功，调用者会受到一个Ok(String)，
+// 否则，会接收到错误值
+fn read_file() -> Result<String, Error> {
+    let mut f = match File::open("Cargo.toml") {
+        Ok(file) => file,
+        Err(error) => return Err(error),
+    };
+
+    let mut s = String::new();
+    let res = match f.read_to_string(&mut s) {
+        Ok(_) => Ok(s),
+        Err(err) => Err(err),
+    };
+
+    return res;
+}
+\end{code-block}
+
+同样的，错误传递也可以进行简化，此时需要使用运算符?进行：
+\begin{code-block}{rust}
+fn read_file() -> Result<String, Error> {
+    let mut f = File::open("hello.txt")?;
+    let mut s = String::new();
+    f.read_to_string(&mut s)?;
+    Ok(s)
+}
+\end{code-block}
+Result 值之后的?被定义为处理Result值的match表达式有着完全相同的工作方式。
+如果Result的值是Ok，这个表达式将会返回Ok中的值而程序将继续执行。
+如果值是Err，Err中的值将作为整个函数的返回值，就好像使用了return关键字一样，
+这样错误值就被传播给了调用者。
+
+?操作符大大简化了错误的处理流程，甚至于可以使用?进行链式调用，进一步简化代码：
+\begin{code-block}{rust}
+fn read_file() -> Result<String, Error> {
+    let mut s = String::new();
+    File::open("hello.txt")?.read_to_string(&mut s)?;
+    Ok(s)
+}
+\end{code-block}
+
+特别需要注意，?操作符只能用于返回类型为Result的函数当中，而main函数的返回类型是
+()，不是Result，因此，直接在main函数当中使用?操作符则是错误的：
+\begin{code-block}{rust}
+fn main() {
+    // 提示错误
+    let f = File::open("hello.txt")?;
+}
+\end{code-block}
