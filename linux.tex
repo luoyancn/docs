@@ -450,6 +450,9 @@ xfreerdp /u:Administrator /p:'123456' /v:192.168.1.1  /h:1000 /w:1920
 # 将远程主机的端口映射到本地，将远程的8888端口映射到本地的8000端口
 # 工具可以使用windows10 自带的wsl
 ssh -L8000:0.0.0.0:8888 root@10.1.4.24
+
+# wsl 设置默认用户为root
+C:\Users\zhangjl\AppData\Local\Microsoft\WindowsApps\fedoraremix.exe config --default-user root
 \end{code-in-enumerate}
 
 \1 通过qemu-guest-agent执行命令
