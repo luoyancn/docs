@@ -29,3 +29,176 @@ fn longest(x: &str, y: &str) -> &str {
 \end{figure}
 错误表示，函数应该返回一个有生命周期的命名变量。错误的原因是，Rust编译器无法知道
 函数返回的到底是x还是y的引用，无法确定对应的变量的生命周期。
+
+Rust当中，针对引用和借用，有一个特殊的机制：借用检查器，其作用比较作用域来确保所
+有的借用都是有效的。
+\begin{code-block}{rust}
+{
+    let r;                      // ---------+-- 'a
+    {                            //          |
+        let x = 5;             // -+-- 'b  |
+        r = &x;                 //  |       |
+    }                            // -+       |
+    println!("r: {}", r); // ---------+
+}
+\end{code-block}
+
+其中'a表示变量r原本的作用域（生命周期），'b则表示变量x的有效作用域。进入'b作用域
+之后，r变量引用了一个作用域为'b的变量x，当退出'b之后，x失去作用，导致作为x的引用
+的r也失去作用，被回收，因此，上述代码无法进行编译：'b的作用范围比'a要小。
+
+为了解决这类的问题，Rust引入了生命周期的操作。生命周期的定义通常使用'+名称的方式
+进行定义，表示一个变量或者函数的有效范围，如下：
+\begin{code-block}{rust}
+&i32        // 引用
+&'a i32     // 带有显式生命周期的引用
+&'a mut i32 // 带有显式生命周期的可变引用
+\end{code-block}
+生命周期不仅可以用于变量，同样可以作用与函数和方法上：
+\begin{code-block}{rust}
+fn main() {
+    let string1 = String::from("abcd");
+    let string2 = "xyz";
+
+    let res = longest(&string1, string2);
+    println!("The result is {}", res);
+    println!("The result is {}", res);
+}
+
+fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+}
+\end{code-block}
+上述代码表示，参数列表当中的所有引用都必须拥有相同的生命周期'a，通过生命周期的限定，
+上述代码可以正常编译，并且正常执行。需要注意，如果在参数上使用生命周期，则函数/方法
+的前面，则必须加上生命周期，否则会提示参数列表当中的生命周期没有定义。
+
+生命周期同样可以应用于结构体字段定义当中，如下：
+\begin{code-block}{rust}
+struct ImportantExcerpt<'a> {
+    part: &'a str,
+}
+\end{code-block}
+
+上述结构体的初始化，则可以直接使用字符串的引用进行实现：
+\begin{code-block}{rust}
+let i = ImportantExcerpt { part: "zhangjl" };
+println!("{}", i.part);
+\end{code-block}
+
+对于带有生命周期的结构体，在使用的时候，尤其是函数定义和方法定义时，有一些必须
+注意的细节：
+\begin{outline}[enumerate]
+\1 传入外部引用数据模式
+
+使用这种模式，通常情况下，不需要对函数添加生命周期，和普通函数相同。不过，也可以
+使用添加生命周期的完整形式：
+\begin{code-in-enumerate}{rust}
+fn init_struct(source: &str) -> ImportantExcerpt {
+    return ImportantExcerpt { part: source };
+}
+
+// 使用生命周期的完整形式，实际上是上述函数的完整签名形式
+// fn init_struct<'a>(source: &'a str) -> ImportantExcerpt<'a> {                                                                                            return ImportantExcerpt { part: source };
+//     ...
+// }
+
+...
+
+// 调用函数
+let b = init_struct("luoyan");
+\end{code-in-enumerate}
+由于上述代码当中，结构体的变量的有效生命周期和外部引用的相同，因此，可以简化生命
+周期的使用。
+
+\1 使用函数局部变量
+
+在这种方式下，由于局部引用变量的作用域有限，返回函数之后就不存在了，因此，必须使用
+显式的生命周期，而显式的生命周期使用同样有2种形式：
+\begin{code-in-enumerate}{rust}
+fn init_struct<'a>() -> ImportantExcerpt<'a> {
+    return ImportantExcerpt { part: "luoyan"};
+}
+
+// 使用静态生命周期，'static表示静态生命周期，为固定关键字
+// fn init_struct() -> ImportantExcerpt<'static> {
+//     return ImportantExcerpt { part: "luoyan"};
+// }
+\end{code-in-enumerate}
+
+\1 实现Trait
+
+包含有引用数据类型的结构体，也可以实现各种标准库的Trait。在实现Trait的时候，也
+必须使用生命周期：
+\begin{code-in-enumerate}{rust}
+// 可替换成下面的代码
+// impl<'a> fmt::Display for ImportantExcerpt<'a> {
+// static可以替换为_
+impl fmt::Display for ImportantExcerpt<'static> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.part)
+    }
+}
+\end{code-in-enumerate}
+
+\1 添加结构体方法
+
+结构体存在引用数据类型，同样要求结构体的方法在实现时需要进行额外的处理，添加生命
+周期的使用，同样的，结构体的方法可以使用命名生命周期，也可以使用固定生命周期：
+\begin{code-in-enumerate}{rust}
+// 使用命名生命周期的结构体方法声明
+impl<'a> ImportantExcerpt<'a> {
+    fn show(&self) {
+        println!("{}", self.part);
+    }
+
+    fn reset(&mut self, other: &'a str) {
+        self.part = other;
+    }
+
+    fn get(&self) -> &str {
+        return self.part;
+    }
+}
+
+// 使用固定生命周期的结构体方法声明
+impl ImportantExcerpt<'static> {
+    fn show(&self) {
+        println!("{}", self.part);
+    }
+
+    fn reset(&mut self, other: &'static str) {
+        self.part = other;
+    }
+
+    fn get(&self) -> &str {
+        return self.part;
+    }
+}
+\end{code-in-enumerate}
+
+\end{outline}
+
+在上述的代码当中，很多地方都使用了'static静态生命周期。这是一种特殊的生命周期，
+能够存活于整个程序期间，所有的字符串字面值都拥有'static生命周期。但是，并不是
+任何情况都建议使用static生命周期。
+
+由于生命周期和泛型以及Trait都非常类似，不可避免的，有可能会遇到几者合用的的情况，
+在使用的时候，需要将生命周期与泛型使用,分割开，并且，生命周期应当放在首位。
+\begin{code-block}{rust}
+
+fn longest_with_an_announcement<'a, T>(x: &'a str, y: &'a str, ann: T) -> &'a str
+    where T: Display
+{
+    println!("Announcement! {}", ann);
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+}
+\end{code-block}
