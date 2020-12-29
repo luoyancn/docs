@@ -103,8 +103,8 @@ fn init_struct(source: &str) -> ImportantExcerpt {
 }
 
 // 使用生命周期的完整形式，实际上是上述函数的完整签名形式
-// fn init_struct<'a>(source: &'a str) -> ImportantExcerpt<'a> {                                                                                            return ImportantExcerpt { part: source };
-//     ...
+// fn init_struct<'a>(source: &'a str) -> ImportantExcerpt<'a> {
+//     return ImportantExcerpt { part: source };
 // }
 
 ...
