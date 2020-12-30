@@ -1098,13 +1098,51 @@ shared = { path = "../shared" , version = "0.1.0"}
 \end{code-block}
 
 然后修改second的main.rs如下即可：
-\begin{code-block}{toml}
+\begin{code-block}{rust}
 extern crate shared;
 use shared::utils;
 
 ...
 \end{code-block}
 随后按照之前的方式进行编译和使用即可。
+
+\subsection{小规模工程管理的其他方式}
+有的时候项目规模并不大，可以不使用crate和mod方式，而是使用lib方式进行管理。现在
+有这样一个小的工程，名称为minigrep：
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.8]{rust_lib_mod.png}
+  \caption{Lib模式的小项目}
+  \label{fig:rust_lib_mod}
+\end{figure}
+其中，common和utils这2个文件夹仍然同原来的mod模式一样，但是，在顶层的src文件夹当中，
+多了一个lib.rs文件。而lib.rs的内容可能如下：
+\begin{code-block}{rust}
+pub mod common;
+pub mod logging;
+pub mod utils;
+
+pub struct Config {
+    ...
+}
+
+pub fn xxx {
+   ...
+}
+\end{code-block}
+即，相当于使用lib.rs将除main.rs之外的所有文件夹和文件进行暴露，则在main.rs当中，
+就可以不再使用crate的方式进行模块的查找和搜索，而是直接使用minigrep当作顶层路径：
+\begin{code-block}{rust}
+use minigrep::logging;
+use minigrep::utils::tools;
+use minigrep::Config;
+...
+\end{code-block}
+
+但是需要注意，如果在common和utils当中，需要使用比如logging或者common或者utils，则
+还是只能通过mod的方式，即使用crate作为顶层搜索路径。另外，与main.rs统计的lib.rs
+不能变更为mod.rs，同样的，utils和common当中的mod.rs不能变更为lib.rs，否则会找不到
+相关的模块。
 
 \subsection{模块管理的其他注意事项}
 
@@ -1236,7 +1274,7 @@ println!("{number:>0width$}", number = 100, width = 6);
 上述代码的执行结果大致如下图\nameref{fig:rust_format}所示。
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.2]{rust_format.png}
+  \includegraphics[scale=0.6]{rust_format.png}
   \caption{格式化输出}
   \label{fig:rust_format}
 \end{figure}
