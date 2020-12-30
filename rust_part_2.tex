@@ -190,7 +190,6 @@ impl ImportantExcerpt<'static> {
 由于生命周期和泛型以及Trait都非常类似，不可避免的，有可能会遇到几者合用的的情况，
 在使用的时候，需要将生命周期与泛型使用,分割开，并且，生命周期应当放在首位。
 \begin{code-block}{rust}
-
 fn longest_with_an_announcement<'a, T>(x: &'a str, y: &'a str, ann: T) -> &'a str
     where T: Display
 {
@@ -202,3 +201,124 @@ fn longest_with_an_announcement<'a, T>(x: &'a str, y: &'a str, ann: T) -> &'a st
     }
 }
 \end{code-block}
+
+\section{测试}
+Rust的测试与其他语言相同，分为单元测试和集成测试。但不管是单元测试，还是集成测试，
+在测试当中，都需要遵循相同的测试规则。在默认的lib类型的crate当中，默认情况下，自动
+生成的lib.rs会生成如下的代码：
+\begin{code-block}{rust}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+}
+\end{code-block}
+其中，\#[cfg(test)]表示这是一个测试模块，而\#[test]则表示接下来的函数或者方法是测试
+函数，it\_works表示测试的函数/方法名，可以变更为其他的名称。其中，assert!、assert\_eq!
+和assert\_ne!这3个宏定义，用于检测运行结果、是否相等/是否不等，比如检测返回值当中
+是否包含特定的字符串：
+\begin{code-block}{rust}
+pub fn greeting(name: &str) -> String {
+    format!("Hello {}!", name)
+}
+
+#[cfg(test)]
+mod tests {
+    // 引用暴露的模块代码
+    use super::*;
+
+    #[test]
+    fn greeting_contains_name() {
+        let result = greeting("Carol");
+        assert!(result.contains("Carol"));
+    }
+}
+\end{code-block}
+
+如果需要测试panic的代码，则可以使用should\_panic宏进行，该宏表示期望对应的函数在
+运行的时候出现panic：
+\begin{code-block}{rust}
+pub struct Guess {
+    value: i32,
+}
+
+impl Guess {
+    pub fn new(value: i32) -> Guess {
+        if value < 1 || value > 100 {
+            panic!("Guess value must be between 1 and 100, got {}.", value);
+        }
+
+        Guess {
+            value
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic]
+    fn greater_than_100() {
+        Guess::new(200);
+    }
+}
+\end{code-block}
+如果测试失败，想在测试结果当中，提示出具体的测试错误信息，则可以添加should\_panic
+属性中的expected参数：
+\begin{code-block}{rust}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "Guess value must be between 1 and 100")]
+    fn greater_than_100() {
+        Guess::new(200);
+    }
+}
+\end{code-block}
+
+运行测试用例时，只需要简单的输入如下的指令即可：
+\begin{code-block}{bash}
+// 默认并行的方式运行所有的测试用例
+carto test
+
+// 串行的方式运行所有的测试用例
+cargo test -- --test-threads=1
+
+// 运行指定的测试用例，可匹配以add开头的所有测试用例
+cargo test add
+\end{code-block}
+
+需要单独说明的是Rust的集成测试。集成测试通常针对lib型的crate。其测试过程大致如下：
+\begin{outline}[enumerate]
+\1 创建一个lib，并编写代码
+
+\begin{code-in-enumerate}{bash}
+cargo new --lib shared
+\end{code-in-enumerate}
+
+\1 在shared的src同级目录下，创建集成测试用例目录：
+\begin{code-in-enumerate}{bash}
+# 文件夹名称固定为tests
+mkdir tests
+\end{code-in-enumerate}
+
+\1 在tests下创建集成测试用例
+\begin{code-in-enumerate}{bash}
+echo > tests/units.rs<<EOF
+// 导入的lib名称必须是当前crate的名称
+use shared;
+
+#[test]
+fn it_adds_two() {
+    assert_eq!(4, adder::add_two(2));
+}
+EOF
+\end{code-in-enumerate}
+然后执行测试即可。
+\end{outline}
