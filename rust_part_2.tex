@@ -324,3 +324,58 @@ EOF
 \end{outline}
 
 \section{Rust的函数式编程}
+Rust同样支持函数式编程。相比于其他语言，Rust的函数式编程性能和效率更高。Rust常见的
+函数式编程模式包括闭包和迭代器2大类。
+
+\subsection{闭包}
+Rust的闭包和Python当中的非常类似，都可以直接读取外部的变量。其定义的形式基本如下：
+\begin{code-block}{rust}
+let expensive_closure = |num| {
+    println!("calculating slowly...");
+    num * 10
+};
+
+let res = expensive_closure(10);
+\end{code-block}
+其中两个||表示定义一个闭包，中间的num表示闭包的参数。如果闭包需要处理多个参数，则
+应该改写为：
+\begin{code-block}{rust}
+let expensive_closure = |num1, num2| {
+    num1 * num2
+};
+\end{code-block}
+
+从实际的使用当中可以看到，Rust的闭包实际上就是一个匿名函数，在Rust当中，函数都有
+参数类型/返回值的声明，但是，在上述的代码当中，却没有看到相关的定义和声明。这是
+因为Rust的闭包通常很短，并只关联于小范围的上下文而非任意情境。在这些有限制的上下
+文中，编译器有能力可靠的推断参数和返回值的类型，如同能够推断大部分变量的类型一样。
+不过，不注明参数/返回类型，有可能出现一种迷惑性的使用：即无法传入正确的数据类型，
+如下：
+\begin{code-block}{rust}
+let example_closure = |x| x;
+
+let s = example_closure(String::from("hello"));
+let n = example_closure(5);
+\end{code-block}
+按照上述代码的定义，example\_closure只是将输入参数原封不动的返回给调用者，第1次
+调用时，编译器会将该闭包推断为输入/输出为字符串类型，然后这些类型信息会被锁定到
+该闭包当中。后续再传入数值，由于闭包的类型已经锁定，要求传入字符串，但实际传入的
+是数值，结果就会导致上述代码出现错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_closure_diffrent_type.png}
+  \caption{试图处理不同数据类型的闭包}
+  \label{fig:rust_closure_diffrent}
+\end{figure}
+
+闭包的完整定义（包括类型）则如下：
+\begin{code-block}{rust}
+let live_closure = |num: i32| -> (i32, i32) {
+    println!("calculating slowly...");
+    thread::sleep(Duration::from_secs(2));
+    (num * 10, num * 20)
+    // 或者修改为return语句
+    // return (num*10, num*20);
+    // 如果不需要返回值，则最后一定要添加;
+};
+\end{code-block}
