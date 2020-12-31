@@ -376,6 +376,129 @@ let live_closure = |num: i32| -> (i32, i32) {
     (num * 10, num * 20)
     // 或者修改为return语句
     // return (num*10, num*20);
-    // 如果不需要返回值，则最后一定要添加;
+};
+
+// 如果不需要返回值，则闭包的写法需要注意一下：
+let other = |x| {
+    println!("{}", x);
 };
 \end{code-block}
+
+\subsection{特殊的闭包}
+默认的情况下，包括Python和Golang，闭包都只是匿名函数。不过，在Rust当中，闭包可以
+用在结构体当中，其主要用途就是memoization或lazy evaluation（惰性求值），即懒加载。
+当结构体当中存放闭包时，则必须注明闭包的类型。而在结构体/枚举当中使用闭包，则需要
+使用trait和泛型：Fn、FnMut和FnOnce。这3者的区别如下：
+\begin{enumerate}
+  \item FnOnce：闭包内对外部变量存在转移操作，导致外部变量不可用，所以只能call一次
+  \item FnMut：闭包内对外部变量直接使用，并进行修改
+  \item Fn：闭包内对外部变量直接使用，不进行修改
+\end{enumerate}
+
+使用这些trait的时候，则必须注明闭包的参数/返回值的类型。比如，闭包接收一个u32的
+参数，返回一个u32，则对应的Fn trait bound则如下：
+\begin{code-block}{rust}
+Fn(u32) -> u32
+\end{code-block}
+
+一个包含闭包的结构体示例如下：
+\begin{code-block}{rust}
+struct Cacher<T>
+where
+    T: Fn(u32) -> u32,
+{
+    calculation: T,
+    value: Option<u32>,                                                                                                                                            }
+\end{code-block}
+对该结构体的解读如下：结构体Cacher包含一个泛型calculation，而这个泛型则是一个使用
+了Fn的闭包，这个闭包接收一个u32的参数，并最终返回一个u32。Value则是用于存放calculation
+的计算结果，便于第二次调用时，直接返回而无需计算。根据上述需求，整个结构体的方法
+实现如下：
+\begin{code-block}{rust}
+impl<T> Cacher<T>
+where
+    T: Fn(u32) -> u32,
+{
+    pub fn new(calculation: T) -> Cacher<T> {
+        Cacher {
+            calculation: calculation,
+            value: None,
+        }
+    }
+
+    pub fn value(&mut self, arg: u32) -> u32 {
+        match self.value {
+            Some(v) => v,
+            None => {
+                let v = (self.calculation)(arg);
+                self.value = Some(v);
+                v
+            }
+        }
+    }
+}
+\end{code-block}
+注意，在上述的结构体以及结构体方法当中，首次出现了trait bound和where的使用。需要
+特别说明事实，trait bound几乎可以用于Rust的任何场景。New方法接收一个泛型作为初始化
+参数，这个泛型就是一个Fn的闭包；而value方法则是根据根据当前结构体的数据，直接进行
+数据的返回，或者计算，再返回。该结构体的使用方式如下：
+\begin{code-block}{rust}
+let mut cacher = Cacher::new(|x: u32| -> u32 { x * 10 });
+let mut val = cacher.value(32);
+println!("The val of cacher is {}", val);
+
+val = cacher.value(45);
+println!("The val of cacher second time is {}", val);
+\end{code-block}
+只是稍微可惜的是，这个表示缓存的结构体还存在bug，2次传入不同的数据，却得到了相同的
+结果。问题在于字段value的定义。可以考虑使用Hashmap或者其他数据类型来替换value。一种
+可能的解决方法如下：
+\begin{code-block}{rust}
+struct Cacher<T>
+where
+    T: Fn(u32) -> u32,
+{
+    calculation: T,
+    value: BTreeMap<u32, Option<u32>>,
+}
+
+impl<T> Cacher<T>
+where
+    T: Fn(u32) -> u32,
+{
+    pub fn new(calculation: T) -> Cacher<T> {
+        Cacher {
+            calculation: calculation,
+            value: BTreeMap::new(),
+        }
+    }
+
+    pub fn value(&mut self, arg: u32) -> u32 {
+        // 从现有的结果记录当中查询是否存在arg对应的计算结果
+        match self.value.get(&arg) {
+            // 找到则直接返回
+            Some(Some(x)) => *x,
+            // 没有找到，则计算一次，并放入当前的结果集合
+            Some(None) | None => {
+                let v = (self.calculation)(arg);
+                self.value.insert(arg, Some(v));
+                v
+            }
+        }
+    }
+}
+\end{code-block}
+
+闭包同样可以捕获运行环境的上下文，即在闭包内部直接使用外部的所有变量：
+\begin{code-block}{rust}
+fn main() {
+    let x = 4;
+    let equal_to_x = |z| z == x;
+    let y = 4;
+    assert!(equal_to_x(y));
+}
+\end{code-block}
+X在闭包出现之前已经存在，定义闭包equal\_to\_x的时候，可以直接使用外部的x，而无需
+重新声明。
+
+\subsection{迭代器}

@@ -58,7 +58,12 @@
 }
 
 % 设置字体
-\setCJKmainfont{SimSun}
+\setmainfont{CodeNewRoman Nerd Font Mono}
+%\setmainfont{Monofur Nerd Font Mono}
+%宋体
+%\setCJKmainfont{SimSun}
+% 华文新楷
+\setCJKmainfont{STXINGKA.TTF}
 % 设置页边距
 %\geometry{left=2.5cm,right=2.5cm,top=2.4cm,bottom=2.4cm}
 \geometry{top=2.4cm,bottom=2.4cm}
@@ -169,6 +174,7 @@
                    rightline=false, backgroundcolor=lbcolor,
                    userdefinedwidth=\textwidth]
   \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
+  %\begin{minted}[fontfamily="Monofur Nerd Font Mono", fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
  {\end{minted}\end{mdframed}\par}
 
 % 设置警示表格
