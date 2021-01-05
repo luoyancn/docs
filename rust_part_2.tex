@@ -408,7 +408,8 @@ where
     T: Fn(u32) -> u32,
 {
     calculation: T,
-    value: Option<u32>,                                                                                                                                            }
+    value: Option<u32>,
+}
 \end{code-block}
 对该结构体的解读如下：结构体Cacher包含一个泛型calculation，而这个泛型则是一个使用
 了Fn的闭包，这个闭包接收一个u32的参数，并最终返回一个u32。Value则是用于存放calculation
@@ -502,3 +503,170 @@ X在闭包出现之前已经存在，定义闭包equal\_to\_x的时候，可以�
 重新声明。
 
 \subsection{迭代器}
+迭代器是Rust函数式编程的另外一个利器，负责遍历序列中的每一项和决定序列何时结束的
+逻辑，我们在使用的时候，就无需判断开始条件和结束条件。在Rust当中，迭代器是惰性的，
+只有使用到了，才会在内存当中进行展开。Rust的迭代器必须实现一个Iterator的triat，
+这个trait的定义类似如下的结构：
+\begin{code-block}{rust}
+pub trait Iterator {
+    type Item;
+    fn next(&mut self) -> Option<Self::Item>;
+    ...
+}
+\end{code-block}
+其中的type Item和Self::Item定义了trait的关联数据类型，即该trait要求同时定义一个
+Item类型，该类型被用作next方法的返回值类型。Next方法是Iterator被要求实现的唯一
+方法，其一次返回一个项，最后返回一个None。
+
+Rust的next方法得到的是迭代器的不可变引用，iter方法生成一个不可变引用的迭代器。
+如果我们需要一个获取所有权并返回拥有所有权的迭代器，则可以调用into\_iter而不是iter。
+类似的，如果我们希望迭代可变引用，则可以调用iter\_mut而不是iter；如果一旦调用了
+into\_iter，则迭代完成之后，迭代器不再有效，比如下方代码：
+\begin{code-block}{rust}
+let v = vec![1, 2, 3];
+let v3: Vec<_> = v.into_iter().map(|x| x * 12).collect();
+println!("{:?}", v3);
+println!("{:?}", v);
+\end{code-block}
+一旦进行编译，则会提示如下的错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_iter_move.png}
+  \caption{迭代器的所有权转移}
+  \label{fig:rust_iter_move}
+\end{figure}
+
+实际上，上述的操作相当于对一个迭代器进行了消费。一般说来，调用next方法的方法被称为
+消费适配器（consuming adaptors），因为调用他们会消耗迭代器。一个消费适配器的例子
+是sum方法。这个方法获取迭代器的所有权并反复调用next来遍历迭代器，因而会消费迭代器。
+当其遍历每一个项时，它将每一个项加总到一个总和并在迭代完成时返回总和。在这个过程
+完成之后，原有的迭代器将无法再继续使用，因为其所有权已经进行了转移。
+\begin{code-block}{rust}
+let v = vec![1, 2, 3];
+let v_item = v.iter();
+let total1: u32 = v_item.sum();
+// 迭代器v_item不再有效
+println!("{:?}", v_item);
+\end{code-block}
+
+Iterator trait中定义了另一类方法，被称为迭代器适配器（iterator adaptors），允许
+我们将当前迭代器变为不同类型的迭代器，并且可以链式调用多个迭代器适配器。不过因为
+所有的迭代器都是惰性的，必须调用一个消费适配器方法以便获取迭代器适配器调用的结果。
+比较常见的，就是使用map函数（迭代适配器，遍历迭代器的所有元素）来生成新的迭代器。
+与之相对应的，collect方法则是消费迭代器并将结果收集到一个数据结构中。同样需要注意
+的是，任何的迭代消费器，都不能进行类型的自动推导，需要手动的指定对应的数据类型。
+比如，sum的结果通常是数值类型，而collect的结果则通常是vec类型。
+
+迭代器和闭包通常结合使用，因为闭包可以捕获环境，比如常用的filter迭代器适配器：
+\begin{code-block}{rust}
+let v = vec![1, 2, 3];
+// 使用的是iter，即引用数据类型，但是filter使用的本身是引用，因此，需要进行
+// 2次的解引用操作
+let res: Vec<_> = v.iter().filter(|s| *(*s) == 2).collect();
+println!("{:?}", res);
+// 原始的v仍然可用，没有发生所有权转移
+println!("{:?}", v);
+
+// 发生了所有权转移，变量v在后续的操作当中，无法被继续使用
+let res1: Vec<_> = v.into_iter().filter(|s| *s == 2).collect();
+println!("{:?}", res1);
+\end{code-block}
+
+Filter和迭代器使用的时候，需要特别注意所有权以及引用数据类型，特别是复合数据类型。
+不同的操作会导致复合数据类型的所有权的变更。
+\begin{code-block}{rust}
+struct Shoe {
+    size: u32,
+    style: String,
+}
+
+fn main() {
+    let shoes = vec![
+        Shoe {
+            size: 10,
+            style: String::from("sneaker"),
+        },
+        Shoe {
+            size: 13,
+            style: String::from("sandal"),
+        },
+        Shoe {
+            size: 10,
+            style: String::from("boot"),
+        },
+    ];
+
+    // 正确，返回的结果r实际上是shoes的部分数据的引用
+    let r: Vec<_> = shoes.iter().filter(|x| x.size == 10).collect();
+
+    // 错误，无法编译，由于collect返回的是引用，无法直接转换成引用原本的数据类型
+    let r1: Vec<Shoes> = shoes.iter().filter(|x| x.size == 10).collect();
+
+    // 正确，使用into_iter获取了相关的所有权，不再是引用，而是原始数据类型
+    let r2: Vec<Shoes> = shoes.into_iter().filter(|x| x.size == 10).collect();
+    // 在此之后，shoes变量无法再使用，所有权已经发生了变更
+
+    // 错误，shoes的所有权已经发生了变更，此处已经无效
+    shoes_in_my_size(shoes, 10);
+}
+
+// 调用者发生了所有权转移，调用该函数之后，参数shoes无法再被使用
+fn shoes_in_my_size(shoes: Vec<Shoe>, shoe_size: u32) -> Vec<Shoe> {
+    shoes.into_iter().filter(|s| s.size == shoe_size).collect()
+}
+\end{code-block}
+
+\subsection{自定义迭代器}
+可以通过在vector上调用iter、into\_iter或iter\_mut来创建一个迭代器，也可以用标准库
+中其他的集合类型创建迭代器，比如哈希map。另外，可以实现Iterator trait来创建任何
+我们希望的迭代器，如下：
+\begin{code-block}{rust}
+impl Counter {
+    fn new(max: u32) -> Counter {
+        return Counter {
+            current: 0,
+            max: max,
+        };
+    }
+}
+
+impl Iterator for Counter {
+    type Item = u32;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current += 1;
+
+        if self.current <= self.max {
+            Some(self.current)
+        } else {
+            None
+        }
+    }
+}
+\end{code-block}
+然后，即可像普通的集合数据类型Vec一样，使用for和next进行操作：
+\begin{code-block}{rust}
+let c = Counter::new(10);
+
+// 忽略开头的n个数据
+// for item in c.skip(1) {
+// 像迭代器一样的使用类型
+for item in c {
+   println!("{}", item);
+}
+
+// 需要注意，c的所有权已经被转移，在此之后，无法再使用变量c
+
+let c1 = Counter::new(10);
+let c2 = Counter::new(20);
+
+let sum: u32 = c1
+    .zip(c2.skip(10))
+    .map(|(a, b)| a * b)
+    .filter(|x| x % 3 == 0)
+    .sum();
+println!("{}", sum);
+\end{code-block}
+上述的自定义迭代器并不完整，比如，默认情况下转移了变量的所有权，无法使用变量的引用
+进行迭代等等。这些问题可以在后续进行进一步的改进。
+
+\section{智能指针}
