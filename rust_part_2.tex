@@ -670,3 +670,134 @@ println!("{}", sum);
 进行迭代等等。这些问题可以在后续进行进一步的改进。
 
 \section{智能指针}
+Rust当中同样存在指针，最常用的指针就包括引用数据类型。除了引用数据之外，引用类型
+没有其他任何特殊的操作，也不存在其他额外的开销。除此之外，Rust还拥有智能指针，
+这是一种数据结构，其表现类似于真正的指针，但是，拥有额外的元数据和功能。普通的引用
+只是借用数据，而智能指针则是拥有指向的数据。
+
+常见的智能指针包括String以及Vec<T>，通常使用结构体实现。和普通结构体明显区别的是，
+智能指针实现了Deref和Drop这2个trait。Deref trait允许智能指针结构体实例表现的像引
+用一样，这样就可以编写既用于引用、又用于智能指针的代码；Drop trait允许我们自定义
+当智能指针离开作用域时运行的代码。在标准库当中最常用的智能指针主要包含下列3种：
+\begin{enumerate}
+  \item Box<T>：用于在堆上分配值
+  \item Rc<T>：引用计数类型，其数据可以有多个所有者
+  \item Ref<T> 和 RefMut<T>：通过RefCell<T>访问，RefCell<T>是一个在运行时而不是在编译时执行借用规则的类型
+\end{enumerate}
+
+\subsection{使用Box指向内存堆上的数据}
+最简单直接的智能指针是box，其类型是 Box<T>。Box允许你将一个值放在堆上而不是栈上，
+留在栈上的则是指向堆数据的指针。相比于普通的变量，Box的数据存放在内存堆上，但是
+没有任何的性能损失，通常用于下列的场景当中：
+\begin{itemize}
+\item 当有一个在编译时未知大小的类型，而又想要在需要确切大小的上下文中使用这个类型值的时候
+\item 当有大量数据并希望在确保数据不被拷贝的情况下转移所有权的时候
+\item 当希望拥有一个值并只关心它的类型是否实现了特定trait而不是其具体类型的时候
+\end{itemize}
+
+第一种情况通常用于递归数据类型；第二种情况，转移大量数据的所有权会消耗大量的时间，
+通过box将数据放在内存堆上，只有少量的指针数据在栈上被拷贝，减小了时间消耗；第三种
+情况则通常称之为trait对象。
+
+使用Box分配和使用堆上的数据示例如下：
+\begin{code-block}{rust}
+let v = Box::new(5);
+let s = 10;
+
+// Box类型无法直接和其他数据类型进行计算，必须进行转换
+// 在本例当中，v的数据类型为Box<{integer}>
+let b = v.as_ref() + s;
+
+println!("{}", b);
+println!("{}", v);
+\end{code-block}
+
+Rust编译器要求在编译期间就能够确定对应的类型所占用的存储空间，但是，Rust当中也
+存在无法在编译期间明确大小的数据类型，即递归数据类型。这种特殊类型的值，可以是
+相同类型的另一个值，并且，这种嵌套关系可以无限进行下去，因此，Rust是不知道递归
+数据类型的存储空间的。但是，可以通过在递归类型当中插入Box，以此为基准进行递归
+数据类型的创建。
+
+递归数据类型是一种特殊的数据类型，来源于Lisp，常见的开发语言当中没有与之相对的，
+一个简单的递归数据类型的定义如下：
+\begin{code-block}{rust}
+enum List {
+    Cons(i32, List),
+    Nil,
+}
+\end{code-block}
+Cons由2部分组成：自己包含的数据i32和另外一个List对象，其最后一项值包含一个叫做Nil
+的值且没有下一项，代表递归的终止条件就是Nil。可以明显的看到，该数据类型理论上可
+以无限的递归循环下去，我们无法在编译阶段就明确其存储空间占据的大小，因此上述代码
+目前还无法编译通过。为了使得上述代码成功编译，可以利用Box特性：
+\begin{code-block}{rust}
+#[derive(Debug)]
+enum List {
+    Cons(i32, Box<List>),
+    Nil,
+}
+
+use crate::List::{Cons, Nil};
+fn main() {
+    let list = Cons(1, Box::new(Cons(2, Box::new(Cons(3, Box::new(Nil))))));
+    println!("{:?}", list);
+}
+\end{code-block}
+
+通过这样的改变，Cons的大小就确定了：需要存放一个i32大小的值，以及一个Box指针大小
+的数据（usize），从内存结构上看，其分布大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.8]{rust_box.png}
+  \caption{递归数据类型的内存示意}
+  \label{fig:rust_box}
+\end{figure}
+
+\subsection{Deref Trait：将智能指针当作常规引用}
+Deref Trait允许重载解引用操作符（*），将智能指针当作常规引用。在此之前，先看看
+引用和原始数据之间的联系：
+\begin{code-block}{rust}
+let x = 5;
+let y = &x;
+
+// 正确，引用被转换成原始数据类型
+let r = y + 9;
+println!("{}, {}", y, r );
+
+// 提示错误，代码无法进行编译和运行
+println!("{}", y == 5);
+
+// 提示错误，代码无法进行编译和运行
+if y > 2 {
+    ...
+}
+// 提示错误，代码无法进行编译和运行
+assert_eq!(5, y);
+
+// 正确，通过解引用，将引用变更为对应的类型
+assert_eq!(5, y);
+
+let mut yy = &x;
+// 错误，无法编译
+yy = yy + 10;
+\end{code-block}
+上述代码看起来是没有错误的，但是在编译的时候，会提示一个错误信息：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_pointer_error.png}
+  \caption{尝试直接进行引用类型和其他类型的比较}
+  \label{fig:rust_pointer_error}
+\end{figure}
+其根本原因在于，y虽然在使用上大多数情况和x没有什么区别，但是，实质上，y是一个引用
+数据类型（指针），数值和x是具体的数值类型，引用和数值类型之间无法进行相互的比较。
+如果需要进行对比，则需要对y进行解引用操作，或者直接使用原始的x。同样的，引用数据
+类型和数值类型进行计算，得到的结果是数值类型，而并非引用数据类型。如果使用Box来替换
+引用数据类型，其结果相同：
+\begin{code-block}{rust}
+let x = 5;
+let y = Box::new(x);
+// 提示错误，同样是由于数据类型不匹配
+assert_eq!(5, y);
+// 正确，通过解引用，将引用变更为对应的类型
+assert_eq!(5, *y);
+\end{code-block}
