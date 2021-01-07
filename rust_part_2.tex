@@ -707,6 +707,8 @@ let s = 10;
 // Box类型无法直接和其他数据类型进行计算，必须进行转换
 // 在本例当中，v的数据类型为Box<{integer}>
 let b = v.as_ref() + s;
+// 或者修改为如下的方式
+// let b = *v + s;
 
 println!("{}", b);
 println!("{}", v);
@@ -748,7 +750,7 @@ fn main() {
 的数据（usize），从内存结构上看，其分布大致如下：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.8]{rust_box.png}
+  \includegraphics[scale=0.4]{rust_box.png}
   \caption{递归数据类型的内存示意}
   \label{fig:rust_box}
 \end{figure}
@@ -800,4 +802,112 @@ let y = Box::new(x);
 assert_eq!(5, y);
 // 正确，通过解引用，将引用变更为对应的类型
 assert_eq!(5, *y);
+\end{code-block}
+
+同样的，可以用Deref Trait实现自定义的智能指针。从本质上讲，Box<T>实际上是一个被
+定义为包含一个元素的元组结构体（元组当中只包含一个元素），可以根据这个思路自定义
+类似Box的智能指针：
+\begin{code-block}{rust}
+struct Pointer<T>(T);
+
+impl<T> Pointer<T> {
+    fn new(x: T) -> Pointer<T> {
+        Pointer(x)
+    }
+}
+\end{code-block}
+上述代码使用泛型T作为元组的参数，使得该结构体可以嵌入/使用任何数据类型。接着实现
+该结构的Deref Trait：
+\begin{code-block}{rust}
+impl<T> Deref for Pointer<T> {
+    type Target = T; // 定义关联类型
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+\end{code-block}
+也就是说，针对智能指针Pointer，已经可以实现对泛型数据的封装，并且可以正常的进行
+解引用操作：
+\begin{code-block}{rust}
+// 代码可以正常的运行
+let p = Pointer::new(5);
+assert_eq!(5, *p);
+
+let s = Pointer::new("lucifer");
+assert_eq!("lucifer", *s);
+\end{code-block}
+
+在Rust当中，实现了Deref Trait的数据类型，在使用时，会将其引用转换为原始数据类型，
+这种转换通常称之为解引用强制多态。当这种特定类型的引用作为实参传递给和形参类型
+不同的函数或方法时，解引用强制多态将自动发生：
+\begin{code-block}{rust}
+fn hello(name: &str) {
+    println!("Hello, {}!", name);
+}
+
+fn main() {
+    let m = Pointer::new(String::from("Rust"));
+    hello(&m);
+}
+\end{code-block}
+上述代码当中，使用\&m调用hello函数，其为Pointer<String>值的引用，因为在Pointer<T>
+上实现了Deref trait，Rust可以通过deref调用将Pointer<String>变为\&String，同时标准
+库中提供了String上的Deref实现，其会返回字符串slice，Rust再次调用deref将\&String
+变为\&str，这就符合hello 函数的定义了。
+
+如果没有解引用强制多态的特性，则函数的调用则必须变更为如下的样式：
+\begin{code-block}{rust}
+hello(&(*m)[..]);
+\end{code-block}
+即(*m)将Pointer<String>解引用为String。接着\&和[..]获取了整个String的字符串slice
+来匹配hello的签名，这无疑是一种低效的使用方式。
+
+Deref重载的是不可变引用的*运算符，DerefMut则用于重载可变引用的*运算符。当发现如下
+的几种情况时，Rust会进行解引用的强制多态：
+\begin{itemize}
+  \item 当T: Deref<Target=U> 时从\&T到\&U
+  \item 当T: DerefMut<Target=U> 时从\&mut T到\&mut U
+  \item 当T: Deref<Target=U> 时从\&mut T到\&U
+\end{itemize}
+第一种情况表明如果有一个\&T，而T实现了返回U类型的Deref，则可以直接得到\&U；第二种
+情况表明对于可变引用也有着相同的行为；第3种情况，将可变引用强转为不可变引用，但
+反过来是不行的，即不可变引用永远也不能强转为可变引用。
+
+\subsection{使用Drop trait清理}
+对于智能指针模式来说第二个重要的trait是Drop，其允许我们在值要离开作用域时执行一
+些代码。默认可以为任何类型提供Drop trait的实现，同时所指定的代码被用于释放类似
+于文件或网络连接的资源。
+
+在其他一些语言中，我们不得不记住在每次使用完智能指针实例后调用清理内存或资源的代码。
+如果忘记的话，运行代码的系统可能会因为负荷过重而崩溃。在Rust中，可以指定每当值离
+开作用域时被执行的代码，编译器会自动插入这些代码，不需要在程序中到处编写在实例结
+束时清理这些变量的代码，而且还不会出现内存泄漏。
+
+Drop trait比较类似于C++的析构函数，用于指定对应的对象在离开作用域时需要进行的清理
+代码，要求实现一个drop函数。简单的示例如下：
+\begin{code-block}{rust}
+struct SmartPointer {
+    data: String,
+}
+
+impl Drop for SmartPointer {
+    fn drop(&mut self) {
+        println!("Drop the smart pointer {}", self.data);
+    }
+}
+
+fn main() {
+    let p = SmartPointer::new("zhangjl");
+}
+\end{code-block}
+虽然在main函数当中，没有执行任何的输出操作，但是当代码结束运行时，还是会打印出
+drop函数的执行结果，就如同析构函数一般。但和析构函数不同的是，析构函数可以通过
+del操作调用，而Rust的drop函数是无法调用或者禁用的。如果需要提前释放变量，则需要
+使用std::mem::drop进行替换：
+\begin{code-block}{rust}
+fn main() {
+    let p = SmartPointer::new("zhangjl");
+    drop(p);
+    println!("Hello World");
+}
 \end{code-block}
