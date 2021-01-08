@@ -911,3 +911,215 @@ fn main() {
     println!("Hello World");
 }
 \end{code-block}
+
+\subsection{引用计数智能指针}
+在Rust当中，大部分情况下，变量的所有权是明确且单一的。但是，有的场景下，要求单个
+值有多个所有者。例如，在图数据结构中，多个边可能指向相同的节点，而这个节点从概念
+上讲为所有指向它的边所拥有，节点直到没有任何边指向它之前都不应该被清理。为了解决
+类似的问题，Rust使用Rc<T>进行引用计数的表达。引用计数意味着记录一个值引用的数量
+来知晓这个值是否仍在被使用，如果某个值有零个引用，就代表没有任何有效引用并可以
+被清理，反之则必须保留。特别注意的是，Rc<T>只能用于单线程/单进程环境。
+
+简单的Rc使用示例如下：
+\begin{code-block}{rust}
+use std::rc::Rc;
+struct User {
+    name: String,
+}
+
+fn main() {
+    let u = User {
+        name: "zhangjl".to_string(),
+    };
+
+    let u_ref = Rc::new(u);
+    println!("{}", u_ref.as_ref().name);
+    let u_ref2 = Rc::clone(&u_ref);
+}
+\end{code-block}
+Rc::clone的实现并不像类型的clone方法实现的是深拷贝一样，该函数只会增加对象的引用
+计数，因此类型的clone方法可能会消耗大量的时间，而Rc::clone并不会耗费额外的时间。
+Rc允许一个值有多个所有者，不过，它只允许以只读的方式进行共享数据，如果需要对数据
+进行更改，则必须利用内部可变性模式以及RefCell类型，以此解决Rc的只读限制。
+
+内部可变性是一种Rust的设计模式，这种模式允许即使在有不可变引用的时候，也可以进行
+数据的改变，其重点是在数据结构当中使用unsafe来模糊Rust通常的可变性和借用规则。Unsafe
+代码通常被封装进入安全的代码（API）当中，但是，外部类型仍然是不可变的。在不使用
+unsafe代码的前提下，通常则是使用RefCell来进行数据的改变。
+
+与Rc拥有多个所有者不同，RefCell代表的是数据的唯一所有权。在Rust当中，所有权和借用
+规则是非常重要的：
+\begin{enumerate}
+  \item 在任意时刻，同一个变量只能拥有一个可变引用，或者任意数量的不可变引用
+  \item 引用总是必须有效的
+\end{enumerate}
+如下代码：
+\begin{code-block}{rust}
+fn main() {
+    let mut a = 24;
+    add(&mut a);
+    println!("{}", a);
+
+    let mut b = &mut a;
+    // 错误
+    println!("{}, {}", b, a);
+}
+fn add(b: &mut u32) {
+    *b = *b + 10
+}
+\end{code-block}
+
+对于引用和Box，借用规则的不可变性表现在编译时期；对于RefCell，借用规则的不可变性
+则体现在运行时期，因此，一旦RefCell违反了借用规则，则运行时将出现panic。同样的，
+RefCell也只能使用于单线程/单进程场景。因此，在实质上，不管是RefCell还是其他，都
+还是必须要遵循借用规则的。借用规则存在一个推论：当有一个不可变变量时，不能通过
+可变引用借用他，如下：
+\begin{code-block}{rust}
+let x = 5;
+let y = &mut x;
+\end{code-block}
+上述代码就会出现错误。
+
+然而，在特定情况下，令一个值在其方法内部能够修改自身，而在其他代码中仍视为不可变，
+是很有用的。RefCell<T>是一个获得内部可变性的方法，他并没有完全绕开借用规则，编译
+器中的借用检查器允许内部可变性并相应地在运行时检查借用规则。如果违反了这些规则，
+会出现panic而不是编译错误。如下的特殊情况，模拟Mock对象进行测试：
+\begin{code-block}{rust}
+pub trait Messager {
+    fn send(&self, msg: &str);
+}
+
+pub struct LimitTracker<'a, T: Messager> {
+    messager: &'a T,
+    value: usize,
+    max: usize,
+}
+
+impl<'a, T> LimitTracker<'a, T>
+where
+    T: Messager,
+{
+    pub fn new(messeger: &T, max: usize) -> LimitTracker<T> {
+        LimitTracker {
+            messager: messeger,
+            value: 0,
+            max: max,
+        }
+    }
+    pub fn set_value(&mut self, value: usize) {
+        self.value = value;
+        self.messager
+            .send(&format!("The value of tracker is {}", self.value));
+    }
+}
+\end{code-block}
+
+然后实现一个Messager，用于测试消息的发送，其实现如下：
+\begin{code-block}{rust}
+struct MockMessager {
+    sent_messages: Vec<String>,
+}
+
+impl MockMessager {
+    fn new() -> MockMessager {
+        MockMessager {
+            sent_messages: Vec::new(),
+        }
+    }
+}
+
+impl Messager for MockMessager {
+    fn send(&self, message: &str) {
+        self.sent_messages.push(String::from(message));
+    }
+}
+\end{code-block}
+
+按照我们的设想，测试的main函数应当如下：
+\begin{code-block}{rust}
+fn main() {
+    let mock_messenger = MockMessager::new();
+    let mut limit_tracker = LimitTracker::new(&mock_messenger, 100);
+    limit_tracker.set_value(80);
+    assert_eq!(mock_messenger.sent_messages.len(), 1);
+}
+\end{code-block}
+
+但是，上述代码在进行编译时，则会出现错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_ref_error.png}
+  \caption{尝试修改不可变的引用}
+  \label{fig:rust_ref_error}
+\end{figure}
+
+我们尝试去修改不可变的self引用的值，而这种情况，则正好可以利用RefCell进行实现，
+其实现的代码如下：
+\begin{code-block}{rust}
+struct MockMessager {
+    sent_messages: RefCell<Vec<String>>,
+}
+
+impl MockMessager {
+    fn new() -> MockMessager {
+        MockMessager {
+            sent_messages: RefCell::new(Vec::new()),
+        }
+    }
+}
+
+impl Messager for MockMessager {
+    fn send(&self, message: &str) {
+        self.sent_messages.borrow_mut().push(String::from(message));
+    }
+}
+
+fn main() {
+    let mock_messenger = MockMessager::new();
+    let mut limit_tracker = LimitTracker::new(&mock_messenger, 100);
+    limit_tracker.set_value(80);
+    assert_eq!(mock_messenger.sent_messages.borrow().len(), 1);
+}
+\end{code-block}
+对于send方法的实现，第一个参数仍为self的不可变借用，这是符合方法定义的，调用
+self.sent\_messages中RefCell的borrow\_mut方法来获取RefCell中值的可变引用，随之
+就可以进行self当中的变量的修改了。
+
+当创建不可变和可变引用时，我们分别使用\&和\&mut语法；对于RefCell<T>来说，则是
+borrow和borrow\_mut 方法，这是属于RefCell<T>安全API的一部分。Borrow方法返回
+Ref<T>类型的智能指针，borrow\_mut方法返回RefMut类型的智能指针。这两个类型都实现
+了Deref，所以可以当作常规引用对待。但是，RefCell同样遵循借用规则，在任何时候只
+允许有多个不可变借用或一个可变借用。
+
+在实际使用当中RefCell常常和Rc结合使用：如果有一个储存了RefCell<T>的 Rc<T> 的话，
+就可以得到有多个所有者并且可以修改的值了，比如下列的示例：
+\begin{code-block}{rust}
+use std::cell::RefCell;
+use std::rc::Rc;
+
+#[derive(Debug)]
+enum List {
+    Cons(Rc<RefCell<i32>>, Rc<List>),
+    Nil,
+}
+
+use crate::List::{Cons, Nil};
+
+fn main() {
+    let value = Rc::new(RefCell::new(5));
+    let a = Rc::new(Cons(Rc::clone(&value), Rc::new(Nil)));
+    let b = Cons(Rc::new(RefCell::new(6)), Rc::clone(&a));
+    let c = Cons(Rc::new(RefCell::new(10)), Rc::clone(&a));
+    *value.borrow_mut() += 10;
+    println!("a after = {:?}", a);
+    println!("b after = {:?}", b);
+    println!("c after = {:?}", c);
+}
+\end{code-block}
+执行之后，其结果如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_ref_cell.png}
+  \caption{Rc和RefCell修改多个引用的值}
+  \label{fig:rust_ref_cell}
+\end{figure}
