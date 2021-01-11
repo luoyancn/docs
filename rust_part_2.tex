@@ -1123,3 +1123,106 @@ fn main() {
   \caption{Rc和RefCell修改多个引用的值}
   \label{fig:rust_ref_cell}
 \end{figure}
+
+\subsection{引用循环和内存泄漏}
+Rust的内存安全性保证使其难以意外地制造永远也不会被清理的内存，即内存泄漏，但Rust
+并不保证完全避免内存泄漏，但是，和其他语言不同的是，Rust的内存泄漏是安全的。在使用
+智能指针时，特别是Rc和RefCell时，需要注意有可能出现的内存泄漏，如下代码所示：
+\begin{code-block}{rust}
+use crate::List::{Cons, Nil};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+#[derive(Debug)]
+enum List {
+    Cons(i32, RefCell<Rc<List>>),
+    Nil,
+}
+
+impl List {
+    fn tail(&self) -> Option<&RefCell<Rc<List>>> {
+        match self {
+            Cons(_, item) => Some(item),
+            Nil => None,
+        }
+    }
+}
+\end{code-block}
+现在Cons成员的第二个元素是RefCell<Rc<List>>，这意味着能够修改Cons成员所指向的List。
+这里还增加了一个tail方法，允许其在有Cons成员的时候访问其第二项。在使用时候如下
+进行操作：
+\begin{code-block}{rust}
+fn main() {
+    let a = Rc::new(Cons(5, RefCell::new(Rc::new(Nil))));
+
+    println!("a initial rc count = {}", Rc::strong_count(&a));
+    println!("a next item = {:?}", a.tail());
+
+    let b = Rc::new(Cons(10, RefCell::new(Rc::clone(&a))));
+
+    println!("a rc count after b creation = {}", Rc::strong_count(&a));
+    println!("b initial rc count = {}", Rc::strong_count(&b));
+    println!("b next item = {:?}", b.tail());
+
+    if let Some(link) = a.tail() {
+        *link.borrow_mut() = Rc::clone(&b);
+    }
+
+    println!("b rc count after changing a = {}", Rc::strong_count(&b));
+    println!("a rc count after changing a = {}", Rc::strong_count(&a));
+
+    println!("a next item = {:?}", a.tail());
+}
+\end{code-block}
+变量a中创建了一个Rc<List>实例来存放初值，变量b中创建了指向列表a的List的另一个Rc<List>
+实例，也即是说，b是a的头部，a是b的尾部，a的尾部没有内容。但是，紧接着，将a的尾部
+指向了b，就创建了一个循环，所以，在最后进行a的尾部输出的时候，就会导致整个程序栈溢出。
+
+引用循环无法被Rust编译器所检查或者捕获到，由此带来的内存泄漏，Rust编译器同样无法
+被检测到。解决这样的问题，一种是及时的使用测试工具以及单元测试进行排查，另外，则是
+使用Weak替换Rc。
+
+Rc::clone会增加Rc的强引用计数（strong\_count），只有当强引用计数归为0，对应的Rc才会
+被清理。而Rc::downgrade则是创建Rc的弱引用，得到Weak类型的智能指针，但是，并不会增加
+强引用计数，即不会改变strong\_count的数值，但是会增加弱引用计数（weak\_count）的
+数值，不过，在使用当中，无需使得weak\_count为0，就可以回收Rc变量。总结的来说：
+\begin{itemize}
+  \item 强引用（strong\_count）表示共享Rc实例的所有权
+  \item 弱引用（weak\_count）并没有所有权关系
+  \item 任何弱引用的循环，都会在强引用计数为0时被打断
+\end{itemize}
+
+因为Weak<T>引用的值可能已经被丢弃了，为了使用Weak<T>所指向的值，我们必须确保其值
+仍然有效，为此可以调用Weak<T>实例的upgrade方法，这会返回Option<Rc<T>>。如果Rc<T>
+值还未被丢弃，则结果是Some；如果Rc<T>已被丢弃，则结果是 None，所以它不会返回非法
+指针，进而导致程序崩溃。
+
+关于弱引用，最简单的例子便是树形结构：父节点需要知道子节点，子节点也需要知道父节点，
+但是，删除子节点，并不意味着父节点就失效了，父节点仍然是有效的；而删除父节点则不一样，
+父节点被删除之后，其对应的子节点便已经无效了，对于这样的例子，其示例代码如下：
+\begin{code-block}{rust}
+#[derive(Debug)]
+struct Node {
+    value: i32,
+    parent: RefCell<Weak<Node>>,
+    children: RefCell<Vec<Rc<Node>>>,
+}
+\end{code-block}
+即一个节点就能够引用其父节点，但不拥有其父节点。其使用示例如下：
+\begin{code-block}{rust}
+let leaf = Rc::new(Node {
+    value: 3,
+    parent: RefCell::new(Weak::new()),
+    children: RefCell::new(vec![]),
+});
+println!("leaf parent = {:?}", leaf.parent.borrow().upgrade());
+
+let branch = Rc::new(Node {
+    value: 5,
+    parent: RefCell::new(Weak::new()),
+    children: RefCell::new(vec![Rc::clone(&leaf)]),
+});
+
+*leaf.parent.borrow_mut() = Rc::downgrade(&branch);
+println!("leaf parent = {:?}", leaf.parent.borrow().upgrade());
+\end{code-block}
