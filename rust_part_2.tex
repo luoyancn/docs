@@ -1226,3 +1226,4 @@ let branch = Rc::new(Node {
 *leaf.parent.borrow_mut() = Rc::downgrade(&branch);
 println!("leaf parent = {:?}", leaf.parent.borrow().upgrade());
 \end{code-block}
+\input{rust_part_3}
