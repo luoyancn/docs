@@ -467,6 +467,16 @@ fn main() {
 }
 \end{code-in-enumerate}
 
+同样的，忽略操作也可以用于闭包当中：
+\begin{code-in-enumerate}{rust}
+let player_scores = [("Jack", 20), ("Jane", 23), ("Jill", 18), ("John", 19)];
+// 对player_scores进行迭代，忽略其中第二个元素，_可以被替换为_score
+let players: Vec<_> = player_scores.iter().map(|&(player, _)| player).collect();
+// 输出的结果当中将只会有字符串数据
+println!("{:?}", players);
+\end{code-in-enumerate}
+
+
 \1 @绑定
 
 运算符@允许我们在创建一个存放值的变量的同时测试其值是否匹配模式，比如测试字段是
@@ -492,6 +502,150 @@ match msg {
     },
 }
 \end{code-in-enumerate}
-
-
 \end{outline}
+
+\section{高级特征}
+Rust设计不仅仅是为了开发应用程序，其设计之初，就是为了解决内存安全的问题，并且可以
+广泛用于各种场景，包括C语言的专属领域：操作系统设计。在编写操作系统的过程当中，
+C语言使用了很多的高级宏定义以及一些精妙的设计，而Rust同样如此。为了和硬件打交道，
+Rust被设计为可以拥有直接操作硬件的能力，这些都是其高级特性的一部分。Rust的高级
+特性主要包含下列内容：
+\begin{enumerate}
+  \item 不安全 Rust
+  \item 高级 Trait
+  \item 高级类型
+  \item 高级函数和闭包
+  \item 宏
+\end{enumerate}
+
+\subsection{Unsafe}
+Rust屏蔽了一系列的不安全操作来换取应用程序的稳定性和可靠性，但是，可以通过关键字
+unsafe，切换到不安全的运行环境当中，并且在unsafe的代码块当中运行。常见的不安全操作
+如下：
+\begin{enumerate}
+  \item 解引用裸指针
+  \item 使用不安全的方法/函数
+  \item 访问/修改可变的静态变量
+  \item 实现不安全的Trait
+  \item 访问union的字段
+\end{enumerate}
+在使用的时候，原则需要明确：保持unsafe块尽可能小，将不安全代码封装进一个安全的
+抽象并提供安全API是一种常见的安全操作和手段。
+
+所谓的裸指针，和普通的指针和智能指针相比，存在如下的区别：
+\begin{enumerate}
+  \item 允许忽略借用规则，可以同时拥有不可变和可变的指针，或多个指向相同位置的可变指针
+  \item 不保证指向有效的内存
+  \item 允许为空
+  \item 不能实现任何自动清理功能
+\end{enumerate}
+Rust当中存在2个裸指针：分别写作*const T（不可变）和*mut T（可变），其基本的定义方式
+如下：
+\begin{code-block}{rust}
+let mut num = 5;
+let r1 = &num as *const i32; // 不可变的裸指针
+let r2 = &mut num as *mut i32; // 可变的裸指针
+\end{code-block}
+
+裸指针的定义是安全的，但是，它的使用是不安全的，因此裸指针的使用必须在unsafe块
+当中：
+\begin{code-block}{rust}
+fn main() {
+    let mut num = 5;
+
+    let r1 = &num as *const i32;
+    let r2 = &mut num as *mut i32;
+
+    unsafe {
+        *r2 = 10;
+        // r1，r2和num都会变更为10
+        println!("{},{}", *r1, *r2);
+    }
+}
+\end{code-block}
+同样的，unsafe也可以用于定义函数/方法，不过也需要在unsafe块当中使用；但是，unsafe
+的方法可以作为安全方法进行导出，在使用时，则不需要使用unsafe进行标记：
+\begin{code-block}{rust}
+fn main() {
+    let mut num = 5;
+    // 定义裸指针
+    let r1 = &num as *const i32;
+    let r2 = &mut num as *mut i32;
+
+    // 使用不安全的函数/方法
+    unsafe {
+        unsafe_change(r1, r2);
+    }
+    println!("{}", num);
+
+    safe_change(r1, r2);
+    println!("{}", num);
+}
+
+// 定义不安全的函数/方法
+unsafe fn unsafe_change(r1: *const i32, r2: *mut i32) {
+    *r2 = 10;
+    println!("{},{}", *r1, *r2);
+}
+
+// 将不安全的函数/方法封装进安全的方法当中
+fn safe_change(r1: *const i32, r2: *mut i32) {
+    unsafe {
+        *r2 = 100;
+    }
+}
+\end{code-block}
+
+作为不安全的一部分，某些时候直接在Rust当中调用C语言的类库可以获得更好的性能，此时，
+则同样需要在unsafe块当中使用，比如在Rust当中调用标准C的abs（绝对值）函数：
+\begin{code-block}{rust}
+extern "C" {
+    fn abs(input: i32) -> i32;
+}
+
+fn main() {
+    unsafe {
+        println!("The unsafe from C: {}", abs(-200));
+    }
+}
+\end{code-block}
+上述代码出现的extern关键字，有助于创建和使用外部函数接口（Foreign Function
+Interface，FFI）。外部函数接口是一个编程语言用以定义函数的方式，其允许不同（外部）
+编程语言调用这些函数。Extern块中声明的函数在Rust代码中总是不安全的，
+
+特别需要注意的是，Rust当中的可变全局变量（static）同样是不安全的，需要在unsafe
+代码块当中使用；而不可变的全局常量（const和static）则不需要在unsafe块当中；另外，
+全局变量同样可以是任意数据类型的：
+\begin{code-block}{rust}
+use std::fmt;
+
+struct Version {
+    major: u8,
+    minor: u8,
+}
+
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "The version of this bin is {}.{}",
+            self.major, self.minor
+        )
+    }
+}
+
+// 不可变的全局常量
+const __CONST_NUM__: Version = Version { major: 1, minor: 4 };
+const __VERSION__: &str = "v1.4.0";
+static __NAME__: &str = "lucifer";
+// 可变的全局变量
+static mut __COUNTER__: u8 = 1;
+
+fn main() {
+    println!("{}", __CONST_NUM__);
+    println!("{}", __NAME__);
+    unsafe {
+        println!("{}", __COUNTER__);
+    }
+}
+\end{code-block}
