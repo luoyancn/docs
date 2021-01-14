@@ -649,3 +649,131 @@ fn main() {
     }
 }
 \end{code-block}
+
+\subsection{高级Trait}
+Trait的语法当中，使用了如下的代码形式：
+\begin{code-block}{rust}
+impl Iterator for Counter {
+    type Item = u32;
+    fn next(&mut self) -> Option<Self::Item> {
+        ...
+    }
+}
+\end{code-block}
+其中，type Item表示关联数据类型，Item表示占位类型，next方法定义表明它返回
+Option<Self::Item>类型的值。这个trait的实现者会指定Item的具体类型。
+
+在Trait当中，除了默认方法，方法覆写之外，还存在着运算符重载的功能。但是，和C++
+不同，Rust并不允许创建自定义的运算符，或者重载任意运算符，只有std::ops当中所列出
+的运算符和相应的trait可以通过实现运算符相关的trait来实现重载，比如下面，实现Add
+trait来实现对+的运算符重载：
+\begin{code-block}{rust}
+use std::fmt;
+use std::ops::{Add, AddAssign};
+
+struct Point {
+    x: u8,
+    y: u8,
+}
+
+// 实现结构体的 c = a + b
+impl Add for Point {
+    type Output = Point;
+    fn add(self, other: Point) -> Point {
+        Point {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+// 实现结构体的 a = a + b;
+impl AddAssign for Point {
+    fn add_assign(&mut self, other: Point) {
+        self.x = self.x + other.x;
+        self.y = self.y + other.y;
+    }
+}
+
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "x:{}, y:{}", self.x, self.y)
+    }
+}
+
+fn main() {
+    let a = Point { x: 3, y: 4 };
+    let b = Point { x: 5, y: 6 };
+    let c = a + b;
+
+    let mut d = Point { x: 100, y: 101 };
+    d = d + c;
+    println!("{}", d);
+}
+\end{code-block}
+
+以Add Trait为例，其内部的实现如下：
+\begin{code-block}{rust}
+[lang = "add"]
+pub trait Add<Rhs = Self> {
+    type Output;
+    [must_use]
+    fn add(self, rhs: Rhs) -> Self::Output;
+}
+\end{code-block}
+其中，RHS=Self这个语法叫做默认类型参数。RHS是一个泛型类型参数，它用于定义add方法
+中的rhs参数。如果实现Add trait时不指定RHS的具体类型，RHS的类型将是默认的Self类型
+也就是在实现Add Trait的类型。在上述例子当中，RHS就是Point这个类型。但是，也可以使用
+不同的数据类型，比如下面的例子：
+\begin{code-block}{rust}
+struct Meters(i32);
+struct Millimeters(i32);
+
+impl Add<Meters> for Millimeters {
+    type Output = Millimeters;
+
+    fn add(self, other: Meters) -> Millimeters {
+        Millimeters(self.0 + (other.0 * 1000))
+    }
+}
+\end{code-block}
+定义一个结构体米，和结构体毫米，然后定义毫米与米的加法操作，当结构体毫米与结构体
+米进行相加时（注意顺序），将结果转换成毫米结果：
+\begin{code-block}{rust}
+let meters = Meters(1);
+let mill_meters = Millimeters(10);
+let mill_meters_other = mill_meters + meters;
+\end{code-block}
+但是，如果将上述代码的顺序更换如下：
+\begin{code-block}{rust}
+let mill_meters_other = meters + mill_meters;
+\end{code-block}
+则会出现如下的错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_override_error.png}
+  \caption{尝试进行不同类型的加法重载操作}
+  \label{fig:rust_override_error}
+\end{figure}
+修复上述的错误也很简单，增加结构体米的加法操作重载运算符即可：
+\begin{code-block}{rust}
+struct Meters(i32);
+struct Millimeters(i32);
+
+impl Add<Meters> for Millimeters {
+    type Output = Millimeters;
+
+    fn add(self, other: Meters) -> Millimeters {
+        Millimeters(self.0 + (other.0 * 1000))
+    }
+}
+
+impl Add<Millimeters> for Meters {
+    type Output = Millimeters;
+
+    fn add(self, other: Millimeters) -> Millimeters {
+        Millimeters(self.0 * 1000 + other.0)
+    }
+}
+\end{code-block}
+这样，在进行结构体米和结构体毫米之间的加法操作是，无需考虑操作数的顺序。
