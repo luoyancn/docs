@@ -777,3 +777,172 @@ impl Add<Millimeters> for Meters {
 }
 \end{code-block}
 这样，在进行结构体米和结构体毫米之间的加法操作是，无需考虑操作数的顺序。
+
+在之前，也提到了Deref Trait的用法，通常用于进行智能指针的解引用操作，使得智能指针
+可以直接当作指定的类型使用。不过Deref Trait不仅仅可以针对智能指针，也可以对自定义
+的数据类型添加其他各种操作。比较典型的例子，现在有一个Vec，其中包含的数据类型是
+String，如果需要打印这个Vec<String>，则必须使用debug这个宏定义；如果不想使用这个
+debug，则必须在Vec<String>上实现Display Trait，但是Display Trait是无法直接作用在
+Vec<String>上的，因此我们可以采用一种方式，在一个结构体当中包含匿名的Vec<String>，
+然后在这个结构体上实现Display Trait，如下：
+\begin{code-block}{rust}
+use std::fmt;
+use std::ops::{Deref, DerefMut};
+
+struct VecWrapper(Vec<String>);
+
+impl Deref for VecWrapper {
+    type Target = Vec<String>;
+    fn deref(&self) -> &Vec<String> {
+        &self.0
+    }
+}
+
+impl DerefMut for VecWrapper {
+    fn deref_mut(&mut self) -> &mut Vec<String> {
+        &mut self.0
+    }
+}
+
+impl fmt::Display for VecWrapper {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[")?;
+        for item in &self.0 {
+            write!(f, "{}, ", item)?;
+        }
+        write!(f, "]")
+    }
+}
+
+fn main() {
+    let mut v = VecWrapper(vec![String::from("hello"), String::from("world")]);
+    v.push("zhangjl".to_string());
+    for item in &v.0 {
+        println!("{}", item);
+    }
+
+    println!("{}", v);
+}
+\end{code-block}
+在上述代码当中，使用VecWrapper将Vec<String>进行简单的封装，然后使用Deref Trait
+实现对VecWrapper的解引用（包括可变和不可变），将对VecWrapper的解引用操作重定向
+到直接访问Vec<String>，这样带来的好处如下：
+\begin{enumerate}
+  \item 无需针对VecWrapper进行额外的其他操作，即可使用所有Vec<String>的所有方法
+  \item 可以如同Vec一样的进行任意的操作
+  \item 可以实现VecWrapper的自定义函数/方法，但又不影响原本的Vec操作
+\end{enumerate}
+
+另外需要注意，在上述代码当中，我们再次使用了?操作符，由于write本身返回的是一个
+Result类型，但是，如果write操作后面添加分号符，表示目前只考虑了正确的模式，忽略
+了错误的处理，因此编译器会提示警告。为了消除这个警告，则可以使用?代替Result类型，
+同时继续正确和错误分支的处理。
+
+同样的，上述的代码VecWrapper可以做成泛型，如下：
+\begin{code-block}{rust}
+use std::ops::{Deref, DerefMut};
+struct VecWrapper<T>(Vec<T>);
+impl<T> Deref for VecWrapper<T> {
+    type Target = Vec<T>;
+    fn deref(&self) -> &Vec<T> {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for VecWrapper<T> {
+    fn deref_mut(&mut self) -> &mut Vec<T> {
+        &mut self.0
+    }
+}
+\end{code-block}
+上述的代码只是将Vec做了一次封装，可以使用任何的Vec方法，但是，我们将无法对这个
+类型实现Display Trait，因为泛型T本身是无法实现Display Trait的。
+
+Trait的另外一个非常重要的用途就是实现继承。涉及到继承实现，不可避免的会遭遇到
+函数/方法的重载/覆写，尤其是多重继承的时候。在Rust当中，同样允许不同的Trait有相
+同的函数/方法定义，也同样允许一个类型实现多个Trait，比如下面的代码：
+\begin{code-block}{rust}
+trait Pilot {
+    fn fly(&self);
+    fn name();
+}
+
+trait Wizard {
+    fn fly(&self);
+    fn name();
+}
+
+struct Empty;
+
+impl Pilot for Empty {
+    fn fly(&self) {
+        println!("This is the implement of Pilot fly method");
+    }
+    fn name() {
+        println!("This is the name method of Pilot implement");
+    }
+}
+
+impl Wizard for Empty {
+    fn fly(&self) {
+        println!("This is the implement of Wizard fly method");
+    }
+    fn name() {
+        println!("This is the name method of Wizard implement");
+    }
+}
+\end{code-block}
+Trait Pilot和Wizard定义了一个同名的方法，以及一个同名的关联函数（没有self做参数），
+然后结构体Empty实现了这2个Trait，但是本身没有任何的方法/函数。但是，在使用的时候，
+则必须注意，一定要进行Trait的指定或者转换，否则由于存在同名函数/方法，可能导致
+代码的二义性出现，从而导致错误：
+\begin{code-block}{rust}
+fn main() {
+    let empty = Empty {};
+
+    empty.fly();
+    Empty::name();
+}
+\end{code-block}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_same_name.png}
+  \caption{实现包含同名函数/方法的多个Trait}
+  \label{fig:rust_same_name}
+\end{figure}
+解决这种问题的方法主要有2种思路：1是增加Empty结构体自身的同名函数/方法的实现，
+但这种思路相当于完全没有利用Trait的任何功能；2是对Empty进行Trait的指定，如下：
+\begin{code-block}{rust}
+fn main() {
+    let empty = Empty {};
+
+    Wizard::fly(&empty);
+    Pilot::fly(&empty);
+
+    <Empty as Wizard>::name();
+    <Empty as Pilot>::name();
+}
+\end{code-block}
+同样的，如果不同的Trait包含了同名的方法/函数，但是参数和返回值定义不同，在使用的
+时候，也需要进行明确的指定：
+\begin{code-block}{rust}
+trait Pilot {
+    fn fly(&self);
+    fn name();
+}
+
+trait Wizard {
+    fn fly(&self, name: &str);
+    fn name(age: u8) -> u8;
+}
+
+...
+
+fn main() {
+    let empty = Empty {};
+    Wizard::fly(&empty, "lucifer");
+    <Empty as Wizard>::name(64);
+}
+\end{code-block}
+
+\subsection{高级类型}
