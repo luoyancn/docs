@@ -513,7 +513,6 @@ Rust被设计为可以拥有直接操作硬件的能力，这些都是其高级�
 \begin{enumerate}
   \item 不安全 Rust
   \item 高级 Trait
-  \item 高级类型
   \item 高级函数和闭包
   \item 宏
 \end{enumerate}
@@ -714,10 +713,10 @@ fn main() {
 
 以Add Trait为例，其内部的实现如下：
 \begin{code-block}{rust}
-[lang = "add"]
+#[lang = "add"]
 pub trait Add<Rhs = Self> {
     type Output;
-    [must_use]
+    #[must_use]
     fn add(self, rhs: Rhs) -> Self::Output;
 }
 \end{code-block}
@@ -945,4 +944,76 @@ fn main() {
 }
 \end{code-block}
 
-\subsection{高级类型}
+\subsection{高级函数和闭包}
+Rust的函数和闭包都有很多类似的地方，和C/C++的函数也类似，确切的说，是非常类似于
+C/C++当中的函数指针，因此，Rust的函数和闭包，也可以作为函数的参数以及返回值。但是，
+函数作为参数和返回值与闭包有些区别，先看使用函数作为参数与返回值，如下：
+\begin{code-block}{rust}
+fn newmethod() -> fn(u32) -> u32 {
+    calc
+}
+
+fn fn_as_params(age: u32, f: fn(u32) -> u32) {
+    println!("In the fn_as_params: {}", f(age));
+}
+
+fn calc(age: u32) -> u32 {
+    age * 100
+}
+
+fn main() {
+    let b = newmethod();
+    println!("{}", b(32));
+
+    fn_as_params(32, calc);
+}
+\end{code-block}
+可以看到，函数作为参数和返回值，基本用法和C/C++当中的方式是一致的。但是，使用闭包
+的情形有些区别：闭包缺少具体的大小（size）描述，如果直接传递闭包，则会因为编译器
+无法知道当前参数的大小而报错，因此，当使用闭包作为参数时，需要如下进行处理：
+\begin{code-block}{rust}
+// 直接使用闭包
+fn hello(age: u32, func: &dyn Fn(u32) -> u32) {
+    println!("{}", func(age));
+}
+
+// 使用Box智能指针
+fn recv(age: u32, func: Box<dyn Fn(u32) -> u32>) {
+    println!("{}", func(age));
+}
+
+// 使用Fn Trait
+fn asparams(age: u32, func: impl Fn(u32) -> u32) -> u32{
+    func(age)
+}
+
+fn main() {
+    let c = |x| x * 10;
+    recv(10, Box::new(c));
+    hello(8, &c);
+    // 2种方式都可以
+    asparams(8, &c);
+    asparams(8, c);
+}
+\end{code-block}
+
+同样的，使用闭包作为函数的返回值，也是需要进行额外的特殊处理：
+\begin{code-block}{rust}
+// 使用Box智能指针
+fn newclosur() -> Box<dyn Fn(u32) -> u32> {
+    Box::new(|x| x * 100)
+}
+
+// 使用Fn Trait
+fn return_closur() -> impl Fn(u32) -> u32 {
+    |x| x * 120
+}
+
+fn main() {
+    let a = newclosur();
+    println!("{}", a(12));
+
+    let a = return_closur();
+    println!("{}", a(18));
+}
+\end{code-block}
