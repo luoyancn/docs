@@ -987,6 +987,10 @@ fn asparams(age: u32, func: impl Fn(u32) -> u32) -> u32{
     func(age)
 }
 
+fn add(start: u32) -> u32 {
+    start + 100
+}
+
 fn main() {
     let c = |x| x * 10;
     recv(10, Box::new(c));
@@ -994,8 +998,13 @@ fn main() {
     // 2种方式都可以
     asparams(8, &c);
     asparams(8, c);
+    // Fn Trait针对函数
+    asparams(8, add);
+    asparams(8, &add);
 }
 \end{code-block}
+特别提倡使用Fn Trait的方式，因为这种方式，可以处理闭包和闭包的引用，同时，同样可以
+处理函数以及函数的引用，相当于是一种比较万能的方式。
 
 同样的，使用闭包作为函数的返回值，也是需要进行额外的特殊处理：
 \begin{code-block}{rust}
@@ -1017,3 +1026,359 @@ fn main() {
     println!("{}", a(18));
 }
 \end{code-block}
+和上述的使用闭包的情形类似，使用Fn Trait的方式，不仅可以使用闭包作为返回值，同样
+可以使用函数作为返回值。
+
+\subsection{高级类型}
+默认情况下，我们使用的Rust变量都是有类型的，而这些类型，默认情况下都需要书写完整。
+如果名称太长，则会导致阅读比较麻烦，因此，Rust提供了别名。注意，Rust的别名与Golang
+的别名不一样：Rust的类型别名拥有和原始类型相同的函数和方法，可以进行原始名称和
+别名系统的自动转换和其他操作，但是Golang的类型别名和原始类型无法直接进行自动转换
+和计算。Rust的别名如下：
+\begin{code-block}{rust}
+enum VeryVerboseEnumOfThingsToDoWithNumbers {
+    Add,
+    Subtract,
+}
+// 定义别名
+type Operations = VeryVerboseEnumOfThingsToDoWithNumbers;
+fn main() {
+    // 直接使用别名
+    let x = Operations::Add;
+}
+\end{code-block}
+同样的，别名还可以用于其它场合，比如在impl的代码当中使用Self别名（注意大写）：
+\begin{code-block}{rust}
+enum VeryVerboseEnumOfThingsToDoWithNumbers {
+    Add,
+    Subtract,
+}
+impl VeryVerboseEnumOfThingsToDoWithNumbers {
+    fn run(&self, x: i32, y: i32) -> i32 {
+        match self {
+            // 替换原本的 VeryVerboseEnumOfThingsToDoWithNumbers::Add方式
+            Self::Add => x + y,
+            Self::Subtract => x - y,
+        }
+    }
+}
+\end{code-block}
+
+Enum这种类型在之前的讲解当中，没有看到使用其当作各种类似于C/C++相同的值应用。但是，
+实际上，Enum是可以直接使用变量值的方式的，同样的，Enum是可以转换成整数数值的：
+\begin{code-block}{rust}
+enum Number {
+    Zero,
+    One,
+    Two,
+}
+enum Color {
+    Red = 0xff0000,
+    Green = 0x00ff00,
+    Blue = 0x0000ff,
+}
+
+fn main() {
+    println!("zero is {}", Number::Zero as i32);
+    println!("one is {}", Number::One as i32);
+    println!("roses are #{:06x}", Color::Red as i32);
+    println!("violets are #{:06x}", Color::Blue as i32);
+}
+\end{code-block}
+
+Rust的类型之间是可以相互进行转换的，但是Rust的类型转换必须使用显式的方式，不支持
+隐式数据类型转换，数据类型转换必须使用as关键字，并且，转换也会存在数据溢出的情况：
+\begin{code-block}{rust}
+let deciamal = 65.81_f32;
+let interer: u8 = deciamal as u8;
+// 无法从浮点数直接转换成char类型
+let charter: char = interer as char;
+\end{code-block}
+当从任何数转换成无符号数据（比如u64，u32，u8），则会在原始数据上进行加/减当前数据
+类型的最大值+1，直到最后的数据处于新的无符号数据的有效数据范围内：
+\begin{code-block}{rust}
+let start = 1000;
+let start_nev = -1000;
+// 1000 -(255+1) - (255+1) - (255+1)
+let res1 = start as u8;
+// -1000 + (255+1) + (255+1) + (255+1) + (255 + 1)
+let res2 = start_nev as u8
+\end{code-block}
+
+但是，当转换的类型不是数值类型，而是复合数据类型，则需要使用From和Into这2个Trait。
+一般情况下，只要实现了From Trait，就默认的实现了Into Trait，比如下方代码：
+\begin{code-block}{rust}
+use std::convert::From;
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+// 实现From trait，只能从(i32,i32)到结构体，不能反向
+// 同样的，Into也是只能从(i32,i32)到结构体，不能反向
+impl From<(i32, i32)> for Point {
+    fn from(item: (i32, i32)) -> Self {
+        Point {
+            x: item.0,
+            y: item.1,
+        }
+    }
+}
+
+// 如果想实现从结构体到(i32, i32)的自动转换，则需要实现另外的From
+impl From<Point> for (i32, i32) {
+    fn from(item: Point) -> Self {
+        (item.x, item.y)
+    }
+}
+
+fn main() {
+    // 显式的调用from
+    let p1 = Point::from((81, 99));
+    println!("{}, {}", p1.x, p1.y);
+
+    // 显式的调用into（隐式实现的Into Trait）
+    let p1: Point = (100, 101).into();
+    println!("{}, {}", p1.x, p1.y);
+
+    // 从结构体到(i32, i32)的自动转换
+    let (x, y): (i32, i32) = p1.into();
+    // 但是通常不这么做，而是使用模式匹配进行解决，而且模式匹配更为灵活，如下
+    let Point{x:a, y: b} = p1;
+}
+\end{code-block}
+
+如果复合数据类型进行转换，不能保证一定成功，则需要使用TryFrom以及TryInfo，如下：
+\begin{code-block}{rust}
+use std::convert::TryFrom;
+
+struct Point {
+    x: u8,
+    y: u8,
+}
+
+impl TryFrom<(u8, u8)> for Point {
+    type Error = ();
+    fn try_from(value: (u8, u8)) -> Result<Self, Self::Error> {
+        if value.0 % 2 == 0 && value.1 % 2 == 0 {
+            Ok(Point {
+                x: value.0,
+                y: value.1,
+            })
+        } else {
+            Err(())
+        }
+    }
+}
+
+fn main() {
+    let tup = (32, 63);
+    let p = Point::try_from(tup).expect("Invalid Params");
+    println!("{}, {}", p.x, p.y);
+}
+\end{code-block}
+
+作为通用的需求，将复合数据类型进行打印输出，可以采用debug宏，可以实现Display Trait，
+还可以实现to\_string方法（ToString Trait）：
+\begin{code-block}{rust}
+use std::string::ToString;
+
+struct Point {
+    x: u8,
+    y: u8,
+}
+
+impl ToString for Point {
+    fn to_string(&self) -> String {
+        format!("Point x:{}, y:{}", self.x, self.y)
+    }
+}
+
+fn main() {
+    let p = Point { x: 12, y: 127 };
+    println!("{}", p.to_string());
+}
+\end{code-block}
+通常情况下，Display和ToString两者实现其一即可。除了将结构体转换成字符串，也可以将
+字符串转换成结构体，而这时就需要使用FromStr这个Trait，只是普通场景下，使用不多：
+\begin{code-block}{rust}
+use std::num::ParseIntError;
+use std::str::FromStr;
+use std::string::ToString;
+
+struct Point {
+    x: u8,
+    y: u8,
+}
+
+impl ToString for Point {
+    fn to_string(&self) -> String {
+        format!("Point x:{}, y:{}", self.x, self.y)
+    }
+}
+
+impl FromStr for Point {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let coords: Vec<&str> = s
+            .trim_matches(|p| p == '(' || p == ')')
+            .split(',')
+            .collect();
+
+        let x_fromstr = coords[0].replace(" ", "").parse::<u8>()?;
+        let y_fromstr = coords[1].replace(" ", "").parse::<u8>()?;
+
+        Ok(Point {
+            x: x_fromstr,
+            y: y_fromstr,
+        })
+    }
+}
+
+fn main() {
+    let p = Point::from_str("(1, 203   )").unwrap();
+    println!("{}", p.to_string());
+}
+\end{code-block}
+
+Rust当中没有goto语句的存在，对于某些特殊的场景，比如多层循环的内部跳出就显得不是
+非常友好。因此，Rust也提供了label的机制，允许直接break对应的label，从而快速跳出
+循环结构：
+\begin{code-block}{rust}
+fn main() {
+    // 定义循环的标签
+    'outer: loop {
+        println!("Entered the outer loop");
+        'inner: loop {
+            println!("Entered the inner loop");
+
+            // 这只是中断内部的循环
+            //break;
+
+            // 这会中断外层循环
+            break 'outer;
+        }
+        println!("This point will never be reached");
+    }
+    println!("Exited the outer loop");
+}
+\end{code-block}
+
+除了上述这些类型之外，在之前的Trait当中，提到了关联数据类型。关联数据类型通常用在
+Trait当中，比如下方的Trait定义：
+\begin{code-block}{rust}
+trait Container {
+    type A;
+    type B;
+    fn contains(&self, item_a: Self::A, item_b: Self::B) -> bool;
+    fn first(&self) -> Self::A;
+    fn last(&self) -> Self::B;
+    fn val(&self) -> u8;
+}
+
+// 如果没有type A和type B的定义，则下面的方法必须写成如下的形式：
+// fn difference<A, B, C>(container: &C) -> u8 where
+//    C: Container<A, B> { ... }
+
+fn difference<C: Container>(c1: &C, c2: &C) -> u8 {
+    c1.val() - c2.val()
+}
+
+struct People<'a> {
+    name: &'a str,
+    age: u8,
+}
+
+impl<'a> Container for People<'a> {
+    type A = &'a str;
+    type B = u8;
+
+    fn contains(&self, item_a: &str, item_b: u8) -> bool {
+        self.age == item_b && self.name == item_a
+    }
+    fn first(&self) -> &'a str {
+        self.name
+    }
+    fn last(&self) -> u8 {
+        self.age
+    }
+    fn val(&self) -> u8 {
+        self.age
+    }
+}
+
+fn main() {
+    let p = People {
+        name: "zhangjl",
+        age: 32,
+    };
+    println!("{}", p.last());
+    println!("{}", p.first());
+    println!("{}", p.contains("zhangjl", 32));
+}
+\end{code-block}
+
+
+\subsection{条件编译}
+C/C++经常使用宏定义实现条件编译，而Rust同样可以。Rust当中，主要有2种方式：通过属性
+和通过宏定义：
+\begin{code-block}{rust}
+// 通过cfg的属性，当目标为linux时，进行编译
+#[cfg(target_os = "linux")]
+fn are_you_on_linux() {
+    println!("You are running linux!")
+}
+
+// 通过cfg的属性，当目标不为linux时，进行编译
+#[cfg(not(target_os = "linux"))]
+fn are_you_on_linux() {
+    println!("You are *not* running linux!")
+}
+
+fn main() {
+    are_you_on_linux();
+
+    println!("Are you sure?");
+    // 通过cfg!宏进行判断
+    if cfg!(target_os = "linux") {
+        println!("Yes. It's definitely linux!");
+    } else {
+        println!("Yes. It's definitely *not* linux!");
+    }
+}
+\end{code-block}
+Target\_os宏为Rust内置，如果想自定义编译条件或者属性，则需要如下进行操作：
+\begin{outline}[enumerate]
+\1 修改代码
+\begin{code-in-enumerate}{rust}
+#[cfg(feature = "debugs")]
+fn debugs_print() {
+    println!("This is the debugs_print");
+}
+
+fn main() {
+    if cfg!(feature = "debugs") {
+        debugs_print();
+    }
+    println!("Are you sure?");
+}
+\end{code-in-enumerate}
+
+\1 修改cargo工程设置
+\begin{code-in-enumerate}{bash}
+echo >> Cargo.toml <<EOF
+[features]
+debugs = []
+EOF
+\end{code-in-enumerate}
+
+\1 使用自定义的debugs宏进行编译
+\begin{code-in-enumerate}{bash}
+cargo build --features debugs
+
+# 如果是多项目的管理方式，则需要变更为如下的方式：
+# cargo build --bin adclosures --manifest-path adclosures/Cargo.toml --features debugs
+\end{code-in-enumerate}
+
+\end{outline}
