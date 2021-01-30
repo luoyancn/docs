@@ -1319,6 +1319,105 @@ fn main() {
 }
 \end{code-block}
 
+Rust当中，还存在一种非常特殊的类型：虚类型（phantom type）。这种类型通常用于函数
+参数，表示在运行时不出现，但是在进行编译时进行静态检查。这种类型的参数不占据任何
+存储空间，也不存在运行时行为，比如，现在设定一个英寸的结构体和一个米的结构体，
+要求这2个结构体不能相加，则可以使用phantom虚类型进行解决：
+\begin{code-block}{rust}
+// 虚类型
+use std::marker::PhantomData;
+use std::ops::Add;
+
+extern crate slog_scope;
+extern crate slog_stdlog;
+#[macro_use]
+extern crate log;
+extern crate logger;
+
+enum Inch {}
+enum Mm {}
+
+// 使用虚类型进行定义
+struct Length<Unit>(f64, PhantomData<Unit>);
+
+impl<Unit> Add for Length<Unit> {
+    type Output = Length<Unit>;
+
+    fn add(self, other: Self) -> Self {
+        Length(self.0 + other.0, PhantomData)
+    }
+}
+
+fn main() {
+    let logger = logger::initlogger(false, "", 0);
+    let _guard = slog_scope::set_global_logger(logger);
+    slog_stdlog::init().unwrap();
+
+    let one_foot: Length<Inch> = Length(12.0, PhantomData);
+    let another_foot: Length<Inch> = Length(12.0, PhantomData);
+    let one_meter: Length<Mm> = Length(1000.0, PhantomData);
+    let another_meter: Length<Mm> = Length(1000.0, PhantomData);
+
+    let two_feet = one_foot + another_foot;
+    let two_meters = one_meter + another_meter;
+
+    info!("The feet is {}", two_feet.0);
+    info!("The meters is {}", two_meters.0);
+
+    // 由于2者的虚类型不同，编译期间直接提示出错
+    let r = one_foot + one_meter;
+}
+\end{code-block}
+
+迭代器也是常用的数据类型，在之前的介绍当中已经有基本的介绍，在这里，将使用斐波那契
+数列来讲述可以无限计算下去的迭代器的实现方式，不管是有限或无限，迭代器都必须实现
+Iterator这个Trait：
+\begin{code-block}{rust}
+
+// 实现结构体的clone
+#[derive(Clone)]
+struct Fibonacci {
+    current: u64,
+    nxt: u64,
+}
+
+impl Iterator for Fibonacci {
+    type Item = u64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let tmp = self.current;
+        self.current = self.nxt;
+        self.nxt = tmp + self.nxt;
+        Some(self.nxt)
+    }
+}
+
+impl Fibonacci {
+    fn new() -> Fibonacci {
+        Fibonacci { current: 1, nxt: 1 }
+    }
+}
+
+fn main() {
+    let logger = logger::initlogger(false, "", 0);
+    let _guard = slog_scope::set_global_logger(logger);
+    slog_stdlog::init().unwrap();
+
+    let fib = Fibonacci::new();
+    let fib_clone = fib.clone();
+
+    // 忽略数列前10项，然后再取后续的8项
+    for item in fib.skip(10).take(8) {
+        info!("{}", item);
+    }
+
+    for item in fib_clone.skip(20).take(8) {
+        info!("{}", item);
+    }
+
+}
+\end{code-block}
+
 
 \subsection{条件编译}
 C/C++经常使用宏定义实现条件编译，而Rust同样可以。Rust当中，主要有2种方式：通过属性
@@ -1382,3 +1481,160 @@ cargo build --features debugs
 \end{code-in-enumerate}
 
 \end{outline}
+
+\subsection{宏}
+Rust也包含了宏，并且，和C/C++相比，Rust的宏会展开成为抽象语法树（AST，abstract syntax tree），
+而不是普通的转换成字符串，因此，不会产生无法预料的优先权错误。最普通的宏如下：
+\begin{code-block}{rust}
+extern crate slog_scope;
+extern crate slog_stdlog;
+#[macro_use]
+extern crate log;
+extern crate logger;
+
+// macro_rules! 表示后续的内容是一个宏
+// greeting表示宏的名称
+macro_rules! greeting {
+    // () 表示该宏不接收任何参数
+    () => {
+        // 宏定义展开的具体内容
+        info!("hello macro");
+    };
+}
+
+fn main() {
+    let logger = logger::initlogger(false, "", 0);
+    let _guard = slog_scope::set_global_logger(logger);
+    slog_stdlog::init().unwrap();
+
+    greeting!();
+}
+\end{code-block}
+但是，宏不可能一直是无参数的，它还包含了多种使用方式。宏的参数使用\$符号表示，并
+使用指示符来注明类型，如下：
+\begin{code-block}{rust}
+macro_rules! create_function {
+    // 宏接收一个ident指示符表示的参数，并创建一个func_name的函数
+    // ident指示符表示变量名（函数名）
+    ($func_name: ident) => {
+        fn $func_name() {
+            // stringify宏负责将ident指示符表示的参数转换成字符串
+            info!("You called the {}()", stringify!($func_name));
+        }
+    };
+}
+
+// 使用宏创建函数，函数名为func
+create_function!(func);
+
+macro_rules! formatres {
+    // 宏接收一个expr指示符表示的表达式（可以是代码块，函数/方法，其他宏）
+    // expr指示符表示表达式
+    // $expression表示表达式最后的执行结果
+    ($expression: expr) => {
+        info!("{} = {}", stringify!($expression), $expression)
+    };
+}
+
+fn main() {
+    // 调用func函数
+    func();
+    formatres!(1 + 32);
+    formatres!("lucifer");
+    formatres!(format!("{}, age is {}", "zhangjl", 32));
+}
+\end{code-block}
+宏的指示符有很多，各自用于不同的场景，所有的宏指示符如下：
+\begin{itemize}
+  \item block
+  \item expr：表达式
+  \item ident：变量名/函数名
+  \item item
+  \item pat：模式
+  \item path
+  \item stmt：语句
+  \item tt：标记树
+  \item ty：类型
+\end{itemize}
+
+类似于方法，Rust的宏也可以进行重载，只不过，这个重载的实现比较类似于match的分支
+处理流程，分割宏的分支即进行重载，则需要使用符号“:”进行：
+\begin{code-block}{rust}
+macro_rules! assert_bool {
+    // 括号中的分号;表示调用该宏时，需要传递2条语句或者表达式
+    ($left: expr; and $right: expr) => {
+        info!(
+            "{} and {} is {}",
+            stringify!($left),
+            stringify!($right),
+            $left && $right
+        )
+    };
+    // 分支之间需要使用分号;进行分割与结束
+    ($left: expr; or $right: expr) => {
+        info!(
+            "{} or {} is {}",
+            stringify!($left),
+            stringify!($right),
+            $left || $right
+        )
+    };
+}
+
+fn main() {
+    assert_bool!(1 + 1 == 2; and 2 * 2 == 4 );
+    assert_bool!(1 + 1 == 3; or 2 * 2 == 6 );
+}
+\end{code-block}
+
+宏定义的另外一个好处就是可以处理不定参数，在处理不定参数时，需要使用+操作符以及*
+操作符，+表示参数可能出现一次或多次，*则表示参数可能出现0次或多次：
+\begin{code-block}{rust}
+use std::cmp;
+macro_rules! find_min {
+    // 如果传入的只有一个参数，直接返回当前参数值
+    ($x: expr) => {
+        $x
+    };
+    // 传入多个参数，表示后续更多的参数，即x后至少还有一个参数
+    ($x: expr, $($y: expr), +) => {
+        // 递归调用宏本身
+        cmp::min($x, find_min!($($y), +))
+    };
+}
+
+fn main() {
+    info!("{}", find_min!(12));
+    info!("{}", find_min!(12, 65, 40 - 32));
+
+    let a = 1;
+    let b = 2;
+    let c = 3;
+    info!("{}", find_min!(a, a - b, c));
+}
+\end{code-block}
+上述的宏是使用表达式模式进行的，如果采用变量模式，即使用ident模式，则上述代码需要
+变更为如下：
+\begin{code-block}{rust}
+use std::cmp;
+
+macro_rules! find_min {
+    ($x: ident) => {
+        $x
+    };
+    ($x: ident, $($y: ident), +) => {
+        cmp::min($x, find_min!($($y), +))
+    };
+}
+
+fn main() {
+    // 错误的使用方式，12是一个表达式，而并非变量名
+    // info!("{}", find_min!(12));
+    let a = 1;
+    let b = 2;
+    let c = 3;
+    info!("{}", find_min!(a, b, c));
+}
+\end{code-block}
+通过对比，可以发现，在某些场景下，表达式方式比ident方式更加通用，也更加合理一些。
+\input{rust_part_4}

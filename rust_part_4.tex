@@ -1,0 +1,246 @@
+\subsection{高级函数式编程}
+之前的函数式编程当中，提到了map函数，用于对数据进行处理，比如下面这种：
+\begin{code-block}{rust}
+let sum: u32 = c1
+    .zip(c2.skip(10))
+    .map(|(a, b)| a * b)
+    .filter(|x| x % 3 == 0)
+    .sum();
+\end{code-block}
+
+但是，实际使用当中，map还有更加广泛的用途，比如，在特定的情况下，替换match操作，
+使得代码更加简单和精炼。比如，在使用match处理Option这种数据类型时，由于Option的
+取值范围为Some和None，而map函数对于Option类型的处理，也恰好就是返回Some和None，
+因此，可以直接使用map函数对这种Some对Some，None对None的简单映射关系进行处理，
+多个不同的map进行组合，形成链式调用，相比而言，比match操作会更加简练：
+\begin{code-block}{rust}
+#[derive(Debug)]
+enum Food {
+    Apple,
+    Potato,
+}
+
+#[derive(Debug)]
+struct Peeled(Food);
+#[derive(Debug)]
+struct Chopped(Food);
+#[derive(Debug)]
+struct Cooked(Food);
+
+// 常见的处理方法，使用match进行处理，并且返回一个Option
+fn peel(food: Option<Food>) -> Option<Peeled> {
+    match food {
+        Some(food) => Some(Peeled(food)),
+        None => None,
+    }
+}
+
+// 使用map函数进行Option的简单映射
+fn process(food: Option<Food>) -> Option<Cooked> {
+    food.map(|f| Peeled(f))
+        .map(|Peeled(f)| Chopped(f))
+        .map(|Chopped(f)| Cooked(f))
+}
+\end{code-block}
+
+然而，如果返回类型Option需要作为map函数的参数，输入到另外一个闭包或者函数当中，
+则有可能出现Option<Option<T>>的结果出现，并不利于结果的解析，此时，则需要采用
+and\_then进行处理，比如下方的代码：
+\begin{code-block}{rust}
+enum Food {
+    CordonBleu,
+    Steak,
+    Sushi,
+}
+
+fn have_ingredients(food: Food) -> Option<Food> {
+    match food {
+        Food1::Sushi => None,
+        _ => Some(food),
+    }
+}
+
+fn have_recipe(food: Food) -> Option<Food> {
+    match food {
+        Food1::CordonBleu => None,
+        _ => Some(food),
+    }
+}
+
+// 通过map函数将上述2个函数进行连接起来，have_recipe当作一个闭包使用
+// 但是，结果将变更为Option<Option<T>>
+fn cookable_v1(food: Food) -> Option<Option<Food>> {
+    have_ingredients(food).map(|res| have_recipe(res))
+}
+
+// 通过and_then将2个函数连接起来，形成链式调用
+// have_ingredients返回的是一个Option，and_then会将其进行拆包
+// 如果Option是None，则直接返回None；但是，如果是Some<T>，and_then则会将其
+// 进行拆包，返回为T，而不是Some<T>
+fn cookable_v2(food: Food) -> Option<Food> {
+    have_ingredients(food).and_then(have_recipe)
+}
+\end{code-block}
+
+Result和Option类似，但实质上，Option是Result的一个特化版本，可以将其简单的看作：
+\begin{code-block}{rust}
+type Option<T> = Result<T, ()>
+\end{code-block}
+
+因此，Option的map，and\_then等函数（算子）同样可以作用于Result上，比如下面的例子：
+\begin{code-block}{rust}
+use std::num::ParseIntError;
+
+// 使用普通的match模式
+fn multiply_v1(first_number_str: &str, second_number_str: &str) -> Result<i32, ParseIntError> {
+    match first_number_str.parse::<i32>() {
+        Ok(first_number)  => {
+            match second_number_str.parse::<i32>() {
+                Ok(second_number)  => {
+                    Ok(first_number * second_number)
+                },
+                Err(e) => Err(e),
+            }
+        },
+        Err(e) => Err(e),
+    }
+}
+
+// 使用map与and_then模式
+fn multiply_v2(first_number_str: &str, second_number_str: &str) -> Result<i32, ParseIntError> {
+    // and_then将Result<T, E>拆分，如果是Err，直接返回，如果是T，即Ok(T)
+    // 则进行解析为T
+    first_number_str.parse::<i32>().and_then(|first_number| {
+        second_number_str.parse::<i32>().map(|second_number| first_number * second_number)
+    })
+}
+\end{code-block}
+
+同样的，Result也可以使用别名系统，比如常见的io::Result，实际上就是Result的一个
+别名特化版本：
+\begin{code-block}{rust}
+type Result<T> = Result<T, Error>;
+\end{code-block}
+因此，同样可以在代码当中使用Result的别名，对代码进行简化：
+\begin{code-block}{rust}
+use std::num::ParseIntError;
+
+type AliasedResult<T> = Result<T, ParseIntError>;
+
+fn multiply(first_number_str: &str, second_number_str: &str) -> AliasedResult<i32> {
+    first_number_str.parse::<i32>().and_then(|first_number| {
+        second_number_str
+            .parse::<i32>()
+            .map(|second_number| first_number * second_number)
+    })
+}
+
+fn print(result: AliasedResult<i32>) {
+    match result {
+        Ok(n) => println!("n is {}", n),
+        Err(e) => println!("Error: {}", e),
+    }
+}
+
+fn main() {
+    print(multiply("10", "2"));
+    print(multiply("t", "2"));
+}
+\end{code-block}
+
+由于Option和Result的特殊性，在一些特定的场合，尤其是处理错误的时候，常见的做法就是
+混合Option和Result，进行混合类型的错误处理：
+\begin{code-block}{rust}
+use std::num::ParseIntError;
+
+fn double_first(vec: Vec<&str>) -> Option<Result<i32, ParseIntError>> {
+    // map返回Option，使用map包裹parse函数可能带来的错误信息（Result）
+    vec.first().map(|first| first.parse::<i32>().map(|n| 2 * n))
+}
+
+fn double_first_v2(vec: Vec<&str>) -> Result<Option<i32>, ParseIntError> {
+    let opt = vec.first().map(|first| first.parse::<i32>().map(|n| 2 * n));
+
+    // map_or返回Result，其中，Ok子句处理opt为None的情况
+    // r则处理opt为Some和Err的情况
+    opt.map_or(Ok(None), |r| {
+        println!("The r is error {:?}", r);
+        r.map(Some)
+    })
+}
+
+fn main() {
+    let empty2 = vec![];
+
+    match double_first_v2(empty2) {
+        Ok(Some(x)) => println!("The result is {}", x),
+        Err(e) => println!("Error is {:?}", e),
+        Ok(None) => println!("None is in result"),
+    }
+}
+\end{code-block}
+
+\subsection{自定义错误}
+Rust的错误是可以进行自行定义的，只需要实现一个Error Trait即可。Error Trait的定义
+如下：
+\begin{code-block}{rust}
+pub trait Error: Debug + Display {
+    fn source(&self) -> Option<&(dyn Error + 'static)> { ... }
+    fn backtrace(&self) -> Option<&Backtrace> { ... }
+    fn description(&self) -> &str { ... }
+    fn cause(&self) -> Option<&dyn Error> { ... }
+}
+\end{code-block}
+其中：
+\begin{itemize}
+  \item source是必须实现的函数，并且对应的错误必须实现Debug和Display Trait
+  \item backtrace是只能在nightly分支当中实现的函数
+  \item description被废弃，使用Display Trait或者to\_string（ToString Trait）替代
+  \item cause同样被废弃，被source所取代
+\end{itemize}
+
+一个简单的例子如下：
+\begin{code-block}{rust}
+use std::error::Error;
+use std::fmt;
+
+// 定义自定义错误结构体
+// 实现Debug Trait
+#[derive(Debug)]
+struct SuperError {
+    msg: String,
+}
+
+// 实现Display Trait
+impl fmt::Display for SuperError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Super Error: {}", self.msg)
+    }
+}
+
+// 实现Error Trait
+impl Error for SuperError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(self)
+    }
+}
+
+impl SuperError {
+    fn new(err: &str) -> SuperError {
+        SuperError {
+            msg: err.to_string(),
+        }
+    }
+}
+
+fn err_test() -> Result<(), SuperError> {
+    Err(SuperError::new("first error"))
+}
+
+fn main() {
+    match err_test() {
+        Err(e) => println!("{}", e),
+        _ => println!("no error"),
+    }
+}
+\end{code-block}
