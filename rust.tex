@@ -62,8 +62,14 @@ rustup target list
 \begin{code-block}{bash}
 # 针对ARM V7架构的工具链
 rustup target add armv7-unknown-linux-gnueabihf
+# 针对ARM V7架构的工具链-静态编译
+rustup target add armv7-unknown-linux-musleabihf
 # 针对ARM X64架构的工具链
 rustup target add aarch64-unknown-linux-gnu
+# 针对ARM X64架构的工具链-静态编译
+rustup target add aarch64-unknown-linux-musl
+# 针对X86-64架构的静态编译
+rustup target add x86_64-unknown-linux-musl
 # 针对Windows 64的工具链
 rustup target add x86_64-pc-windows-gnu
 \end{code-block}
@@ -76,9 +82,12 @@ dnf install mingw64-gcc mingw64-winpthreads-static -y
 
 而针对ARM V7以及ARM X64的交叉编译工具，则是使用gcc-linaro工具链即可。
 
-针对Windows 64的交叉编译方法比较简单，其编译指令如下：
+针对Windows 64的交叉编译方法比较简单，针对当前平台进行静态编译同样也比较简单，其编译指令如下：
 \begin{code-block}{bash}
+# windows 默认就是静态编译
 cargo build --release --target=x86_64-pc-windows-gnu
+# 针对x86的静态编译
+cargo build --release --target=x86_64-unknown-linux-musl
 \end{code-block}
 
 针对ARM V7和ARM X64的编译过程稍微复杂一些，其操作如下：
@@ -103,8 +112,16 @@ cat >.cargo/config<<EOF
 linker = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc"
 ar = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-ar"
 
+[target.armv7-unknown-linux-musleabihf]
+linker = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-ld"
+ar = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-ar"
+
 [target.aarch64-unknown-linux-gnu]
 linker = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc"
+ar = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-ar"
+
+[target.aarch64-unknown-linux-musl]
+linker = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-ld"
 ar = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-ar"
 
 EOF
@@ -116,10 +133,14 @@ EOF
     rightline=false, backgroundcolor=lbcolor]
 \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,
     breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}
-# 针对ARM V7(32位)
+# 针对ARM V7(32位)，实际上本身就是静态编译
 cargo build --release --target=armv7-unknown-linux-gnueabihf
-# 针对ARM X64
+# 针对ARM V7(32位)- 显式静态编译
+cargo build --release --target=armv7-unknown-linux-musleabihf
+# 针对ARM X64，实际上本身就是静态编译
 cargo build --release --target=aarch64-unknown-linux-gnu
+# 针对ARM X64 - 显式静态编译
+cargo build --release --target=aarch64-unknown-linux-musl
 \end{minted}
 \end{mdframed}
 
@@ -708,7 +729,7 @@ Mod管理模式和Python/Golang的路径管理类似，直接从当前工程的s
 查找，直到最终找到。首先看一个Rust工程结构, 如下图\nameref{fig:rust_mod}所示。
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.8]{rust_mod.png}
+  \includegraphics[scale=0.4]{rust_mod.png}
   \caption{Mod管理模式}
   \label{fig:rust_mod}
 \end{figure}
@@ -984,7 +1005,7 @@ cargo new --lib first
 同样的，可以在这个二进制的crate当中，创建多个lib，最后的文件结构大致如下：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.6]{rust_lib.png}
+  \includegraphics[scale=0.2]{rust_lib.png}
   \caption{Lib形式的crate}
   \label{fig:rust_lib}
 \end{figure}
