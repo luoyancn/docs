@@ -239,8 +239,68 @@ fn err_test() -> Result<(), SuperError> {
 
 fn main() {
     match err_test() {
+        // Err(SuperError{msg: e}) => println!("{}", e),
         Err(e) => println!("{}", e),
         _ => println!("no error"),
     }
+}
+\end{code-block}
+
+错误和自定义错误解决的是对于错误的定义，以及对应错误的处理方式，但是，在实际的生产
+使用当中，错误可能是普遍存在的，而我们需要的数据可能并不包含错误信息，而是需要
+将错误从正确的结果当中剔除，比如：
+\begin{code-block}{rust}
+fn main() {
+    let strings = vec!["tofu", "93", "18"];
+    let possible_numbers: Vec<_> = strings.into_iter().map(|s| s.parse::<i32>()).collect();
+    println!("Results: {:?}", possible_numbers);
+}
+\end{code-block}
+我们的本意是将Vec当中的字符串全部格式化为数值，但是，实际的结果当中，却把包含的
+错误也一同包含进来了，需要想办法将错误信息过滤掉：
+\begin{code-block}{rust}
+fn main() {
+    let strings = vec!["tofu", "93", "18"];
+    let numbers: Vec<_> = strings
+        .into_iter()
+        .map(|s| s.parse::<i32>())
+        // filter_map进行过滤，只保留结果为ok的数据
+        .filter_map(Result::ok)
+        .collect();
+    println!("Results: {:?}", numbers);
+}
+\end{code-block}
+
+Result实现了FromIter，因此结果的向量（Vec<Result<T, E>>）可以被转换成结果包裹着
+向量（Result<Vec<T>, E>）。一旦找到一个Result::Err，遍历就被终止，即满足另外一种
+需求：只要任何一个错误发生，就中断当前的操作：
+\begin{code-block}{rust}
+fn main() {
+    let strings = vec!["tofu", "93", "18"];
+    // 注意numbers不再是Vec<_>，而是通过FromIter转换成了Result
+    // 转换过程一旦失败，就会出现错误，中断当前的执行流程
+    let numbers: Result<Vec<_>, _> = strings.into_iter().map(|s| s.parse::<i32>()).collect();
+    println!("Results: {:?}", numbers);
+}
+\end{code-block}
+
+但是，有的时候，我们也存在另外一种需求：将执行的正确和错误结果分类存放，以待后续
+操作，此时则需要使用partition函数，对结果进行区分：
+\begin{code-block}{rust}
+fn main() {
+    let strings = vec!["tofu", "93", "18"];
+    let (numbers, errors): (Vec<_>, Vec<_>) = strings
+        .into_iter()
+        .map(|s| s.parse::<i32>())
+        // 使用partition函数进行区分
+        .partition(Result::is_ok);
+    println!("Numbers: {:?}", numbers);
+    println!("Errors: {:?}", errors);
+
+    // 对后续的结果进行解构
+    let numbers: Vec<_> = numbers.into_iter().map(Result::unwrap).collect();
+    let errors: Vec<_> = errors.into_iter().map(Result::unwrap_err).collect();
+    println!("Numbers: {:?}", numbers);
+    println!("Errors: {:?}", errors);
 }
 \end{code-block}
