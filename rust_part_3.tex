@@ -1637,4 +1637,49 @@ fn main() {
 }
 \end{code-block}
 通过对比，可以发现，在某些场景下，表达式方式比ident方式更加通用，也更加合理一些。
+
+比较奇特的是，在Rust的宏当中，可以使用自定义的关键字，实现特殊功能，比如自定义
+关键字evaluation，表示将表达式进行计算：
+\begin{code-block}{rust}
+macro_rules! calc {
+    // 自定义关键字evalution，使用该宏时，前面必须加上evalution前缀关键词
+    (evalution $e: expr) => {
+        // 强制将表达式e变成数值i32类型，即将表达式e进行计算
+        let val: i32 = $e;
+        info!("{} = {}", stringify!($e), val);
+    };
+    // 当传入参数不定时
+    (evalution $e: expr, $(evalution $es: expr),+) => {
+        calc!(evalution $e);
+        calc!($(evalution $es),+)
+    }
+}
+
+fn main() {
+    calc!(evalution 1 + 100);
+    calc!(evalution 1+2, evalution 3 + 4, evalution 5 +6 );
+    calc!(evalution 1-2, evalution 3 * 4, evalution (5 +6) * (5 - 9) );
+}
+\end{code-block}
+由于宏的高度可定制性，因此，上述的宏代码可以变更为如下的模式，但是2者的功能完全
+一样：
+\begin{code-block}{rust}
+macro_rules! calc {
+    (evalution $e:expr) => {{
+        let val: i32 = $e;
+        info!("{} = {}", stringify! {$e}, val);
+    }};
+    (evalution $e:expr, $(evalution $es:expr),+) => {{
+        calc! { evalution $e }
+        calc! { $(evalution $es),+ }
+    }};
+}
+
+fn main() {
+    // 下面两种方式都正确
+    calc!{evalution 1 + 100};
+    calc!(evalution 1+2, evalution 3 + 4, evalution 5 +6 );
+}
+\end{code-block}
+
 \input{rust_part_4}
