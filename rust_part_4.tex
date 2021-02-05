@@ -306,3 +306,234 @@ fn main() {
 \end{code-block}
 
 \section{死灵书与实践}
+
+\subsection{随机数实践}
+Rust的随机数模块并不包含在标准库当中，需要使用rand这个crate，其基本的使用如下：
+\begin{code-block}{rust}
+use rand::distributions::{Distribution, Uniform};
+use rand::seq::IteratorRandom;
+use rand::Rng;
+
+fn main() {
+    let mut rng = rand::thread_rng();
+    // 生成随机数
+    info!("The float64 rand number is {}", rng.gen::<f64>());
+    info!("The u32 rand number is {}", rng.gen::<u32>());
+    info!("The i32 rand number is {}", rng.gen::<i32>());
+    info!("The u8 rand number is {}", rng.gen::<u8>());
+    // 从指定区间生成随机数
+    info!("The range rand number is {}", rng.gen_range(0..100));
+    info!(
+        "The range rand float number is {}",
+        rng.gen_range(10.0..50.0)
+    );
+    // 从[0, 5]生成随机数
+    info!("The range rand number is {}", rng.gen_range(0..=5));
+
+    // 定义[1, 7)的均匀分布
+    let die = Uniform::from(1..7);
+    // 从该分布当中生成采样
+    let throw = die.sample(&mut rng);
+    info!("The sample of uniform is {:>width$}", throw, width = 5);
+
+    // 生成多个随机数
+    let tuple: (u8, u8, u8) = rng.gen();
+    info!("The tuple of random is {:?}", tuple);
+    // 生成随机数组
+    let array: [u8; 6] = rng.gen();
+    info!("The array of random is {:?}", array);
+    let mut exsit_array: [u8; 5] = [1, 2, 34, 5, 6];
+    // 使用随机数填充已存在的数组
+    rng.fill(&mut exsit_array);
+    info!("The array of random is {:?}", exsit_array);
+
+    // 从均匀分布当中随机采样3个数据
+    // 得到的结果可能出现重复的情况
+    let samples: Vec<u8> = (&mut rng).sample_iter(die).take(3).collect();
+    info!("The samples of sample range 1..7 is {:?}", samples);
+
+    let v = vec![1, 2, 3, 4, 5];
+    // 从vec当中采样4个数据，得到的结果不会重复
+    let sample = v.iter().choose_multiple(&mut rng, 4);
+    info!("The samples of sample range 1..5 is {:?}", sample);
+    let sample: Vec<u8> = (1..=10).choose_multiple(&mut rng, 4);
+    info!("The samples of sample range 1..10 is {:?}", sample);
+}
+\end{code-block}
+
+Rust的rand crate不仅可以生成随机数，也可以生成自定义的随机数据，比如：
+\begin{code-block}{rust}
+use rand::distributions::{Distribution, Standard, Uniform};
+use rand::seq::IteratorRandom;
+use rand::Rng;
+
+struct Point {
+    x: u8,
+    y: u8,
+}
+
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "x: {}, y: {}", self.x, self.y)
+    }
+}
+
+// 在 Point 类型之上，对Standard实现Distribution trait，使得Point可以被gen函数随机生成
+impl Distribution<Point> for Standard {
+    // 默认的实现方法
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Point {
+        let (rand_x, rand_y) = rng.gen();
+        Point {
+            x: rand_x,
+            y: rand_y,
+        }
+    }
+}
+
+fn main() {
+    let mut rng = rand::thread_rng();
+    let rand_point = rng.gen::<Point>();
+    info!("The rand_point is {}", rand_point);
+}
+\end{code-block}
+
+同样的，可以生成随机的字符串：
+\begin{code-block}{rust}
+use rand::distributions::{Alphanumeric, Distribution, Standard, Uniform};
+use rand::seq::IteratorRandom;
+use rand::Rng;
+
+fn main() {
+    let mut rng = rand::thread_rng();
+    let rand_string: String = (&mut rng)
+        // 从a-z，A-Z以及0-9当中进行选择
+        .sample_iter(&Alphanumeric)
+        // 获取其中的10个元素
+        .take(10)
+        // 默认的结果是char类型，需要继续转换成String
+        .map(char::from)
+        .collect();
+    info!("The rand_string is {}", rand_string);
+}
+\end{code-block}
+
+如果默认的字符集不满足要求，还可以自定义字符集，比如下面的示例：
+\begin{code-block}{rust}
+use rand::distributions::{Alphanumeric, Distribution, Standard, Uniform};
+use rand::seq::IteratorRandom;
+use rand::Rng;
+const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+    abcdefghijklmnopqrstuvwxyz\
+    0123456789)(*&^%$#@!~";
+const PASSWORD_LEN: usize = 10;
+
+fn main() {
+    let mut rng = rand::thread_rng();
+    let password: String = (0..PASSWORD_LEN)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect();
+    info!("The password is {}", password);
+
+    // 也可以更换成之前的采样函数，看起来更为精炼
+    let passwd: String = CHARSET
+        .choose_multiple(&mut rng, 10)
+        .map(|r| *r as char)
+        .collect();
+    info!("The password is {}", passwd);
+}
+\end{code-block}
+
+同样的，针对自定义的数据类型，同样可以采用采样方法，进行随机数据的提取：
+\begin{code-block}{rust}
+use rand::distributions::{Alphanumeric, Distribution, Standard, Uniform};
+use rand::seq::IteratorRandom;
+use rand::Rng;
+
+#[derive(Debug)]
+struct Person {
+    name: String,
+    age: u8,
+}
+
+fn main() {
+    let mut rng = rand::thread_rng();
+    let persons = vec![
+        Person {
+            name: "lucifer".to_string(),
+            age: 18,
+        },
+        Person {
+            name: "titans".to_string(),
+            age: 19,
+        },
+        Person {
+            name: "garuda".to_string(),
+            age: 36,
+        },
+    ];
+
+    // 从person的vec当中，随机抽取2个元素
+    let rand_person: Vec<_> = persons.choose_multiple(&mut rng, 2).collect();
+    info!("The rand person is {:?}", rand_person);
+}
+\end{code-block}
+
+\subsection{类型再论}
+Rust的类型比较多，char，字符串，整数，浮点数等等。这些基础类型和其他语言比较类似，
+但是也包含了自己的特点：比如，char类型占据4个字节，可以存放任何一个unicode字符；
+对于ASCII字符，只需要一个字节即可，而一个字节的数据，则可以放在u8类型的数据当中，
+因此，对于ASCII类型的字符串/字符数组，可以使用u8类型（即单字节）的数组进行存放，
+这样，占用的资源空间会比char的数组小：
+\begin{code-block}{rust}
+fn main() {
+    // 字符串前面的b，表示将对应的字面量存放在u8类型当中
+    let s: &[u8] = b"hello";
+    info!("{:?}", s);
+}
+\end{code-block}
+同时，Rust支持的整数类型比较广泛，包括8bit，16bit，32bit，64bit，最大可以支持到
+128bit；而特殊的isize和usize，则是和平台相关。如果平台是32位的，则isize和usize为
+32位，如果是64位，则其数据宽度为64位。
+
+整个Rust的类型当中，只有空类型占据的空间是最小的，都是0。Rust的空类型包括单元类型
+（unit，即空元组）以及空结构体：
+\begin{code-block}{rust}
+// empty是空元组类型
+let empty : () = ();
+
+// 空结构体
+struct Empty();
+\end{code-block}
+为了查看类型所占用的空间，可以使用size\_of函数进行查看：
+\begin{code-block}{rust}
+use std::mem;
+
+struct Empty();
+fn main() {
+    info!("The Empty struct size is {}", mem::size_of::<Empty>());
+    // 查看空元组所占据的内存大小
+    info!("The none tuple size is {}", mem::size_of::<()>());
+}
+\end{code-block}
+
+\subsection{常见错误处理方法}
+由于很多代码都是第三方的，而Rust本身也在不断的发展，有可能出现版本不兼容或者特性
+不兼容的情况，此时，则需要进行相关的修改。比如下面的一种错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_feature_error.png}
+  \caption{缺少特性支持编译失败}
+  \label{fig:rust_feature_error}
+\end{figure}
+遇到这种错误，则需要直接修改对应的类库的源代码。以上述错误为例，编译的help表示
+\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}{add `#![feature(array_value_iter_slice)]` to the crate attributes to enable}，
+则我们应当在对应的crate的lib.rs的头部当中，添加内容如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_feature_add.png}
+  \caption{增加特性支持}
+  \label{fig:rust_feature_add}
+\end{figure}
