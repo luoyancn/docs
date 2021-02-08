@@ -519,6 +519,101 @@ fn main() {
 }
 \end{code-block}
 
+Rust当中的函数也可以称之为类型的一种，并且，每个函数都有自己单独的类型，函数的类型
+是fn。但是，函数的参数列表会影响fn类型的判断和表达，比如下面的例子：
+\begin{code-block}{rust}
+fn add_tuple(t: (u32, u32)) -> u32 {
+    t.0 + t.1
+}
+
+fn add_two((x, y): (u32, u32)) -> u32 {
+    x + y
+}
+
+fn add_normal(x: u32, y: u32) -> u32 {
+    x + y
+}
+
+\end{code-block}
+实际上，add\_tuple和add\_two这2个函数被fn类型识别成为具有相同签名的类型，因此，
+在理论上，我们可以使用同一个变量，接收这2个函数的指针：
+\begin{code-block}{rust}
+fn main() {
+    let mut func = add_tuple;
+    func = add_two;
+    ...
+}
+\end{code-block}
+但是，上述代码却是错误的：虽然签名相同，但是，类型不同：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_func_type.png}
+  \caption{相同签名的不同函数类型}
+  \label{fig:rust_func_type}
+\end{figure}
+解决方法，则是将其转换成通用的fn类型：
+\begin{code-block}{rust}
+fn main() {
+    // 显示指定func的类型
+    let mut func: fn((u32, u32)) -> u32 = add_tuple;
+    // 使用as进行类型的转换
+    // let mut func = add_tuple as fn((u32, u32)) -> u32;
+    func = add_two;
+    ...
+}
+\end{code-block}
+但是，需要注意，add\_normal的功能看上去和前面两个函数的功能相同，但是，他们的
+函数签名完全不同，因此，不能将其转换成func。
+
+函数是Rust的头等公民，可以在函数/方法当中定义函数，也可以在函数/方法当中定义结构
+体，甚至于定义结构体的方法和实现，以及静态变量，常量等：
+\begin{code-block}{rust}
+fn func_as_first(x: u32, y: u32) -> (u32, u32) {
+    struct Point {
+        x: u32,
+        y: u32,
+    };
+
+    impl Point {
+        fn area(&self) -> u32 {
+            self.x * self.y
+        }
+        fn cycle(&self) -> u32 {
+            self.x + self.y
+        }
+    };
+
+    let p = Point { x: x, y: y };
+    (p.area(), p.cycle())
+}
+\end{code-block}
+
+常规的函数类型，都会存在返回值，这些返回值要么是特定的类型，要么就是()，即类似
+C/C++的返回void。如果需要什么都不返回，则可以使用!，这种函数称之为发散函数，比如
+在处理panic时，有时就需要使用发散函数：
+\begin{code-block}{rust}
+fn diverges() -> ! {
+    panic!("This function never returns!");
+}
+\end{code-block}
+Panic操作会直接导致软件栈展开，因此，后续的操作都不会执行，其返回的就是一个!。
+发散函数的最大特点，就是可以被转换成任意一个类型，虽然执行的时候最终还是会崩溃，
+如下：
+\begin{code-block}{rust}
+let x : i32 = diverges();
+let y : String = diverges();
+\end{code-block}
+但是，发散函数最大的作用，在于解决编译器的类型检查：
+\begin{code-block}{rust}
+let p = if x {
+    panic!("error");
+} else {
+    100
+};
+\end{code-block}
+对于let-if而言，if-else的每个分支都必须是相同的数据类型，通过发散函数的任意类型
+转换特性即!与任何类型兼容，所以上述代码才能编译通过。
+
 \subsection{常见错误处理方法}
 由于很多代码都是第三方的，而Rust本身也在不断的发展，有可能出现版本不兼容或者特性
 不兼容的情况，此时，则需要进行相关的修改。比如下面的一种错误：
