@@ -97,6 +97,7 @@ cargo build --release --target=x86_64-unknown-linux-musl
     rightline=false, backgroundcolor=lbcolor]
 \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,
     breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}
+# 如果是针对全局的rust项目，则应该将.cargo目录放在/.cargo下
 mkdir .cargo
 touch .cargo/config
 \end{minted}
@@ -669,10 +670,8 @@ fn plus(x: Option<u8>) -> Option<u8> {
        Some(i) => Some(i + 1),
     }
 }
-
 let six = plus(Some(5));
 let six_num = six.unwrap();
-
 let none_type = plus(None);
 let none_value = none_type.unwrap_or_default();
 \end{code-block}

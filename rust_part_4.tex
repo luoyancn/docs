@@ -613,6 +613,138 @@ let p = if x {
 \end{code-block}
 对于let-if而言，if-else的每个分支都必须是相同的数据类型，通过发散函数的任意类型
 转换特性即!与任何类型兼容，所以上述代码才能编译通过。
+\subsection{Trait类型再论}
+关于类型，Trait也是比较重要的一个话题。在之前的示例当中，Trait全部是在具体的类型
+上实现的，但是，Trait本身也可以在智能指针（Box）上实现，比如：
+\begin{code-block}{rust}
+trait Shape {
+    fn area(self: Box<Self>) -> f64;
+}
+
+struct Circle {
+    radius: f64,
+}
+
+impl Shape for Circle {
+    fn area(self: Box<Self>) -> f64 {
+        PI * self.radius * self.radius
+    }
+}
+
+fn main() {
+    let c = Box::new(Circle { radius: 4f64 });
+    info!("{}", c.area());
+    // 由于trait实现是在智能指针box上，因此，下面的使用是错误的
+    // let c = Circle { radius: 4f64 }
+    // c.area()
+}
+\end{code-block}
+甚至在Trait上实现Trait，比如下方：
+\begin{code-block}{rust}
+trait Shape {
+    fn area(&self) -> f64;
+}
+
+trait Round {
+    fn get_radius(&self) -> f64;
+}
+
+struct Circle {
+    radius: f64,
+}
+
+impl Round for Circle {
+    fn get_radius(&self) -> f64 {
+        self.radius
+    }
+}
+
+impl Shape for dyn Round {
+    fn area(&self) -> f64 {
+        let radius = self.get_radius();
+        PI * radius * radius
+    }
+}
+\end{code-block}
+Shape是一个Trait，Round同样也是一个Trait，Circle实现了Round，Round实现了Shape，
+但是，由于Round本身是一个Trait，拥有不确定性，因此，在实现Shape的时候，需要添加
+dyn关键字，提示这个Round不是普通的类型，而是一个Trait。上述代码当中，Circle间接
+的实现了Shape，但是，Circle的类型无法直接使用Shape的方法，只能通过智能指针的方
+式，将Circle转换成Round的类型，再进行使用，如下：
+\begin{code-block}{rust}
+fn main() {
+    let c: Box<dyn Round> = Box::new(Circle { radius: 4f64 });
+    info!("{}", c.area());
+}
+\end{code-block}
+如果再把这个例子改得复杂一些，让Circle和Sphere同时实现Round，则我们可以使用Round
+指针计算2个不同类型数据的结果：
+\begin{code-block}{rust}
+trait Shape {
+    fn area(&self) -> f64;
+}
+
+trait Round {
+    fn calc(&self) -> f64;
+}
+
+struct Circle {
+    radius: f64,
+}
+
+impl Round for Circle {
+    fn calc(&self) -> f64 {
+        PI * self.radius * self.radius
+    }
+}
+
+struct Sphere {
+    radius: f64,
+}
+
+impl Round for Sphere {
+    fn calc(&self) -> f64 {
+        4f64 * PI * self.radius * self.radius
+    }
+}
+
+impl Shape for dyn Round {
+    fn area(&self) -> f64 {
+        self.calc()
+    }
+}
+
+fn main() {
+    let circle: Box<dyn Round> = Box::new(Circle { radius: 4f64 });
+    info!("The Circle area is {}", circle.area());
+    let sphere: Box<dyn Round> = Box::new(Sphere { radius: 4f64 });
+    info!("The Sphere area is {}", sphere.area());
+}
+\end{code-block}
+
+Trait不仅仅用于实现类型，约束类型，还可以用于为其他现有的数据类型添加方法/函数，
+比如：
+\begin{code-block}{rust}
+impl Round for i32 {
+    fn calc(&self) -> f64 {
+        *self as f64
+    }
+}
+
+fn main() {
+    let i_struct = 4i32;
+    i_struct.calc();
+}
+\end{code-block}
+这种类型的函数/方法，则称之为扩展方法/函数。从上述例子当中，我们似乎可以使用Trait
+对任意类型进行函数/方法的扩展，但是，这个是存在前提的：
+\begin{itemize}
+  \item impl和trait的声明/定义在同一个crate当中
+  \item 或者，impl的实现需要和类型的声明在同一个crate当中
+\end{itemize}
+如果不满足上述条件，则容易出现bug和问题，也会违反Rust的规则。
+
+Rust的Trait支持多种特性，自然也支持继承
 
 \subsection{常见错误处理方法}
 由于很多代码都是第三方的，而Rust本身也在不断的发展，有可能出现版本不兼容或者特性
