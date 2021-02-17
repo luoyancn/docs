@@ -519,6 +519,67 @@ fn main() {
 }
 \end{code-block}
 
+在Rust当中，浮点类型是非常特殊的数据类型。浮点类型当中，存在一个特殊的值：NaN，
+即非法的浮点数值，因为该数据的存在，浮点数不具备全序关系（total order）。所谓的
+全序，偏序，Rust当中的定义如下：对于集合X当中的元素a，b，c
+\begin{itemize}
+  \item 如果a<b，则!(a>b)一定成立；反之，如果a>b，则!(a<b)一定成立，即反对称性
+  \item 如果a<b，b<c，则a<c，即传递性
+  \item 对于X当中的所有元素，都存在a<b，或者a>b，或者a==b，三者必居其一，即完全性
+\end{itemize}
+如果X集合只满足前面2条，则称之为偏序；具备上述所有特征，则为全序。由于浮点数的NaN
+不满足上述第3条规则，因此，Rust的浮点数属于偏序，而非全序，这回导致一个问题：浮点
+数无法排序——非NaN的数值无法与NaN进行比较：
+\begin{code-block}{rust}
+let nan = std::f32::NAN;
+let x = 0.4f32;
+// 下列结果全部为false
+info!("{}", nan > x);
+info!("{}", nan < x);
+info!("{}", nan == x);
+\end{code-block}
+为此，Rust设计了2个Trait表示全序与偏序：\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{std::cmp::Ord}（全序）以及
+\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{std::cmd::PartialOrd}（偏序）。
+PartialOrd这个Trait的partial\_cmp方法返回的是Option<Ordering>，而Ord返回的却是
+Ordering。Rust的f32和f64都只实现了PartialOrd，因此，浮点类型无法进行排序，也同样无法
+求取最值，如下列代码，则是无法运行的：
+\begin{code-block}{rust}
+let f_vec = vec![1f32, 2.0, 4.0, 0.0, -1.2];
+let bigest_f = f_vec.iter().max();
+\end{code-block}
+对上诉代码进行编译，会直接提示如下类似的错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.2]{rust_float_cmp_error.png}
+  \caption{浮点数的最值错误求解}
+  \label{fig:rust_float_cmp_error}
+\end{figure}
+浮点数的排序只能通过partial\_cmp（比较相等关系）进行变换处理，如下方代码：
+\begin{code-block}{rust}
+let mut f_vec = vec![1f32, 2.0, 4.0, 0.0, -1.2];
+// 升序排列
+f_vec.sort_by(|first, second| first.partial_cmp(second).unwrap());
+// 获取排序后的最后一位
+let max = f_vec.last().unwrap();
+// 或者如下进行
+// let max = f_vec.as_slice().last().unwrap();
+// 降序排列
+f_vec.sort_by(|first, second| second.partial_cmp(first).unwrap());
+\end{code-block}
+
+作为常用数据类型之一，Rust的数组也存在自己的特点，比如同类型的数组之间可以相互赋值：
+\begin{code-block}{rust}
+let mut array: [u32; 4] = [1, 23, 4, 5];
+let array_copy: [u32; 4] = [5, 6, 7, 8];
+array = array_copy;
+\end{code-block}
+支持数组之间的直接比较，只是数组当中的元素本身就可以进行比较才行：
+\begin{code-block}{rust}
+let array: [u32; 4] = [1, 23, 4, 5];
+let array_copy: [u32; 4] = [5, 6, 7, 8];
+info!("{:?}", array < array_copy);
+\end{code-block}
+
 Rust当中的函数也可以称之为类型的一种，并且，每个函数都有自己单独的类型，函数的类型
 是fn。但是，函数的参数列表会影响fn类型的判断和表达，比如下面的例子：
 \begin{code-block}{rust}
@@ -613,6 +674,44 @@ let p = if x {
 \end{code-block}
 对于let-if而言，if-else的每个分支都必须是相同的数据类型，通过发散函数的任意类型
 转换特性即!与任何类型兼容，所以上述代码才能编译通过。
+
+所有的Rust变量，函数都是类型的一种，都可以通过一定的手段和方式，获得类型的具体信息。
+常见的方式有两种，一种是使用错误信息进行推断，一种则是使用标准库函数进行获得。
+
+通过构造一个特殊的函数，然后调用该函数，则可以获得相关的类型信息：
+\begin{code-block}{rust}
+// 接收一个unit参数
+fn type_id(_: ()) {}
+
+fn main() {
+    let ref i = 5;
+    type_id(i);
+}
+\end{code-block}
+
+而另外的方式，则是使用标准库函数，不过，这个标准库函数在Rust的默认stable分支当中
+是不可用的，需要在nightly分支当中进行编译使用，并且，还需要启用一些特性：
+\begin{code-block}{rust}
+#![feature(core_intrinsics)]
+use std;
+
+// 使用泛型参数进行不同类型的数据接收
+fn print_type<T>(_arg: &T) {
+    println!(
+        "The type name of arg is {}",
+        std::intrinsics::type_name::<T>()
+    );
+}
+
+fn main() {
+    let ref x = 5;
+    print_type(&x);
+}
+\end{code-block}
+编译上述代码时，则需要对编译指令进行部分的调整：
+\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}{cargo +nightly build}，
+然后即可实现对参数类型的打印输出。
+
 \subsection{Trait类型再论}
 关于类型，Trait也是比较重要的一个话题。在之前的示例当中，Trait全部是在具体的类型
 上实现的，但是，Trait本身也可以在智能指针（Box）上实现，比如：
@@ -744,7 +843,21 @@ fn main() {
 \end{itemize}
 如果不满足上述条件，则容易出现bug和问题，也会违反Rust的规则。
 
-Rust的Trait支持多种特性，自然也支持继承
+Rust的Trait支持多种特性，自然也支持继承，但是注意，Rust的结构体和enum数据类型并不
+存在继承的概念。Trait的继承方式如下：
+\begin{code-block}{rust}
+trait Base {}
+trait Derived : Base {}
+\end{code-block}
+当一个结构体实现了上述的Derived这个Trait，则必须同样实现Base这个Trait，否则就会
+出现语法错误：
+\begin{code-block}{rust}
+trait Base {}
+trait Derived : Base {}
+struct T;
+impl Derived for T {}
+impl Base for T {}
+\end{code-block}
 
 \subsection{常见错误处理方法}
 由于很多代码都是第三方的，而Rust本身也在不断的发展，有可能出现版本不兼容或者特性
