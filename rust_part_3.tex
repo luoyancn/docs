@@ -1682,4 +1682,67 @@ fn main() {
 }
 \end{code-block}
 
+实际上，*和+不仅可以用于参数处理，也可以用于语法扩展的部分，比如，我们想实现类似
+如下的一个宏：
+\begin{code-block}{rust}
+let empty = hashmap![];
+let counts = hashmap!['A' => 0, 'C' => 0, 'G' => 0, 'T' => 0];
+\end{code-block}
+则宏定义大致可能如下：
+\begin{code-block}{rust}
+macro_rules! hashmap {
+    ($key: expr => $val: expr) => {{
+        let mut map = ::std::collections::HashMap::new();
+        map.insert($key, $val);
+        map
+    }};
+}
+\end{code-block}
+但是，到目前为止，上述的宏只能实现对一对数据的操作，无法实现任意对数据的插入操作，
+因此，我们需要使用+或者*符号进行扩展，由于我们需要支持初始化一个空的hashmap，因此
+选择使用*进行扩展：
+\begin{code-block}{rust}
+macro_rules! hashmap {
+    ($key: expr => $val: expr) => {{
+        let mut map = ::std::collections::HashMap::new();
+        map.insert($key, $val);
+        map
+    }};
+}
+\end{code-block}
+虽然参数支持了任意个数，但是，在宏体当中，map的插入操作只执行了一次，我们可以继续
+使用*和+对语法部分进行扩展，扩展之后，完整的宏定义如下：
+\begin{code-block}{rust}
+macro_rules! hashmap {
+    ($($key: expr => $val: expr), *) => {{
+        let mut map = HashMap::new();
+        $(map.insert($key, $val); )*
+        map
+    }};
+}
+\end{code-block}
+使用时，则按照上述的使用方式即可：
+\begin{code-block}{rust}
+let map = hashmap!["lucifer" => 12, "titans" => 18];
+let mut empty: HashMap<String, u8> = hashmap![];
+\end{code-block}
+默认情况下，cargo并没有提供将宏定义进行展开显示的功能，但是，我们可以通过rustc
+将代码展开，确认宏定义确实是按照我们的想法进行工作的。只是需要注意，将宏定义进行
+展开显示，需要使用nightly分支，因此，我们的操作基本如下：
+\begin{code-block}{bash}
+# 切换到nightly分支
+rustup default nightly
+# 对代码进行展开
+rustc -Z unstable-options --pretty=expanded src/main.rs
+# 如果代码需要依赖其他的非std的crate的，则应当如下执行
+# rustc -Z unstable-options --pretty=expanded -L ../target/debug/deps src/main.rs
+\end{code-block}
+如果一切正常，则我们调用宏的代码就会被展开成如下的形式：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_macro_expand.png}
+  \caption{宏展开}
+  \label{fig:rust_macro_expand}
+\end{figure}
+
 \input{rust_part_4}
