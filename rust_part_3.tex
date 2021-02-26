@@ -1745,4 +1745,64 @@ rustc -Z unstable-options --pretty=expanded src/main.rs
   \label{fig:rust_macro_expand}
 \end{figure}
 
+Rust宏的灵活性非常大，可以像C/C++一样，在宏当中嵌套/调用宏：
+\begin{code-block}{rust}
+macro_rules! serial_cmd {
+    ($expression: expr, $port: expr, $item: expr, $timeout: expr) => {{
+        let mut cmd = HEADER.to_vec();
+        cmd.push($item);
+        cmd.push($expression);
+        match ($port).write(&cmd) {
+            Ok(_) => info!(
+                "Sucess {}(0x{:X>02}) the {} board, and command is {:?}",
+                stringify!($expression),
+                $expression,
+                $item,
+                &cmd
+            ),
+            Err(e) => error!(
+                "Failed to {}(0x{:X>02}) the {} board: {}",
+                stringify!($expression),
+                $expression,
+                $item,
+                e
+            ),
+        }
+        if 0 < $timeout {
+            thread::sleep(Duration::from_secs($timeout));
+        }
+    }};
+}
+
+macro_rules! serial_for_all_cmd {
+    ($expression: expr, $port: expr, $timeout: expr) => {{
+        for item in &CODE {
+            serial_cmd!($expression, $port, *item, $timeout);
+        }
+    }};
+}
+\end{code-block}
+也可以直接在宏当中，插入语句块，作为宏执行的一部分：
+\begin{code-block}{rust}
+macro_rules! serial_for_only_one {
+    ($port: expr, $location: expr, $($command: stmt),*) => {{
+        serial_cmd!(POWEROFF, $port, $location, 0);
+        trace!("Remove the block file to avoid the unexcepted error ...");
+        let _ = fs::remove_file("/dev/sdb");
+
+        serial_cmd!(SWITCH, $port, $location, 5);
+        // 执行外部代码块
+        $($command )*
+
+        serial_cmd!(POWEROFF, $port, $location, 0);
+        let _ = fs::remove_file("/dev/sdb");
+    }};
+}
+
+fn main() {
+    // 调用宏
+    serial_for_only_one!(port, location_u8, {println!("hello")});
+}
+\end{code-block}
+
 \input{rust_part_4}
