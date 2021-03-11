@@ -202,6 +202,16 @@ fn longest_with_an_announcement<'a, T>(x: &'a str, y: &'a str, ann: T) -> &'a st
 }
 \end{code-block}
 
+当存在多个生命周期需求的时候，为了表示生命周期长短，则需要使用冒号：
+\begin{code-block}{rust}
+fn test<'a, 'b>(arg: &'a T) -> &'b i32
+// 表示a的生命周期必须比b要长
+where 'a:'b
+{
+    &arg.member
+}
+\end{code-block}
+
 \section{测试}
 Rust的测试与其他语言相同，分为单元测试和集成测试。但不管是单元测试，还是集成测试，
 在测试当中，都需要遵循相同的测试规则。在默认的lib类型的crate当中，默认情况下，自动

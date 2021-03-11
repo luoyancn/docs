@@ -551,10 +551,8 @@ let r2 = &mut num as *mut i32; // 可变的裸指针
 \begin{code-block}{rust}
 fn main() {
     let mut num = 5;
-
     let r1 = &num as *const i32;
     let r2 = &mut num as *mut i32;
-
     unsafe {
         *r2 = 10;
         // r1，r2和num都会变更为10
@@ -570,13 +568,11 @@ fn main() {
     // 定义裸指针
     let r1 = &num as *const i32;
     let r2 = &mut num as *mut i32;
-
     // 使用不安全的函数/方法
     unsafe {
         unsafe_change(r1, r2);
     }
     println!("{}", num);
-
     safe_change(r1, r2);
     println!("{}", num);
 }
@@ -601,7 +597,6 @@ fn safe_change(r1: *const i32, r2: *mut i32) {
 extern "C" {
     fn abs(input: i32) -> i32;
 }
-
 fn main() {
     unsafe {
         println!("The unsafe from C: {}", abs(-200));
@@ -617,12 +612,10 @@ Interface，FFI）。外部函数接口是一个编程语言用以定义函数�
 全局变量同样可以是任意数据类型的：
 \begin{code-block}{rust}
 use std::fmt;
-
 struct Version {
     major: u8,
     minor: u8,
 }
-
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -639,7 +632,6 @@ const __VERSION__: &str = "v1.4.0";
 static __NAME__: &str = "lucifer";
 // 可变的全局变量
 static mut __COUNTER__: u8 = 1;
-
 fn main() {
     println!("{}", __CONST_NUM__);
     println!("{}", __NAME__);
@@ -647,6 +639,87 @@ fn main() {
         println!("{}", __COUNTER__);
     }
 }
+\end{code-block}
+
+但是，并不是所有情形都适合使用unsafe，Rust本身也无法从编译器层面，保证unsafe的
+代码块是完全正确的，不会出现任何错误的。比如，我们在使用裸指针*const T和*mut T
+的时候，如果不够仔细，非常容易造成错误的结果：
+\begin{code-block}{rust}
+let mut y: u32 = 1;
+let x = 1_i32;
+// 将y转换成u32的裸指针，再转换成i32的裸指针，最后转换成i64的裸指针
+let raw_mut = &mut y as *mut u32 as *mut i32 as *mut i64;
+unsafe {
+    // 对裸指针进行修改，类似于C/C++当中对指针数据的操作
+    *raw_mut = -1;
+}
+info!("The x is {:X} and y is {:X}", x, y);
+\end{code-block}
+按照我们本来的设想，x会保持不变，始终为1，而y则可能变换成其他的数值，但是，实际
+的结果却如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_raw_pointer.png}
+  \caption{具有潜在错误的裸指针示例}
+  \label{fig:rust_raw_pointer}
+\end{figure}
+x变成和y一样的值的原因在于：对指向y的指针类型做了转换，让它以为自己指向的是i64
+类型，恰巧x就在y旁边，y被修改的同时，就顺带把x也修改了。因此，使用unsafe必须特别
+小心。
+
+在通常的情况下，虽然可以通过引用+mut的方式，可以阻止大部分的内存不安全问题，但是
+由于引用+mut的强限制性，也为带来一些比较麻烦和无奈的问题，比如下面的代码：
+\begin{code-block}{rust}
+#[derive(Debug)]
+struct Tuple {
+    first: u8,
+    second: u8,
+    third: u8,
+}
+
+fn main() {
+    let mut t = Tuple {
+        first: 0,
+        second: 1,
+        third: 2,
+    };
+    let pa = &mut t.first;
+    let pb = &mut t.second;
+    let pc = &mut t.third;
+    *pc += 10;
+    info!("{:?}", t);
+}
+\end{code-block}
+上述代码是正确无误的，可以正常编译和运行，但是，如果我们将结构体变成数组，问题就
+出现了：
+\begin{code-block}{rust}
+fn main() {
+    let mut array_x = [1_i32, 2, 8];
+    let pa = &mut array_x[0];
+    let pb = &mut array_x[1];
+    *pb += 10;
+    info!("{:?}", t);
+}
+\end{code-block}
+上述代码在Rust 1.50.0版本之前就会出现错误：
+\begin{code-block}{bash}
+error: cannot borrow `x[..]` as mutable more than once at a time
+\end{code-block}
+原因在于，结构体当中，pa，pb和pc指向不同的内存区域；但是在数据当中，Rust编译器会
+将[\_]识别为一个整体，而\&[0], \&[1]之间都属于重叠，将pa和pb判断为存在别名关系，
+即pa和pb实质上相同，违反了借用规则，因此无法通过编译。在Rust 1.50.0版本之后，编译器
+针对数组进行了优化，上述代码不会再出现错误，但是，在旧版本的Rust当中，则需要采用
+其他手段进行解决，即引用分割：
+\begin{code-block}{bash}
+let mut array_x = [1_i32, 2, 3];
+// 通过split_at_mut将数组切分成2个一定不会重叠的切片
+let (first, rest): (&mut [i32], &mut [i32]) = array_x.split_at_mut(1);
+let (second, third): (&mut [i32], &mut [i32]) = rest.split_at_mut(1);
+
+first[0] += 100;
+second[0] += 200;
+third[0] += 300;
+info!("{:?}", array_x);
 \end{code-block}
 
 \subsection{高级Trait}
@@ -669,12 +742,10 @@ trait来实现对+的运算符重载：
 \begin{code-block}{rust}
 use std::fmt;
 use std::ops::{Add, AddAssign};
-
 struct Point {
     x: u8,
     y: u8,
 }
-
 // 实现结构体的 c = a + b
 impl Add for Point {
     type Output = Point;
@@ -685,7 +756,6 @@ impl Add for Point {
         }
     }
 }
-
 // 实现结构体的 a = a + b;
 impl AddAssign for Point {
     fn add_assign(&mut self, other: Point) {
@@ -693,18 +763,15 @@ impl AddAssign for Point {
         self.y = self.y + other.y;
     }
 }
-
 impl fmt::Display for Point {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "x:{}, y:{}", self.x, self.y)
     }
 }
-
 fn main() {
     let a = Point { x: 3, y: 4 };
     let b = Point { x: 5, y: 6 };
     let c = a + b;
-
     let mut d = Point { x: 100, y: 101 };
     d = d + c;
     println!("{}", d);
@@ -727,10 +794,8 @@ pub trait Add<Rhs = Self> {
 \begin{code-block}{rust}
 struct Meters(i32);
 struct Millimeters(i32);
-
 impl Add<Meters> for Millimeters {
     type Output = Millimeters;
-
     fn add(self, other: Meters) -> Millimeters {
         Millimeters(self.0 + (other.0 * 1000))
     }
@@ -758,18 +823,14 @@ let mill_meters_other = meters + mill_meters;
 \begin{code-block}{rust}
 struct Meters(i32);
 struct Millimeters(i32);
-
 impl Add<Meters> for Millimeters {
     type Output = Millimeters;
-
     fn add(self, other: Meters) -> Millimeters {
         Millimeters(self.0 + (other.0 * 1000))
     }
 }
-
 impl Add<Millimeters> for Meters {
     type Output = Millimeters;
-
     fn add(self, other: Millimeters) -> Millimeters {
         Millimeters(self.0 * 1000 + other.0)
     }
@@ -787,22 +848,18 @@ Vec<String>上的，因此我们可以采用一种方式，在一个结构体当
 \begin{code-block}{rust}
 use std::fmt;
 use std::ops::{Deref, DerefMut};
-
 struct VecWrapper(Vec<String>);
-
 impl Deref for VecWrapper {
     type Target = Vec<String>;
     fn deref(&self) -> &Vec<String> {
         &self.0
     }
 }
-
 impl DerefMut for VecWrapper {
     fn deref_mut(&mut self) -> &mut Vec<String> {
         &mut self.0
     }
 }
-
 impl fmt::Display for VecWrapper {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[")?;
@@ -812,14 +869,12 @@ impl fmt::Display for VecWrapper {
         write!(f, "]")
     }
 }
-
 fn main() {
     let mut v = VecWrapper(vec![String::from("hello"), String::from("world")]);
     v.push("zhangjl".to_string());
     for item in &v.0 {
         println!("{}", item);
     }
-
     println!("{}", v);
 }
 \end{code-block}
@@ -847,7 +902,6 @@ impl<T> Deref for VecWrapper<T> {
         &self.0
     }
 }
-
 impl<T> DerefMut for VecWrapper<T> {
     fn deref_mut(&mut self) -> &mut Vec<T> {
         &mut self.0
@@ -865,14 +919,11 @@ trait Pilot {
     fn fly(&self);
     fn name();
 }
-
 trait Wizard {
     fn fly(&self);
     fn name();
 }
-
 struct Empty;
-
 impl Pilot for Empty {
     fn fly(&self) {
         println!("This is the implement of Pilot fly method");
@@ -881,7 +932,6 @@ impl Pilot for Empty {
         println!("This is the name method of Pilot implement");
     }
 }
-
 impl Wizard for Empty {
     fn fly(&self) {
         println!("This is the implement of Wizard fly method");
@@ -898,7 +948,6 @@ Trait Pilot和Wizard定义了一个同名的方法，以及一个同名的关联
 \begin{code-block}{rust}
 fn main() {
     let empty = Empty {};
-
     empty.fly();
     Empty::name();
 }
@@ -914,10 +963,8 @@ fn main() {
 \begin{code-block}{rust}
 fn main() {
     let empty = Empty {};
-
     Wizard::fly(&empty);
     Pilot::fly(&empty);
-
     <Empty as Wizard>::name();
     <Empty as Pilot>::name();
 }
@@ -929,14 +976,11 @@ trait Pilot {
     fn fly(&self);
     fn name();
 }
-
 trait Wizard {
     fn fly(&self, name: &str);
     fn name(age: u8) -> u8;
 }
-
 ...
-
 fn main() {
     let empty = Empty {};
     Wizard::fly(&empty, "lucifer");

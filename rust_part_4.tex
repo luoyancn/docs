@@ -719,17 +719,14 @@ fn main() {
 trait Shape {
     fn area(self: Box<Self>) -> f64;
 }
-
 struct Circle {
     radius: f64,
 }
-
 impl Shape for Circle {
     fn area(self: Box<Self>) -> f64 {
         PI * self.radius * self.radius
     }
 }
-
 fn main() {
     let c = Box::new(Circle { radius: 4f64 });
     info!("{}", c.area());
@@ -743,21 +740,17 @@ fn main() {
 trait Shape {
     fn area(&self) -> f64;
 }
-
 trait Round {
     fn get_radius(&self) -> f64;
 }
-
 struct Circle {
     radius: f64,
 }
-
 impl Round for Circle {
     fn get_radius(&self) -> f64 {
         self.radius
     }
 }
-
 impl Shape for dyn Round {
     fn area(&self) -> f64 {
         let radius = self.get_radius();
@@ -782,37 +775,30 @@ fn main() {
 trait Shape {
     fn area(&self) -> f64;
 }
-
 trait Round {
     fn calc(&self) -> f64;
 }
-
 struct Circle {
     radius: f64,
 }
-
 impl Round for Circle {
     fn calc(&self) -> f64 {
         PI * self.radius * self.radius
     }
 }
-
 struct Sphere {
     radius: f64,
 }
-
 impl Round for Sphere {
     fn calc(&self) -> f64 {
         4f64 * PI * self.radius * self.radius
     }
 }
-
 impl Shape for dyn Round {
     fn area(&self) -> f64 {
         self.calc()
     }
 }
-
 fn main() {
     let circle: Box<dyn Round> = Box::new(Circle { radius: 4f64 });
     info!("The Circle area is {}", circle.area());
@@ -829,7 +815,6 @@ impl Round for i32 {
         *self as f64
     }
 }
-
 fn main() {
     let i_struct = 4i32;
     i_struct.calc();
@@ -857,6 +842,109 @@ trait Derived : Base {}
 struct T;
 impl Derived for T {}
 impl Base for T {}
+\end{code-block}
+
+Rust的Trait不仅可以包括函数的定义，同样可以直接定义函数：
+\begin{code-block}{rust}
+trait Page {
+    fn set_page(&self) {
+        info!("Page Default: 1");
+    }
+}
+trait PerPage {
+    fn set_per_page(&self) {
+        info!("Per Page Default: 1");
+    }
+}
+struct Paginate {
+    page: u32,
+}
+impl Page for Paginate {}
+impl PerPage for Paginate {}
+fn main() {
+    let page = Paginate { page: 8 };
+    page.set_page();
+    page.set_per_page();
+    page.set_skip_page();
+}
+\end{code-block}
+
+甚至于，Trait可以直接给结构体提供更多的组合方法：
+\begin{code-block}{rust}
+trait PaginateMore: Page + PerPage {
+    fn set_skip_page(&self) {
+        info!("Skip the page");
+    }
+}
+fn main() {
+    ...
+    page.set_skip_page();
+}
+\end{code-block}
+结构体根本不用自行实现Trait PaginateMore，就可以直接使用该Trait当中的方法。
+
+Trait不仅仅可以用于接口实现，在Rust当中，更重要的则是类型限定，限定某些数据只能
+做某些事情。比如下方的代码：
+\begin{code-block}{rust}
+...
+fn static_dispatch<T>(t: &T) where T: Bar {
+    ...
+}
+fn dynamic_dispatch(t : &Bar) {
+    ...
+}
+\end{code-block}
+对于实现了Trait Bar的类型来说，上述2个函数，都可以被调用，但是，从语法上，static\_dispatch
+由于使用了where，表示参数必须限定在Trait Bar类型，在编译时就能够确定；而dynamic\_dispatch
+则从语法上表示，输入的参数必须是Bar的对象，即Trait Object。运行时，Trait Object会根据虚表
+指针从虚表当中查出正确的指针，再进行动态调用，属于在运行时确定。
+
+但是并不是每一个Trait都可以当着Trait Object使用，这个和类型大小是否确定有关系。每一个
+Trait的隐藏类型参数Self默认限定为?Sized，?Sized trait包括了所有动态大小类型以及所有
+可确定大小的类型。Rust当中大部分类型都是默认可确定大小的，即<T:Sized>。当trait对象
+在运行期进行动态分发时，也必须确定大小，否则无法分配内存。只有同时满足下列条件的
+trait，才可以当作Trait Object使用：
+\begin{itemize}
+  \item Trait的Self不能被限定为Sized
+  \item Trait当中的所有方法都必须是对象安全的
+\end{itemize}
+
+而所谓的对象安全，则必须满足如下的条件\underline{\color{red} \textbf{之一}}：
+\begin{itemize}
+  \item 当Trait的Self被限定为Sized时，方法受Self:Sized约束
+  \item Trait的方法签名必须\underline{\color{red} \textbf{同时满足以下3点}}
+  \begin{enumerate}
+    \item 不包含任何泛型参数（Self）
+    \item 第一个参数必须为Self类型或可解引用为Self类型
+    \item Self不能出现在除第一个参数之外的其他地方
+  \end{enumerate}
+  \item Trait当中不能包含关联常量
+\end{itemize}
+
+比如下面的代码，就属于标准的对象安全：
+\begin{code-block}{rust}
+trait Bar {
+    fn bax(self, x: u32);
+    fn bay(&self);
+    fn baz(&mut self);
+}
+\end{code-block}
+Trait Bar不受Sized限制，Trait的方法没有额外的Self类型参数，没有泛型参数，因此是安全的。
+相对应的，不安全的Trait如下：
+\begin{code-block}{rust}
+// 对象不安全
+trait Foo {
+    fn bad<T>(&self, x:T);
+    fn new() -> Self;
+}
+
+// 对象安全
+trait Foo {
+    fn bad<T>(&self, x: T);
+    fn new() -> Self
+    where
+        Self: Sized;
+}
 \end{code-block}
 
 \subsection{常见错误处理方法}

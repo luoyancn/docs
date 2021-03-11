@@ -1142,7 +1142,7 @@ use shared::utils;
 有这样一个小的工程，名称为minigrep：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.8]{rust_lib_mod.png}
+  \includegraphics[scale=0.4]{rust_lib_mod.png}
   \caption{Lib模式的小项目}
   \label{fig:rust_lib_mod}
 \end{figure}
@@ -1520,6 +1520,25 @@ impl<T, U> Points<T, U> {
             y: other.y,
         };
     }
+}
+\end{code-block}
+
+另外需要注意的是，泛型允许拥有默认值：
+\begin{code-block}{rust}
+// T为泛型，T=u8则表示：如果不进行T类型的指定，默认情况下，T的类型是u8
+struct S<T = u8> {
+    data: T,
+}
+
+fn main() {
+    let v1 = S { data: 128 };
+    // 设置T类型为String
+    let v2 = S::<String> {
+        data: "lucifer".to_string(),
+    };
+    let v3 = S::<&str> { data: "lucifer" };
+
+    info!("{}, {}, {}", v1.data, v2.data, v3.data);
 }
 \end{code-block}
 
