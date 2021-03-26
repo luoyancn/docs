@@ -30,6 +30,8 @@
 \usepackage{tcolorbox}
 \usepackage[explicit]{titlesec}
 \usepackage{titletoc}
+% 设置minted字体
+\usepackage{fontspec}
 
 \usetikzlibrary{calc}
 \usetikzlibrary{arrows, decorations.pathmorphing,
@@ -41,6 +43,8 @@
 
 \definecolor{lbcolor}{rgb}{0.9,0.9,0.9}
 \usemintedstyle{tango}
+% 设置minted字体
+\setmonofont{CodeNewRoman Nerd Font Mono}
 \hypersetup{%
     bookmarks=true,
     % 设置文档属性的标题
@@ -59,12 +63,13 @@
 
 % 设置字体
 \setmainfont{Times New Roman}
-%\setmainfont{Monofur Nerd Font Mono}
+%\setmainfont{CodeNewRoman Nerd Font Mono}
 %宋体
 %\setCJKmainfont{SimSun}
 % 华文新楷
 %\setCJKmainfont{STXINGKA.TTF}
-\setCJKmainfont{方正硬笔行书简体.ttf}
+%\setCJKmainfont{方正硬笔行书简体.ttf}
+\setCJKmainfont{方正北魏楷书简体.ttf}
 % 设置页边距
 %\geometry{left=2.5cm,right=2.5cm,top=2.4cm,bottom=2.4cm}
 \geometry{top=2.4cm,bottom=2.4cm}
@@ -175,8 +180,8 @@
                    rightline=false, backgroundcolor=lbcolor,
                    userdefinedwidth=\textwidth]
   \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
-  %\begin{minted}[fontfamily="Monofur Nerd Font Mono", fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
  {\end{minted}\end{mdframed}\par}
+%\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
 
 % 设置警示表格
 \newenvironment{warning}

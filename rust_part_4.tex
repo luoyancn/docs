@@ -712,7 +712,34 @@ fn main() {
 \mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}{cargo +nightly build}，
 然后即可实现对参数类型的打印输出。
 
-\subsection{Trait类型再论}
+在Rust当中，与Python不同，函数/方法并不存在默认参数，但是，结构体当中的字段，却可以
+有默认值，只是，这个默认值的实现，必须和Default Trait相结合，如下：
+\begin{code-block}{rust}
+struct ColoredString {
+    input: String,
+    fg_color: String,
+    bg_color: String,
+}
+
+impl Default for ColoredString {
+    fn default() -> Self {
+        ColoredString {
+            input: String::default(),
+            fg_color: String::default(),
+            bg_color: String::default(),
+        }
+    }
+}
+
+fn main() {
+    let color = ColoredString::default();
+}
+\end{code-block}
+从上述代码当中可以看出，实际上，并不是Rust的结构体字段赋予了初始值，而是通过一个
+名为default的方法，构造一个我们认为应该具有默认值的结构体。在Rust当中，常用的基本
+数据类型都实现了Default Trait，可以直接使用对应的default方法。
+
+\subsection{Trait类型与泛型再论}
 关于类型，Trait也是比较重要的一个话题。在之前的示例当中，Trait全部是在具体的类型
 上实现的，但是，Trait本身也可以在智能指针（Box）上实现，比如：
 \begin{code-block}{rust}
@@ -944,6 +971,102 @@ trait Foo {
     fn new() -> Self
     where
         Self: Sized;
+}
+\end{code-block}
+
+当然，Sized约束也可以用于Trait定义当中。比如，自行实现一个类似any的Any Trait。
+\begin{code-block}{rust}
+use std::ops::Fn;
+trait CustomAny {
+    fn custom_any<F>(&self, f: F) -> bool
+    where
+        Self: Sized,
+        F: Fn(u32) -> bool;
+}
+
+impl CustomAny for Vec<u32> {
+    fn custom_any<F>(&self, f: F) -> bool
+    where
+        Self: Sized,
+        F: Fn(u32) -> bool,
+    {
+        for &x in self {
+            if f(x) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+fn main() {
+    let v: Vec<u32> = vec![1, 2, 3];
+    info!("{}", v.iter().any(|&x| x == 3));
+    info!("{}", v.custom_any(|x| x == 3));
+}
+\end{code-block}
+
+Trait当中不仅可以包含函数和方法，同样可以包含变量和常量，即所谓的关联变量以及关联
+常量。关联常量的使用稍微有些特殊，在Trait当中可以定义关联常量，但是，使用的时候，
+却是通过Trait的实现对象来使用这些关联常量的：
+\begin{code-block}{rust}
+trait Colorize {
+    // 定义关联常量
+    const FG_RED: &'static str = "31";
+    const BG_YELLOW: &'static str = "43";
+    fn red(self) -> ColoredString;
+    fn on_yellow(self) -> ColoredString;
+}
+
+impl Colorize for ColoredString {
+    fn red(self) -> ColoredString {
+        ColoredString {
+            // 使用关联常量，如果是Colorize::FG_RED，则会提示错误
+            fg_color: String::from(ColoredString::FG_RED),
+            ..self
+        }
+    }
+    fn on_yellow(self) -> ColoredString {
+        ColoredString {
+            bg_color: String::from(ColoredString::BG_YELLOW),
+            ..self
+        }
+    }
+}
+\end{code-block}
+
+Trait不仅仅可以实现泛型，泛型也不仅限于Trait和<T>，对于函数/方法，也可以使用在
+泛型、生命周期以及Trait当中，比如，显式的指定闭包的生命周期：
+\begin{code-block}{rust}
+// 将函数作为泛型参数
+struct Pick<F> {
+    data: (u32, u32),
+    func: F,
+}
+
+impl<F> Pick<F>
+where
+    // for<>只能用于标记生命周期
+    F: for<'f> Fn(&'f (u32, u32)) -> &'f u32,
+{
+    fn call(&self) -> &u32 {
+        (self.func)(&self.data)
+    }
+}
+
+fn max(data: &(u32, u32)) -> &u32 {
+    if data.0 > data.1 {
+        return &data.0;
+    }
+    &data.1
+}
+
+fn main() {
+    let pick = Pick {
+        data: (32, 34),
+        func: max,
+    };
+    info!("{}", pick.call());
 }
 \end{code-block}
 

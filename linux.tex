@@ -564,6 +564,24 @@ tar xvpfz /var/local/backup.tgz -C /
 unsquashfs xxx.squashfs
 \end{code-in-enumerate}
 
+\1 读取和修改镜像文件
+
+除了使用virt-filesystem和guestmount之外，还可以通过loop设备，对镜像文件进行修改，
+并且效率更高
+\begin{code-in-enumerate}{bash}
+# 建立loop设备
+losetup -f --show centos.img #输出可能是/dev/loop0，或者/dev/loop1等
+# 读取镜像文件的分区表，并建立映射
+kpartx -av /dev/loop0
+# 挂载指定的分区，然后进行修改
+mount /dev/mapper/loop0p2 /mnt
+umount /mnt
+# 删除分区映射
+kpartx -dv /dev/loop0
+# 删除loop设备映射
+losetup -d /dev/loop0
+\end{code-in-enumerate}
+
 \end{outline}
 
 \section{gdb在线调试运行程序}
