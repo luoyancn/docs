@@ -1107,6 +1107,149 @@ impl CircleBuilder {
 }
 \end{code-block}
 
+\subsection{并行与并发再论}
+虽然Rust本身的线程/进程管理非常完善，但是，thread::spawn产生的线程没有名称，并且
+其栈空间大小默认为2M，如果需要需要针对线程/进程进行粒度更细的操作，比如自定义
+线程名称，自定义线程的资源等等，此时，就需要使用thread::Builder进行修改，具体示例
+如下：
+\begin{code-block}{rust}
+let mut v_thread = vec![];
+for id in 1..5 {
+    let thread_name = format!("child-{}", id);
+    let size: usize = 1024;
+    // 定义线程的名称，设置线程占用的栈大小为1M(1024)
+    let builder = Builder::new().name(thread_name).stack_size(size);
+    // builder.spawn返回的是Result<JoinHander, std::io::Error>
+    // 需要进行处理，取出真正的线程句柄
+    match builder.spawn(move || {
+        info!(
+            "In the child: {}, and the child name is {}",
+            id,
+            current().name().unwrap()
+        );
+    }) {
+        Ok(child) => v_thread.push(child),
+        Err(error) => error!("Cannot create the thread {} because: {:?}", id, error),
+    };
+}
+
+// 其他的同普通的线程，
+for child in v_thread {
+    child.join().unwrap();
+}
+\end{code-block}
+
+由于线程包含自己的资源空间，因此，存在一个特殊的存储空间——线程本地存储（Thread Local Storage，TLS），
+存放在该区域的资源，其他线程无法访问，而是每个线程独占的数据：
+\begin{code-block}{rust}
+use std::cell::RefCell;
+use std::thread;
+
+fn main() {
+    // 在线程本地存储定义一个FOO变量，最终的类型是thread::LocalKey
+    thread_local!(static FOO: RefCell<u32> = RefCell::new(1));
+    // 提供了一个with方法，可以通过给该方法传入闭包
+    // 来操作线程本地存储中包含的变量
+    FOO.with(|f| {
+        info!("The f borrow is {}", *f.borrow());
+        *f.borrow_mut() = 2;
+    });
+
+    let handler = thread::spawn(move || {
+        // 子线程也有一个线程本地存储实例FOO，为主线程的副本
+        // 也可以使用thread_local!宏在该子线程中重新创建一个LocalKey实例
+        FOO.with(|f| {
+            info!("In the handler thread The f borrow is {}", *f.borrow());
+            *f.borrow_mut() = 3;
+        });
+    });
+
+    // 主线程当中FOO实例并没有被子线程修改为3
+    // thread local!宏定义单个线程内的一些独享数据
+    FOO.with(|f| {
+        info!("The f borrow is {}", *f.borrow());
+    });
+
+    handler.join().unwrap();
+}
+\end{code-block}
+
+在同步原语支持方面，Rust也有自己的实现方式，通过使用std::thread当中的park函数提供
+阻塞线程的能力，但并不能永久的阻塞线程，存在时间限制；而std::thread::part\_timeout
+则可以显式的指定阻塞的超时时间；std::thread::Thread::unpark则可以将阻塞的线程重启；
+如果需要让出当前线程的时间片，则需要使用std::thread::yeild\_now，让其他线程进行执行。
+简单的阻塞例子如下：
+\begin{code-block}{rust}
+use std::thread::{self, Builder};
+use std::time::Duration;
+
+fn main() {
+    let parked_thread = Builder::new()
+        .spawn(|| {
+            info!("Parking the thread ...");
+            // 阻塞当前线程
+            thread::park();
+            info!("Thread parked");
+        })
+        .unwrap();
+    thread::sleep(Duration::from_secs(5));
+    info!("Unparking the thread");
+    // 从JoinHandle中得到具体的线程
+    parked_thread.thread().unpark();
+    // 将该线程重新启动，该线程会继续沿着之前暂停的上下文执行
+    parked_thread.join().unwrap();
+}
+\end{code-block}
+
+除了常见的互斥锁（Mutex）之外，Rust也支持读写锁（RwLock）。读写锁的基本示例如下：
+\begin{code-block}{rust}
+use std::sync::RwLock;
+
+fn main() {
+    let rw_lock = RwLock::new(5);
+    // 读写锁的使用必须使用{}进行区分，即便是单独使用读或者写也是一样
+    // 通过代码块{}，让读写锁自动释放，否则会出现死锁
+    {
+        let read_1 = rw_lock.read().unwrap();
+        let read_2 = rw_lock.read().unwrap();
+        info!("The read_1 is {}, and read_2 is {}", read_1, read_2);
+    }
+    {
+        let mut write = rw_lock.write().unwrap();
+        *write = 100;
+    }
+    info!("The data is {:?}", rw_lock);
+}
+\end{code-block}
+
+而针对于同步的需求，Rust提供了屏障（Barrier）和条件变量（Condition Variable）原语。
+屏障，是要求所有的条件全部满足之后，再进行后续操作，即在满足某个条件前，阻塞全部的
+线程，通常用于线程同步，如下：
+\begin{code-block}{rust}
+use std::sync::{Arc, Barrier};
+use std::thread;
+
+fn main() {
+    let mut vec = vec![];
+    let barrier = Arc::new(Barrier::new(5));
+    for id in 0..5 {
+        let barrier_copy = barrier.clone();
+        vec.push(thread::spawn(move || {
+            info!("Thread {} Waiting the other threads...", id);
+            // wait阻塞了所有的线程，当所有线程的wait之前部分全部执行完成之后
+            // wait操作才算执行完成，才会执行每个线程后续的操作
+            barrier_copy.wait();
+            info!("{} After wait...", id);
+        }));
+    }
+
+    for handler in vec {
+        handler.join().unwrap();
+    }
+}
+\end{code-block}
+
+
 \subsection{常见错误处理方法}
 由于很多代码都是第三方的，而Rust本身也在不断的发展，有可能出现版本不兼容或者特性
 不兼容的情况，此时，则需要进行相关的修改。比如下面的一种错误：
