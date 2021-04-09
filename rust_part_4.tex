@@ -1318,21 +1318,77 @@ Rust支持5种内存顺序，归为3大类：
   \item 获取-释放顺序——Release，Acquire和AcqRel： 是除排序一致性顺序之外的优先选择，默认情况下，不会对全部线程进行统一强制性的执行顺序要求，store表示释放（release），而load表示获取（acquire），通过这2种操作的协作实现线程同步。Release表示使用该顺序的store操作，之前所有的操作对于使用Acquire顺序的load操作都可见；反之，使用使用Aquire顺序的load操作，对于使用Release的store操作都是可见的；AcqRel表示读时使用Acquire顺序的load操作，写时使用Release顺序的store操作。获取释放顺序虽然不像排序一致性顺序那样对全局线程统一排序，但是它让每个线程都能接固定的顺序执行。
 \end{itemize}
 
-\subsection{常见错误处理方法}
-由于很多代码都是第三方的，而Rust本身也在不断的发展，有可能出现版本不兼容或者特性
-不兼容的情况，此时，则需要进行相关的修改。比如下面的一种错误：
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\linewidth]{rust_feature_error.png}
-  \caption{缺少特性支持编译失败}
-  \label{fig:rust_feature_error}
-\end{figure}
-遇到这种错误，则需要直接修改对应的类库的源代码。以上述错误为例，编译的help表示
-\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}{add `#![feature(array_value_iter_slice)]` to the crate attributes to enable}，
-则我们应当在对应的crate的lib.rs的头部当中，添加内容如下：
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\linewidth]{rust_feature_add.png}
-  \caption{增加特性支持}
-  \label{fig:rust_feature_add}
-\end{figure}
+在此之前，已经谈到Rust支持channel通信来解决多线程环境所遇到的问题，比如之前的小例子：
+\begin{code-block}{rust}
+use std::thread;
+use std::sync::mpsc::channel;
+
+fn main() {
+    let (tx, rx) = channel();
+    let handler = thread::spawn(move || {
+        tx.send(10).unwrap();
+    });
+
+    let res = rx.recv().unwrap();
+    handler.join().unwrap();
+}
+\end{code-block}
+像这种只有2个线程间通信的channel，称之为流通道，在流通道的内部，默认使用的是单生产者
+单消费者的模式来提升性能。在此之前，我们看到多个发送者（生产者）单个接收者（消费者）
+模式的通道，则称之为共享通道。而由于统一使用的channel函数生成通道，这样的通道又
+称之为异步通道，即所有的操作都可以异步的进行处理，不会出现线程阻塞的情况。
+
+同步通道的例子则如下：
+\begin{code-block}{rust}
+use std::thread;
+use std::sync::mpsc::sync_channel;
+
+fn main() {
+    // 创建缓冲区为1的同步通道
+    let (tx, rx) = sync_channel(1);
+    tx.send(1).unwrap();
+    let handler = thread::spawn(move || {
+        tx.send(2).unwrap();
+    });
+
+    let res1 = rx.recv().unwrap();
+    info!("The result is {}", res1);
+    let res2 = rx.recv().unwrap();
+    info!("The result2 is {}", res2);
+    handler.join().unwrap();
+}
+\end{code-block}
+在上述代码当中，由于channel的缓冲区设置为1，所以，当第一条信息被消费（recv）之前，
+后续的消息发送会被一直阻塞，直到缓冲区可用为止。
+
+虽然channel解决了很多的多线程同步和共享问题，但是，channel并没有解决死锁的问题，
+当设计不周到的时候，channel同样会出现死锁的问题：
+\begin{code-block}{rust}
+use std::thread;
+use std::sync::mpsc::channel;
+fn main() {
+    let (tx, rx) = channel();
+    let mut handlers = vec![];
+    for i in 0..5 {
+        let tc = tx.clone();
+        let handler = thread::spawn(move || {
+            tc.send(i).unwrap();
+        });
+        handlers.push(handler);
+    }
+    // 如果注释下面代码，主线程将一直不退出
+    // drop(tx);
+    for j in rx.iter() {
+        info!("{:?}", j);
+    }
+    for handler in handlers {
+        handler.join().unwrap();
+    }
+}
+\end{code-block}
+因为rx的iter方法会阻塞线程，只要tx还没有被析构，该迭代器就会一直等待新的消息，
+只有tx被析构之后，迭代器才能返回None，从而结束退出main主线程。由于上述代码的tx
+一直没有析构，所以迭代器依旧会进行等待，但是tx也没有发送信息，从而造成死锁的状态。
+显式调用drop之后，死锁将不会存在。
+
+\input{rust_part_5}
