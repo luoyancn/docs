@@ -102,6 +102,13 @@ vi /usr/share/texmf-dist/tex/latex/ctex/fontset/ctex-xecjk-winfonts.def
 \begin{code-block}{bash}
 pygmentize -L lexers
 \end{code-block}
+而常见的latex颜色代码则如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{ColoursEx6.png}
+  \caption{Latex常见颜色代码}
+  \label{fig:latex_color_codes}
+\end{figure}
 
 \section{OpenStack社区的git设置}
 由于各种原因，如果使用ssh的方式，社区的gerrit是无法正常连接的。但是，社区的gerrit
@@ -534,7 +541,7 @@ echo 1 > /proc/sys/vm/drop_caches
 fdisk -l -u /dev/sda
 \end{code-in-enumerate}
 
-如图\nameref{fig:backup}所示，标红部分即为我们所需的max\_size:
+如图\colorunderlineref{fig:backup}所示，标红部分即为我们所需的max\_size:
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{backup.png}

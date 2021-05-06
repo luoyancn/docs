@@ -46,7 +46,7 @@ initrd.img即为初始化的ramdisk文件，它是一个镜像文件。
 grub2-mkconfig -o /boot/grub2/grub.cfg
 \end{code-block}
 
-修改完成之后，重启服务器，即可发现新编译的内核，如下图\nameref{fig:new-kernel}
+修改完成之后，重启服务器，即可发现新编译的内核，如下图\colorunderlineref{fig:new-kernel}
 \begin{figure}[H]
   \centering
   \includegraphics[scale=0.2]{new-kernel.png}
@@ -171,7 +171,7 @@ EXPORT_SYMBOL(sub_int); // 导出函数
 \begin{code-block}{bash}
 grep add_int /proc/kallsyms
 \end{code-block}
-一切正常的话，结果大致如下图\nameref{fig:export}所示：
+一切正常的话，结果大致如下图\colorunderlineref{fig:export}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{export.png}
@@ -233,7 +233,7 @@ module_exit(params_exit);
 \end{code-block}
 
 内核模块编译完成之后，可以使用modinfo进行查看，比如modinfo params.ko，其结果大致
-如下图\nameref{fig:params}所示：
+如下图\colorunderlineref{fig:params}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{params.png}
@@ -247,7 +247,7 @@ insmod params.ko book_name=zhangjl num=100
 # 传递包含空格的字符串
 insmod params.ko book_name='"zhangjl and his family"' num=100
 \end{code-block}
-内核模块加载之后，查看日志，会有如下图\nameref{fig:params_out}的输出：
+内核模块加载之后，查看日志，会有如下图\colorunderlineref{fig:params_out}的输出：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{params_out.png}
@@ -258,7 +258,7 @@ insmod params.ko book_name='"zhangjl and his family"' num=100
 \section{内核模块与版本号}
 每一个版本的内核都有自己的版本号描述，而这些版本号描述，会直接影响内核模块的工作。
 而内核的版本号是根据git信息自动生成的，具体是通过内核代码当中的scripts/setlocalversion
-这个脚本生成的。执行该脚本，其输出如下图\nameref{fig:version}所示：
+这个脚本生成的。执行该脚本，其输出如下图\colorunderlineref{fig:version}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{version.png}
@@ -1568,7 +1568,7 @@ int main(int argc, char *argv[])
         return 0;
 }
 \end{code-block}
-加载该内核模块，然后运行对应的测试程序，可以看到，内核日志的输出如下图\nameref{fig:seconds}所示：
+加载该内核模块，然后运行对应的测试程序，可以看到，内核日志的输出如下图\colorunderlineref{fig:seconds}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[scale=0.5]{seconds.png}

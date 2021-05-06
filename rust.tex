@@ -50,7 +50,7 @@ Rust本身也支持进行交叉编译，可以在Linux下完成针对ARM/Windows
 rustup target list
 \end{code-block}
 
-其结果大致如下图\nameref{fig:rust_target}所示。
+其结果大致如下图\colorunderlineref{fig:rust_target}所示。
 \begin{figure}[H]
   \centering
   \includegraphics[scale=0.5]{rust_target.png}
@@ -725,7 +725,7 @@ println!("{}", ele);
 
 \subsection{Mod管理模式}
 Mod管理模式和Python/Golang的路径管理类似，直接从当前工程的src路径一直往下进行
-查找，直到最终找到。首先看一个Rust工程结构, 如下图\nameref{fig:rust_mod}所示。
+查找，直到最终找到。首先看一个Rust工程结构, 如下图\colorunderlineref{fig:rust_mod}所示。
 \begin{figure}[H]
   \centering
   \includegraphics[scale=0.4]{rust_mod.png}
@@ -1302,7 +1302,7 @@ println!("{number:>width$}", number = 100, width = 6);
 // 设置数据的显示宽度为6，向右对齐，不足的部分显示为0
 println!("{number:>0width$}", number = 100, width = 6);
 \end{code-block}
-上述代码的执行结果大致如下图\nameref{fig:rust_format}所示。
+上述代码的执行结果大致如下图\colorunderlineref{fig:rust_format}所示。
 \begin{figure}[H]
   \centering
   \includegraphics[scale=0.6]{rust_format.png}

@@ -10,7 +10,7 @@ kube-controller-manager；而node则包含了kubelet和kube-proxy。当然，可
     \item kube-proxy：负责为Service提供cluster内部的服务发现和负载均衡。只负责当前节点，单点。
 \end{itemize}
 
-创建一组pod时，其内部大致流程如图 \nameref{fig:create_pod}所示
+创建一组pod时，其内部大致流程如图 \colorunderlineref{fig:create_pod}所示
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{create_pod.png}
@@ -26,7 +26,7 @@ kube-controller-manager；而node则包含了kubelet和kube-proxy。当然，可
     \item controller-manager会监听API server的端口，对node、pod副本、资源等进行管理
 \end{enumerate}
 
-而通过外部访问pod时，其内部流程又存在一些区别，其大致如图\nameref{fig:visit_pod}所示
+而通过外部访问pod时，其内部流程又存在一些区别，其大致如图\colorunderlineref{fig:visit_pod}所示
 \begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{visit_pod.png}
@@ -670,7 +670,7 @@ Deployment只是指定了pod的副本数，调度规则，以及资源使用，�
 service依然可以创建，只是service不可用而已。
 
 另外需要注意的是，service和deployment创建的先后顺序会影响pod的env属性。
-如果service先于deployment创建，则pod的env属性当中，会存在service的env，如图\nameref{fig:k8s_service}所示，
+如果service先于deployment创建，则pod的env属性当中，会存在service的env，如图\colorunderlineref{fig:k8s_service}所示，
 反之，则不存在。因此，操作顺序上一般是先创建service，再创建deployment。
 \begin{figure}[H]
   \centering

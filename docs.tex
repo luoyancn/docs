@@ -61,6 +61,13 @@
     urlcolor=cyan!50!black!90
 }
 
+\newcommand\dunderline[3][-1pt]{{%
+  \sbox0{#3}%
+  \ooalign{\copy0\cr\rule[\dimexpr#1-#2\relax]{\wd0}{#2}}}}
+
+\newcommand{\colorunderlineref}[1]{{\color{RedOrange} \dunderline{1pt}{\nameref{#1}}}}
+\newcommand{\colorunderline}[1]{{\color{WildStrawberry} \dunderline{1pt}{#1}}}
+
 % 设置字体
 \setmainfont{Times New Roman}
 %\setmainfont{CodeNewRoman Nerd Font Mono}

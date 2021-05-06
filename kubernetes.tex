@@ -669,7 +669,7 @@ replication sets和pods不存在，则会自动创建相关的资源；如果相
 
 \1 创建水平自动扩展
 
-自动扩展要求有监控服务的存在，因此，\nameref{heapster}的安装是必不可少的。另外，自动扩展针对的对象
+自动扩展要求有监控服务的存在，因此，\colorunderlineref{heapster}的安装是必不可少的。另外，自动扩展针对的对象
 是deployments，并且，deployments当中的每个资源使用都有限制，才可以进行自动扩展和收缩。
 由于我们已经限定了namespace的quota和limits，因此，可以不用添加其他参数。但是，如果
 namespace当中没有设置limits，则需要在创建deployments时，需要指定参数--requests=cpu=xxx。

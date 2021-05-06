@@ -1,7 +1,7 @@
 \chapter{ARM与嵌入式}
 
 \section{ARM Cortex的指令集}
-ARM Cortex主要有9种运行模式，每一种运行模式的代码及说明如下图\nameref{fig:arm_arch}所示
+ARM Cortex主要有9种运行模式，每一种运行模式的代码及说明如下图\colorunderlineref{fig:arm_arch}所示
 \begin{figure}[H]
   \centering
   \includegraphics[scale=0.8]{arm_models.png}
@@ -10,7 +10,7 @@ ARM Cortex主要有9种运行模式，每一种运行模式的代码及说明如
 \end{figure}
 
 ARM还拥有18个寄存器，每个寄存器长度为32位，R0～R12为通用寄存器，R13为栈指针寄存器（SP），R14为
-链接指针寄存器（LP），R15为程序计数器（PC），如下图\nameref{fig:arm_reg}所示
+链接指针寄存器（LP），R15为程序计数器（PC），如下图\colorunderlineref{fig:arm_reg}所示
 \begin{figure}[H]
   \centering
   \includegraphics[scale=0.6]{arm_reg.png}
@@ -22,7 +22,7 @@ ARM还拥有18个寄存器，每个寄存器长度为32位，R0～R12为通用�
 R0-R12寄存器，在所有模式（除快速中断模式）当中共享；快速中断（通常与硬件相关，FIQ）独占R8~R12寄存器；PC和CPSR寄存器是所有模式共享；
 其余的寄存器基本是每种模式自己独占；用户模式（Usr）下不存在SPSR。
 
-每一条ARM指令都是32位长度的，CPSR指令的格式大致如下图\nameref{fig:arm_command}所示：
+每一条ARM指令都是32位长度的，CPSR指令的格式大致如下图\colorunderlineref{fig:arm_command}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{arm_command.png}
@@ -92,7 +92,7 @@ arm-linux-gnueabihf-pkg-config --list-all | grep gtk
 arm-linux-gnueabihf-pkg-config --libs gtk+-2.0
 arm-linux-gnueabihf-pkg-config --cflags gtk+-2.0
 \end{code-in-enumerate}
-如果出现下面图\nameref{fig:cross_cv}的显示，则说明交叉编译的依赖关系没有问题了，可以进行编译了。
+如果出现下面图\colorunderlineref{fig:cross_cv}的显示，则说明交叉编译的依赖关系没有问题了，可以进行编译了。
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{cross_cv.png}
@@ -162,7 +162,7 @@ OpenCV会默认安装在/usr/local下，如果需要更改安装路径，则需�
 -D CMAKE_INSTALL_PREFIX=/opt/opencv #指定的路径
 \end{code-in-enumerate}
 
-如果cmake的信息当中，提示GUI没有支持，如图\nameref{fig:cross_gui}所示，一定要在嵌入式平台端安装GTK或者QT等图形化开发
+如果cmake的信息当中，提示GUI没有支持，如图\colorunderlineref{fig:cross_gui}所示，一定要在嵌入式平台端安装GTK或者QT等图形化开发
 的lib库，否则，OpenCV在运行时，将无法显示图像。
 \begin{figure}[H]
   \centering
@@ -177,7 +177,7 @@ make
 make install
 \end{code-in-enumerate}
 如果一切顺利，将在opencv/build\_arm/install生成我们所需要的OpenCV文件，包括头文件，
-so文件和其他的文件，大致如下图\nameref{fig:cross_finish}所示：
+so文件和其他的文件，大致如下图\colorunderlineref{fig:cross_finish}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{cross_finish.png}
@@ -201,7 +201,7 @@ fusermount -u /mnt
 ldconfig -v
 \end{code-in-enumerate}
 
-如果输出结果类似下面图\nameref{fig:cross_transplant}所示，则说明编译OpenCV移植成功，则ARM的嵌入式系统当中，可以正常使用。
+如果输出结果类似下面图\colorunderlineref{fig:cross_transplant}所示，则说明编译OpenCV移植成功，则ARM的嵌入式系统当中，可以正常使用。
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{cross_transplant.png}
@@ -367,7 +367,7 @@ export CROSS_COMPILE=/opt/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bi
 make -C . ARCH=ARM BR2_TOOLCHAIN_EXTERNAL_PATH=/opt/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/
 nconfig
 \end{code-block}
-进入Target options菜单，如下图\nameref{fig:buildroot}所示：
+进入Target options菜单，如下图\colorunderlineref{fig:buildroot}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{buildroot.png}
@@ -377,14 +377,14 @@ nconfig
 选择Target Architecture为ARM(little endian)，
 Target Architecture Variant为cortex-A9，启用Enable NEON SIMD extension support和
 Enable VFP extension support，选择Target ABI为EABIhf，Floating point strategy为
-NEON，如下图\nameref{fig:target_options}所示：
+NEON，如下图\colorunderlineref{fig:target_options}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{target_options.png}
   \caption{目标选项}
   \label{fig:target_options}
 \end{figure}
-选择Toolchain，进行工具链的选择，如下图\nameref{fig:toolchain}所示：
+选择Toolchain，进行工具链的选择，如下图\colorunderlineref{fig:toolchain}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{toolchain.png}
@@ -392,7 +392,7 @@ NEON，如下图\nameref{fig:target_options}所示：
   \label{fig:toolchain}
 \end{figure}
 
-选择System configuration，进行主机名和密码的设置，如下图\nameref{fig:sys_config}所示：
+选择System configuration，进行主机名和密码的设置，如下图\colorunderlineref{fig:sys_config}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{sys_config.png}
@@ -1200,7 +1200,7 @@ cd hello_world
 bsp-editor
 \end{code-block}
 选择“New HPS BSP”菜单，然后设置“Preloader settings directory”指向目标目录为hello\_world/hps\_isw\_handoff/system\_acl\_iface\_hps，
-然后选择ok与生成，如下图\nameref{fig:bsp}所示：
+然后选择ok与生成，如下图\colorunderlineref{fig:bsp}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{bsp.png}
@@ -1237,7 +1237,7 @@ export LOADADDR=0x8000
 make menuconfig
 \end{code-block}
 
-勾选所有的USB摄像头驱动，如图\nameref{fig:usb_camera}所示：
+勾选所有的USB摄像头驱动，如图\colorunderlineref{fig:usb_camera}所示：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{usb_camera.png}

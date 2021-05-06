@@ -22,10 +22,10 @@ GRANT ALL PRIVILEGES ON ironic.* TO 'ironic'@'%' IDENTIFIED BY 'ironic';
 \end{code-block}
 
 \section{KeyStone安装配置}
-参见章节\nameref{keystone_install}
+参见章节\colorunderlineref{keystone_install}
 
 \section{Glance安装配置}
-参见章节\nameref{glance_install}
+参见章节\colorunderlineref{glance_install}
 
 \section{制作镜像}
 Ironic部署需要2类镜像：1是deploy的镜像，这类镜像当中安装有ironic-python-agent，用于引导物理机启动，并安装操作系统；
@@ -85,7 +85,7 @@ drwxr-xr-x. 3 root root         34 Aug 19 11:38 centos7.d
 
 \begin{attention}
 在制作ubuntu，redhat6，centos6的image时，FS\_TYPE可以不用设置;
-但是在制作\underline{\color{red} \textbf{\textit{centos7，rhel7，fedora（>22）}}}镜像的时候，
+但是在制作\colorunderline{centos7，rhel7，fedora（>22）}镜像的时候，
 如果忘记设置FS\_TYPE环境变量，则会导致格式化硬盘默认采用的是ext4格式， 而image的fstab当中，
 配置的却是xfs格式。这会导致操作系统无法启动。因此，如果忘记设置FS\_TYPE，镜像制作完毕之后，
 还需要进行相关的修改。
@@ -344,7 +344,7 @@ ipmitool -I lanplus -H 192.168.132.14  -U ADMIN -P ADMIN chassis power status
 \end{code-block}
 
 如果以上的命令执行成功，则表示ipmi可用。反之，则需要检测ipmi的配置。
-以Dell PowerEdge R510为例，如果命令执行不成功，需要勾选图 \nameref{fig:ipmi}中的红色部分。
+以Dell PowerEdge R510为例，如果命令执行不成功，需要勾选图 \colorunderlineref{fig:ipmi}中的红色部分。
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{ipmi.png}

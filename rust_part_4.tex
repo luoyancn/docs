@@ -538,6 +538,7 @@ let bigest_f = f_vec.iter().max();
   \label{fig:rust_float_cmp_error}
 \end{figure}
 浮点数的排序只能通过partial\_cmp（比较相等关系）进行变换处理，如下方代码：
+\label{float_sort}
 \begin{code-block}{rust}
 let mut f_vec = vec![1f32, 2.0, 4.0, 0.0, -1.2];
 // 升序排列
@@ -910,10 +911,10 @@ trait，才可以当作Trait Object使用：
   \item Trait当中的所有方法都必须是对象安全的
 \end{itemize}
 
-而所谓的对象安全，则必须满足如下的条件\underline{\color{red} \textbf{之一}}：
+而所谓的对象安全，则必须满足如下的条件\colorunderline{之一}：
 \begin{itemize}
   \item 当Trait的Self被限定为Sized时，方法受Self:Sized约束
-  \item Trait的方法签名必须\underline{\color{red} \textbf{同时满足以下3点}}
+  \item Trait的方法签名必须\colorunderline{同时满足以下3点}
   \begin{enumerate}
     \item 不包含任何泛型参数（Self）
     \item 第一个参数必须为Self类型或可解引用为Self类型

@@ -295,7 +295,7 @@ __must_be_array(e); // 同样是编译提示错误
 \end{outline}
 
 \section{Makefile}
-Makefile当中包含了一些特殊的系统变量，这些特定的系统变量如表\nameref{tab:macro_of_makefile}所示
+Makefile当中包含了一些特殊的系统变量，这些特定的系统变量如表\colorunderlineref{tab:macro_of_makefile}所示
 \begin{center}
   \rowcolors{2}{green!80!yellow!50}{green!70!yellow!40}
   \begin{tabularx}{\textwidth}{|X|X|}
@@ -328,7 +328,7 @@ testmain : $(OBJS)
         @$(CC) -o $@ $^
 \end{code-block}
 
-Makefile本身也支持嵌套。假设现在有一个工程，其目录结构如图\nameref{fig:submake}所示。
+Makefile本身也支持嵌套。假设现在有一个工程，其目录结构如图\colorunderlineref{fig:submake}所示。
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{make.png}

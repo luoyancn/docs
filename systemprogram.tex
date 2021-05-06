@@ -353,7 +353,7 @@ return 0;
 作为IO的操作函数。
 
 \section{目录IO}
-除了文件IO和标准IO之外，Linux还提供了针对路径（目录）的IO操作函数，具体如图\nameref{fig:dirio}所示
+除了文件IO和标准IO之外，Linux还提供了针对路径（目录）的IO操作函数，具体如图\colorunderlineref{fig:dirio}所示
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{dirio.png}
@@ -463,7 +463,7 @@ Linux常见的进程间通信模式主要如下：
             对于它的读写也可以使用普通的read、write 等函数。但是它不是普通的文件，并不属于其他任何文件系统，并且只存在于内存中。
 \end{itemize}
 
-当一个管道建立时，它会创建两个文件描述符：fd[0]为读而打开，fd[1]为写而打开。如下图:\nameref{fig:pipe}
+当一个管道建立时，它会创建两个文件描述符：fd[0]为读而打开，fd[1]为写而打开。如下图:\colorunderlineref{fig:pipe}
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{pipe.png}
@@ -473,7 +473,7 @@ Linux常见的进程间通信模式主要如下：
 需要注意的是，fd[0]永远用于读取，不管是子进程还是父进程，都只能从fd[0]读取；fd[1]永远用于写入，子进程和父进程都只能从
 fd[1]写入。如果fd的使用搞反，则会导致消息无法正常传递。
 
-单个进程中的管道几乎没有任何用处。所以，通常调用 pipe 的进程接着调用 fork，这样就创建了父进程与子进程之间的 IPC 通道。如下图所示:\nameref{fig:fork_pipe}
+单个进程中的管道几乎没有任何用处。所以，通常调用 pipe 的进程接着调用 fork，这样就创建了父进程与子进程之间的 IPC 通道。如下图所示:\colorunderlineref{fig:fork_pipe}
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{fork_pipe.png}
@@ -663,7 +663,7 @@ int main(int argc, char * argv[])
 操作属于信号量和中断的范畴。上述例子可以展成客户进程—服务器进程通信的实例，可以打开多个客户端
 向一个服务器发送请求信息，server端实时监控着FIFO的读端，
 在之后的内容会有更加详细的讲解。当有数据时，读出并进行处理，但是有一个关键的问题是，
-每一个客户端必须预先知道服务器提供的FIFO接口，下图显示了这种安排\nameref{fig:fifo}
+每一个客户端必须预先知道服务器提供的FIFO接口，下图显示了这种安排\colorunderlineref{fig:fifo}
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{fifo.png}
@@ -1255,7 +1255,7 @@ int main(int argc, char * argv[])
 
 \subsection{信号通信}
 除了使用管道之外，还可以使用信号的方式进行通信。与管道不太一样的是，信号对象存在于内核当中，无需创建，本身已经存在了，并且，无法在用户空间进行信号的发送和接收。
-在Linux当中，可以通过kill -l查看总共有多少信号（总共64种），如图\nameref{fig:signal}所示:
+在Linux当中，可以通过kill -l查看总共有多少信号（总共64种），如图\colorunderlineref{fig:signal}所示:
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{signal.png}
@@ -1429,7 +1429,7 @@ int main(int argc, char * argv[])
 \end{itemize}
 
 这些IPC对象同样是在内核空间，并没有发生在用户空间，IPC类似于Linux的文件IO操作的相关思想，可以针对文件IO与IPC做一个简单的类比，
-如图\nameref{fig:IPC}所示
+如图\colorunderlineref{fig:IPC}所示
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{IPC.png}
@@ -2447,7 +2447,7 @@ int main(int argc, char * argv[])
   \item 阻塞：线程在等待其他条件就绪
   \item 终止：线程声明周期结束
 \end{itemize}
-线程的状态转换如图\nameref{fig:status_of_thread}所示
+线程的状态转换如图\colorunderlineref{fig:status_of_thread}所示
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{status_of_thread.png}

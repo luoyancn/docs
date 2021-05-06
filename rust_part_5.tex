@@ -230,6 +230,21 @@ fn test_treemap() {
 因此，过程宏不需要像声明宏一样的进行export，但是，必须将过程宏的函数声明为pub，
 生成的过程宏才可以被外部使用。
 
+\subsection{排序}
+Rust的整数型数组和向量（Vector）的排序是相同的，可以使用相同的方式进行，即采用
+sort以及sort\_unstable进行。其中，sort是稳定排序（即不重新排序相等的元素），
+sort\_unstable是不稳定排序，\colorunderline{但是通常情况下速度更快}，并且不会进行辅助内存的分配。
+\begin{code-block}{rust}
+let mut v = vec![2, 21, 12, 32, 12, 45, 90];
+v.sort_unstable();
+info!("The sorted vector is {:?}", v);
+let mut array = [2, 23, 12, 12, 98, 100, 21];
+array.sort_unstable();
+info!("The sorted array is {:?}", array);
+\end{code-block}
+
+浮点数的排序和最值操作，参见\colorunderlineref{float_sort}
+
 \subsection{超越Unsafe}
 由于Rust的目标是系统级的语言，必然需要具备操作硬件，以及裸设备的能力。而这些能力，
 在C/C++的表述当中，通常是采用共用体（Union）实现的。为了与之兼容，Rust当中也引入了
@@ -307,7 +322,6 @@ unsafe {
 
 info!("The final result of s is {:?}", s);
 \end{code-block}
-
 
 \subsection{常见错误处理方法}
 由于很多代码都是第三方的，而Rust本身也在不断的发展，有可能出现版本不兼容或者特性

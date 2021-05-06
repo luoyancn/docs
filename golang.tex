@@ -96,7 +96,7 @@ func init() {
 \end{code-block}
 
 \section{range的使用}
-range通常用来进行迭代列表或者字典，通常的使用规则如下表\nameref{tab:usage_of_range}
+range通常用来进行迭代列表或者字典，通常的使用规则如下表\colorunderlineref{tab:usage_of_range}
 \begin{center}
   \rowcolors{2}{green!80!yellow!50}{green!70!yellow!40}
   \begin{tabularx}{\textwidth}{|X|X|X|}
@@ -413,7 +413,7 @@ fmt.Printf("%p\n", slice_int)
   对切片的数据修改，将影响切片原始引用数据的修改，也会影响对原始引用数据的其他切片的修改；
   但是，对数组的修改，只会影响到原始数组的数据，并不会影响到从原始数组扩展出来的新数组的
   数据修改。因此可以简单粗暴的认为，切片存放的数据是数据的地址。切片实际上存放的内容包含3部分：
-  数组元素的首地址，切片的长度以及切片的容量。切片的内部布局如\nameref{fig:slice}所示。
+  数组元素的首地址，切片的长度以及切片的容量。切片的内部布局如\colorunderlineref{fig:slice}所示。
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{slice.png}
@@ -1127,7 +1127,7 @@ func main() {
 }
 \end{code-in-enumerate}
 
-  整体的运行结果如下图所示\nameref{fig:grpc}。
+  整体的运行结果如下图所示\colorunderlineref{fig:grpc}。
 \begin{figure}[H]
   \centering
   \includegraphics[scale=0.2]{grpc.png}

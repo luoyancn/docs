@@ -4,7 +4,7 @@
 KeyStone Federation实质上是不同的keystone之间的互信，因此，需要多个keystone实例。
 Keystone Federation的现象就是，用户A在keystone1中存在，在keystone2中不存在，但是，
 却依然能够通过keystone2的认证，并且访问keystone2所管理的服务。其工作的大致流程如
-图 \nameref{fig:k2k_auth}
+图 \colorunderlineref{fig:k2k_auth}
 
 \begin{figure}[H]
   \centering
@@ -475,7 +475,7 @@ if __name__ == "__main__":
     main()
 \end{code-block}
 
-将以上的内容名为为k2k.py文件，然后执行，如果出现如图 \nameref{fig:k2k_result}的输出，就证明keystone federation
+将以上的内容名为为k2k.py文件，然后执行，如果出现如图 \colorunderlineref{fig:k2k_result}的输出，就证明keystone federation
 配置成功了。
 \begin{figure}[H]
   \centering
@@ -647,7 +647,7 @@ export SP_UNSCOPE_TOKEN=`curl -i -X GET \
     -b $SAML_COOKIE | grep X-Subject-Token | awk '{print $2}' | strings`
 \end{code-block}
 
-\underline{\color{red} \textbf{\textit{特别需要说明的是，IdP和SP端的用户映射就是在这一个步骤当中完成的。}}}
+\colorunderline{特别需要说明的是，IdP和SP端的用户映射就是在这一个步骤当中完成的。}
 
 \paragraph{SP端获取scope token}
 \begin{code-block}{bash}
