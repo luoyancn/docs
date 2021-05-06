@@ -313,7 +313,6 @@ Rust的随机数模块并不包含在标准库当中，需要使用rand这个cra
 use rand::distributions::{Distribution, Uniform};
 use rand::seq::IteratorRandom;
 use rand::Rng;
-
 fn main() {
     let mut rng = rand::thread_rng();
     // 生成随机数
@@ -329,13 +328,11 @@ fn main() {
     );
     // 从[0, 5]生成随机数
     info!("The range rand number is {}", rng.gen_range(0..=5));
-
     // 定义[1, 7)的均匀分布
     let die = Uniform::from(1..7);
     // 从该分布当中生成采样
     let throw = die.sample(&mut rng);
     info!("The sample of uniform is {:>width$}", throw, width = 5);
-
     // 生成多个随机数
     let tuple: (u8, u8, u8) = rng.gen();
     info!("The tuple of random is {:?}", tuple);
@@ -346,12 +343,10 @@ fn main() {
     // 使用随机数填充已存在的数组
     rng.fill(&mut exsit_array);
     info!("The array of random is {:?}", exsit_array);
-
     // 从均匀分布当中随机采样3个数据
     // 得到的结果可能出现重复的情况
     let samples: Vec<u8> = (&mut rng).sample_iter(die).take(3).collect();
     info!("The samples of sample range 1..7 is {:?}", samples);
-
     let v = vec![1, 2, 3, 4, 5];
     // 从vec当中采样4个数据，得到的结果不会重复
     let sample = v.iter().choose_multiple(&mut rng, 4);
@@ -366,18 +361,15 @@ Rust的rand crate不仅可以生成随机数，也可以生成自定义的随机
 use rand::distributions::{Distribution, Standard, Uniform};
 use rand::seq::IteratorRandom;
 use rand::Rng;
-
 struct Point {
     x: u8,
     y: u8,
 }
-
 impl fmt::Display for Point {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "x: {}, y: {}", self.x, self.y)
     }
 }
-
 // 在 Point 类型之上，对Standard实现Distribution trait，使得Point可以被gen函数随机生成
 impl Distribution<Point> for Standard {
     // 默认的实现方法
@@ -389,7 +381,6 @@ impl Distribution<Point> for Standard {
         }
     }
 }
-
 fn main() {
     let mut rng = rand::thread_rng();
     let rand_point = rng.gen::<Point>();
@@ -402,7 +393,6 @@ fn main() {
 use rand::distributions::{Alphanumeric, Distribution, Standard, Uniform};
 use rand::seq::IteratorRandom;
 use rand::Rng;
-
 fn main() {
     let mut rng = rand::thread_rng();
     let rand_string: String = (&mut rng)
@@ -426,7 +416,6 @@ const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
     abcdefghijklmnopqrstuvwxyz\
     0123456789)(*&^%$#@!~";
 const PASSWORD_LEN: usize = 10;
-
 fn main() {
     let mut rng = rand::thread_rng();
     let password: String = (0..PASSWORD_LEN)
@@ -436,7 +425,6 @@ fn main() {
         })
         .collect();
     info!("The password is {}", password);
-
     // 也可以更换成之前的采样函数，看起来更为精炼
     let passwd: String = CHARSET
         .choose_multiple(&mut rng, 10)
@@ -451,13 +439,11 @@ fn main() {
 use rand::distributions::{Alphanumeric, Distribution, Standard, Uniform};
 use rand::seq::IteratorRandom;
 use rand::Rng;
-
 #[derive(Debug)]
 struct Person {
     name: String,
     age: u8,
 }
-
 fn main() {
     let mut rng = rand::thread_rng();
     let persons = vec![
@@ -474,7 +460,6 @@ fn main() {
             age: 36,
         },
     ];
-
     // 从person的vec当中，随机抽取2个元素
     let rand_person: Vec<_> = persons.choose_multiple(&mut rng, 2).collect();
     info!("The rand person is {:?}", rand_person);
@@ -503,14 +488,12 @@ fn main() {
 \begin{code-block}{rust}
 // empty是空元组类型
 let empty : () = ();
-
 // 空结构体
 struct Empty();
 \end{code-block}
 为了查看类型所占用的空间，可以使用size\_of函数进行查看：
 \begin{code-block}{rust}
 use std::mem;
-
 struct Empty();
 fn main() {
     info!("The Empty struct size is {}", mem::size_of::<Empty>());
@@ -586,15 +569,12 @@ Rust当中的函数也可以称之为类型的一种，并且，每个函数都�
 fn add_tuple(t: (u32, u32)) -> u32 {
     t.0 + t.1
 }
-
 fn add_two((x, y): (u32, u32)) -> u32 {
     x + y
 }
-
 fn add_normal(x: u32, y: u32) -> u32 {
     x + y
 }
-
 \end{code-block}
 实际上，add\_tuple和add\_two这2个函数被fn类型识别成为具有相同签名的类型，因此，
 在理论上，我们可以使用同一个变量，接收这2个函数的指针：
@@ -634,7 +614,6 @@ fn func_as_first(x: u32, y: u32) -> (u32, u32) {
         x: u32,
         y: u32,
     };
-
     impl Point {
         fn area(&self) -> u32 {
             self.x * self.y
@@ -643,7 +622,6 @@ fn func_as_first(x: u32, y: u32) -> (u32, u32) {
             self.x + self.y
         }
     };
-
     let p = Point { x: x, y: y };
     (p.area(), p.cycle())
 }
@@ -694,7 +672,6 @@ fn main() {
 \begin{code-block}{rust}
 #![feature(core_intrinsics)]
 use std;
-
 // 使用泛型参数进行不同类型的数据接收
 fn print_type<T>(_arg: &T) {
     println!(
@@ -702,7 +679,6 @@ fn print_type<T>(_arg: &T) {
         std::intrinsics::type_name::<T>()
     );
 }
-
 fn main() {
     let ref x = 5;
     print_type(&x);
@@ -720,7 +696,6 @@ struct ColoredString {
     fg_color: String,
     bg_color: String,
 }
-
 impl Default for ColoredString {
     fn default() -> Self {
         ColoredString {
@@ -730,7 +705,6 @@ impl Default for ColoredString {
         }
     }
 }
-
 fn main() {
     let color = ColoredString::default();
 }
@@ -964,7 +938,6 @@ trait Foo {
     fn bad<T>(&self, x:T);
     fn new() -> Self;
 }
-
 // 对象安全
 trait Foo {
     fn bad<T>(&self, x: T);
@@ -983,7 +956,6 @@ trait CustomAny {
         Self: Sized,
         F: Fn(u32) -> bool;
 }
-
 impl CustomAny for Vec<u32> {
     fn custom_any<F>(&self, f: F) -> bool
     where
@@ -998,7 +970,6 @@ impl CustomAny for Vec<u32> {
         false
     }
 }
-
 fn main() {
     let v: Vec<u32> = vec![1, 2, 3];
     info!("{}", v.iter().any(|&x| x == 3));
@@ -1017,7 +988,6 @@ trait Colorize {
     fn red(self) -> ColoredString;
     fn on_yellow(self) -> ColoredString;
 }
-
 impl Colorize for ColoredString {
     fn red(self) -> ColoredString {
         ColoredString {
@@ -1043,7 +1013,6 @@ struct Pick<F> {
     data: (u32, u32),
     func: F,
 }
-
 impl<F> Pick<F>
 where
     // for<>只能用于标记生命周期
@@ -1060,7 +1029,6 @@ fn max(data: &(u32, u32)) -> &u32 {
     }
     &data.1
 }
-
 fn main() {
     let pick = Pick {
         data: (32, 34),
@@ -1075,25 +1043,20 @@ fn main() {
 一种基本的示例如下：
 \begin{code-block}{rust}
 use std::f64::consts;
-
 pub struct Circle {
     radius: f64,
 }
-
 pub struct CircleBuilder {
     radius: f64,
 }
-
 impl Circle {
     pub fn new() -> CircleBuilder {
         CircleBuilder { radius: 0.0 }
     }
-
     pub fn area(&self) -> f64 {
         self.radius * self.radius * consts::PI
     }
 }
-
 impl CircleBuilder {
     pub fn radius(&mut self, radius: f64) -> &mut CircleBuilder {
         self.radius = radius;
@@ -1132,7 +1095,6 @@ for id in 1..5 {
         Err(error) => error!("Cannot create the thread {} because: {:?}", id, error),
     };
 }
-
 // 其他的同普通的线程，
 for child in v_thread {
     child.join().unwrap();
@@ -1144,7 +1106,6 @@ for child in v_thread {
 \begin{code-block}{rust}
 use std::cell::RefCell;
 use std::thread;
-
 fn main() {
     // 在线程本地存储定义一个FOO变量，最终的类型是thread::LocalKey
     thread_local!(static FOO: RefCell<u32> = RefCell::new(1));
@@ -1154,7 +1115,6 @@ fn main() {
         info!("The f borrow is {}", *f.borrow());
         *f.borrow_mut() = 2;
     });
-
     let handler = thread::spawn(move || {
         // 子线程也有一个线程本地存储实例FOO，为主线程的副本
         // 也可以使用thread_local!宏在该子线程中重新创建一个LocalKey实例
@@ -1163,13 +1123,11 @@ fn main() {
             *f.borrow_mut() = 3;
         });
     });
-
     // 主线程当中FOO实例并没有被子线程修改为3
     // thread local!宏定义单个线程内的一些独享数据
     FOO.with(|f| {
         info!("The f borrow is {}", *f.borrow());
     });
-
     handler.join().unwrap();
 }
 \end{code-block}
@@ -1182,7 +1140,6 @@ fn main() {
 \begin{code-block}{rust}
 use std::thread::{self, Builder};
 use std::time::Duration;
-
 fn main() {
     let parked_thread = Builder::new()
         .spawn(|| {
@@ -1204,7 +1161,6 @@ fn main() {
 除了常见的互斥锁（Mutex）之外，Rust也支持读写锁（RwLock）。读写锁的基本示例如下：
 \begin{code-block}{rust}
 use std::sync::RwLock;
-
 fn main() {
     let rw_lock = RwLock::new(5);
     // 读写锁的使用必须使用{}进行区分，即便是单独使用读或者写也是一样
@@ -1228,7 +1184,6 @@ fn main() {
 \begin{code-block}{rust}
 use std::sync::{Arc, Barrier};
 use std::thread;
-
 fn main() {
     let mut vec = vec![];
     let barrier = Arc::new(Barrier::new(5));
@@ -1242,7 +1197,6 @@ fn main() {
             info!("{} After wait...", id);
         }));
     }
-
     for handler in vec {
         handler.join().unwrap();
     }
@@ -1255,12 +1209,10 @@ fn main() {
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
-
 fn main() {
     // 生成包含互斥锁的条件变量condvar
     let pair = Arc::new(((Mutex::new(false)), Condvar::new()));
     let pair_clone = pair.clone();
-
     let handler = thread::spawn(move || {
         let &(ref lock, ref cvar) = &*pair_clone;
         // 获得互斥锁
@@ -1271,7 +1223,6 @@ fn main() {
         // 通知主线程
         cvar.notify_one();
     });
-
     let &(ref lock, ref cvar) = &*pair;
     let mut started = lock.lock().unwrap();
     while !*started {

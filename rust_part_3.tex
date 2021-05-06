@@ -8,7 +8,6 @@ Rust的线程操作必须使用闭包完成。在之前看到的闭包当中，�
 \begin{code-block}{rust}
 use std::thread;
 use std::time::Duration;
-
 fn main() {
     thread::spawn(|| {
         for i in 1..10 {
@@ -16,7 +15,6 @@ fn main() {
             thread::sleep(Duration::from_millis(1));
         }
     });
-
     for i in 1..5 {
         println!("hi number {} from the main thread!", i);
         thread::sleep(Duration::from_millis(1));
@@ -34,7 +32,6 @@ fn main() {
             thread::sleep(Duration::from_millis(1));
         }
     });
-
     for i in 1..5 {
         println!("hi number {} from the main thread!", i);
         thread::sleep(Duration::from_millis(1));
@@ -114,10 +111,8 @@ fn main() {
 \begin{code-block}{rust}
 use std::sync::mpsc;
 use std::thread;
-
 fn main() {
     let (sender, recevier) = mpsc::channel();
-
     thread::spawn(move || {
         let val = "lucifer".to_string();
         match sender.send(val) {
@@ -125,7 +120,6 @@ fn main() {
             Err(error) => println!("Send failed :{:?}", error),
         }
     });
-
     let res = match recevier.recv() {
         Ok(s) => s,
         Err(error) => {
@@ -147,7 +141,6 @@ Result当中的Error表示没有接收到任何消息，可以使用for循环进
 \begin{code-block}{rust}
 use std::sync::mpsc;
 use std::thread;
-
 fn main() {
     let (sender, recevier) = mpsc::channel();
 
@@ -160,11 +153,9 @@ fn main() {
             }
         }
     });
-
     for msg in recevier {
         println!("The msg is {}", msg);
     }
-
     match handler.join() {
         Err(error) => println!("Error{:?}", error),
         _ => (),
@@ -177,7 +168,6 @@ fn main() {
 \begin{code-block}{rust}
 use std::sync::mpsc;
 use std::thread;
-
 fn main() {
     let (sender, recevier) = mpsc::channel();
     let sender_copy = sender.clone();
@@ -191,7 +181,6 @@ fn main() {
             }
         }
     });
-
     let handler_copy = thread::spawn(move || {
         let vals = vec!["zhangjl", "luoyan", "zhangzz"];
         for val in vals {
@@ -201,16 +190,13 @@ fn main() {
             }
         }
     });
-
     for msg in recevier {
         println!("The msg is {}", msg);
     }
-
     match handler_copy.join() {
         Err(error) => println!("Error{:?}", error),
         _ => (),
     }
-
     match handler.join() {
         Err(error) => println!("Error{:?}", error),
         _ => (),
@@ -248,25 +234,20 @@ fn main() {
 use std::rc::Rc;
 use std::sync::Mutex;
 use std::thread;
-
 fn main() {
     let counter = Rc::new(Mutex::new(0));
     let mut handles = vec![];
-
     for _ in 0..10 {
         let counter = Rc::clone(&counter);
         let handle = thread::spawn(move || {
             let mut num = counter.lock().unwrap();
-
             *num += 1;
         });
         handles.push(handle);
     }
-
     for handle in handles {
         handle.join().unwrap();
     }
-
     println!("Result: {}", *counter.lock().unwrap());
 }
 \end{code-block}
@@ -368,10 +349,8 @@ enum Message {
     Write(String),
     ChangeColor(i32, i32, i32),
 }
-
 fn main() {
     let msg = Message::ChangeColor(0, 160, 255);
-
     match msg {
         Message::Quit => {
             println!("The Quit variant has no data to destructure.")
@@ -393,17 +372,14 @@ enum Color {
     Rgb(i32, i32, i32),
     Hsv(i32, i32, i32),
 }
-
 enum Message {
     Quit,
     Move { x: i32, y: i32 },
     Write(String),
     ChangeColor(Color),
 }
-
 fn main() {
     let msg = Message::ChangeColor(Color::Hsv(0, 160, 255));
-
     match msg {
         Message::ChangeColor(Color::Rgb(r, g, b)) => {
             println!("Change the color to red {}, green {}, and blue {}", r, g, b)
@@ -435,7 +411,6 @@ let ((feet, inches), Point {x, y}) = ((3, 10), Point { x: 3, y: -10 });
 fn foo(_: i32, y: i32) {
     println!("This code only uses the y parameter: {}", y);
 }
-
 fn main() {
     foo(3, 4);
 }
@@ -449,14 +424,12 @@ struct Point {
     y: i32,
     z: i32,
 }
-
 fn main() {
     let origin = Point { x: 0, y: 0, z: 0 };
     // 将point的y进行忽略
     match origin {
         Point { x,z, .. } => println!("x is {}, z is {}", x, z),
     }
-
     let numbers = (2, 4, 8, 16, 32);
     match numbers {
         // 忽略元组当中除第1、2和最后一项的所有元素
@@ -476,7 +449,6 @@ let players: Vec<_> = player_scores.iter().map(|&(player, _)| player).collect();
 println!("{:?}", players);
 \end{code-in-enumerate}
 
-
 \1 @绑定
 
 运算符@允许我们在创建一个存放值的变量的同时测试其值是否匹配模式，比如测试字段是
@@ -486,9 +458,7 @@ println!("{:?}", players);
 enum Message {
     Hello { id: i32 },
 }
-
 let msg = Message::Hello { id: 5 };
-
 match msg {
     // 将变量id保存到另一个变量ip_variable当中
     Message::Hello { id: id_variable @ 3..=7 } => {
@@ -576,13 +546,11 @@ fn main() {
     safe_change(r1, r2);
     println!("{}", num);
 }
-
 // 定义不安全的函数/方法
 unsafe fn unsafe_change(r1: *const i32, r2: *mut i32) {
     *r2 = 10;
     println!("{},{}", *r1, *r2);
 }
-
 // 将不安全的函数/方法封装进安全的方法当中
 fn safe_change(r1: *const i32, r2: *mut i32) {
     unsafe {
@@ -625,7 +593,6 @@ impl fmt::Display for Version {
         )
     }
 }
-
 // 不可变的全局常量
 const __CONST_NUM__: Version = Version { major: 1, minor: 4 };
 const __VERSION__: &str = "v1.4.0";
@@ -676,7 +643,6 @@ struct Tuple {
     second: u8,
     third: u8,
 }
-
 fn main() {
     let mut t = Tuple {
         first: 0,
@@ -705,17 +671,15 @@ fn main() {
 \begin{code-block}{bash}
 error: cannot borrow `x[..]` as mutable more than once at a time
 \end{code-block}
-原因在于，结构体当中，pa，pb和pc指向不同的内存区域；但是在数据当中，Rust编译器会
-将[\_]识别为一个整体，而\&[0], \&[1]之间都属于重叠，将pa和pb判断为存在别名关系，
-即pa和pb实质上相同，违反了借用规则，因此无法通过编译。在Rust 1.50.0版本之后，编译器
-针对数组进行了优化，上述代码不会再出现错误，但是，在旧版本的Rust当中，则需要采用
-其他手段进行解决，即引用分割：
+原因在于，在Rust 1.50.0版本之前的结构体当中，pa，pb和pc指向不同的内存区域；
+但是在数据当中，Rust编译器会将[\_]识别为一个整体，而\&[0], \&[1]之间都属于重叠，
+将pa和pb判断为存在别名关系，即pa和pb实质上相同，违反了借用规则，因此无法通过编译。
+采用引用分割才能进行解决：
 \begin{code-block}{bash}
 let mut array_x = [1_i32, 2, 3];
 // 通过split_at_mut将数组切分成2个一定不会重叠的切片
 let (first, rest): (&mut [i32], &mut [i32]) = array_x.split_at_mut(1);
 let (second, third): (&mut [i32], &mut [i32]) = rest.split_at_mut(1);
-
 first[0] += 100;
 second[0] += 200;
 third[0] += 300;
@@ -734,11 +698,9 @@ impl Iterator for Counter {
 \end{code-block}
 其中，type Item表示关联数据类型，Item表示占位类型，next方法定义表明它返回
 Option<Self::Item>类型的值。这个trait的实现者会指定Item的具体类型。
-
-在Trait当中，除了默认方法，方法覆写之外，还存在着运算符重载的功能。但是，和C++
-不同，Rust并不允许创建自定义的运算符，或者重载任意运算符，只有std::ops当中所列出
-的运算符和相应的trait可以通过实现运算符相关的trait来实现重载，比如下面，实现Add
-trait来实现对+的运算符重载：
+在Trait当中，除了默认方法，方法覆写之外，Rust并不允许创建自定义的运算符，
+或者重载任意运算符，只有std::ops当中所列出的运算符和相应的trait可以通过实现
+运算符相关的trait来实现重载，比如下面，实现Add trait来实现对+的运算符重载：
 \begin{code-block}{rust}
 use std::fmt;
 use std::ops::{Add, AddAssign};
@@ -1590,15 +1552,18 @@ fn main() {
 \end{code-block}
 宏的指示符有很多，各自用于不同的场景，所有的宏指示符如下：
 \begin{itemize}
-  \item block
-  \item expr：表达式
-  \item ident：变量名/函数名
-  \item item
+  \item block：代码块，由{}限定的代码
+  \item expr：表达式，会生成具体的值
+  \item ident：变量名/函数名，标识符
+  \item item：语言项，即组成一个Rust包的基本单位，如模块，声明，函数/类型/结构体/impl定义
   \item pat：模式
-  \item path
-  \item stmt：语句
+  \item path：路径，类似std::iter等
+  \item stmt：语句，一般以;结尾的代码
   \item tt：标记树
   \item ty：类型
+  \item meta：元数据信息，即包含在\#[...]以及\#![...]当中的信息
+  \item vis：可见性，如pub
+  \item lifetime：指代生命周期参数
 \end{itemize}
 
 类似于方法，Rust的宏也可以进行重载，只不过，这个重载的实现比较类似于match的分支
@@ -1778,6 +1743,7 @@ let mut empty: HashMap<String, u8> = hashmap![];
 rustup default nightly
 # 对代码进行展开
 rustc -Z unstable-options --pretty=expanded src/main.rs
+cargo rustc -- -Z unstable-options --pretty=expanded
 # 如果代码需要依赖其他的非std的crate的，则应当如下执行
 # rustc -Z unstable-options --pretty=expanded -L ../target/debug/deps src/main.rs
 \end{code-block}

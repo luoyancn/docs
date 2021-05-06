@@ -344,7 +344,6 @@ let expensive_closure = |num| {
     println!("calculating slowly...");
     num * 10
 };
-
 let res = expensive_closure(10);
 \end{code-block}
 其中两个||表示定义一个闭包，中间的num表示闭包的参数。如果闭包需要处理多个参数，则
@@ -363,7 +362,6 @@ let expensive_closure = |num1, num2| {
 如下：
 \begin{code-block}{rust}
 let example_closure = |x| x;
-
 let s = example_closure(String::from("hello"));
 let n = example_closure(5);
 \end{code-block}
@@ -576,7 +574,6 @@ let res: Vec<_> = v.iter().filter(|s| *(*s) == 2).collect();
 println!("{:?}", res);
 // 原始的v仍然可用，没有发生所有权转移
 println!("{:?}", v);
-
 // 发生了所有权转移，变量v在后续的操作当中，无法被继续使用
 let res1: Vec<_> = v.into_iter().filter(|s| *s == 2).collect();
 println!("{:?}", res1);
@@ -589,7 +586,6 @@ struct Shoe {
     size: u32,
     style: String,
 }
-
 fn main() {
     let shoes = vec![
         Shoe {
@@ -605,21 +601,16 @@ fn main() {
             style: String::from("boot"),
         },
     ];
-
     // 正确，返回的结果r实际上是shoes的部分数据的引用
     let r: Vec<_> = shoes.iter().filter(|x| x.size == 10).collect();
-
     // 错误，无法编译，由于collect返回的是引用，无法直接转换成引用原本的数据类型
     let r1: Vec<Shoes> = shoes.iter().filter(|x| x.size == 10).collect();
-
     // 正确，使用into_iter获取了相关的所有权，不再是引用，而是原始数据类型
-    let r2: Vec<Shoes> = shoes.into_iter().filter(|x| x.size == 10).collect();
     // 在此之后，shoes变量无法再使用，所有权已经发生了变更
-
+    let r2: Vec<Shoes> = shoes.into_iter().filter(|x| x.size == 10).collect();
     // 错误，shoes的所有权已经发生了变更，此处已经无效
     shoes_in_my_size(shoes, 10);
 }
-
 // 调用者发生了所有权转移，调用该函数之后，参数shoes无法再被使用
 fn shoes_in_my_size(shoes: Vec<Shoe>, shoe_size: u32) -> Vec<Shoe> {
     shoes.into_iter().filter(|s| s.size == shoe_size).collect()
