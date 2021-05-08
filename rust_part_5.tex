@@ -242,8 +242,63 @@ let mut array = [2, 23, 12, 12, 98, 100, 21];
 array.sort_unstable();
 info!("The sorted array is {:?}", array);
 \end{code-block}
+默认情况下，排序操作使用的是升序，但是可以通过定制，修改排序方式：
+\begin{code-block}{rust}
+let mut v = vec![2, 21, 12, 32, 12, 45, 90];
+// 降序排列，可替换成v.sort_by
+v.sort_unstable_by(|a, b| b.cmp(a));
+info!("The sorted vector is {:?}", v);
+let mut array = [2i32, -23, 12, 12, 98, -100, 21];
+// 根据绝对值升序排列，可以根据其他关键字进行排序
+array.sort_unstable_by_key(|k| k.abs());
+info!("The sorted array is {:?}", array);
+// 根据字符顺序排列，带有缓存cache，闭包函数通常只执行一次，比无缓存的快速
+let mut xx = [-5i32, 4, 32, -3, 2];
+xx.sort_by_cached_key(|k| k.to_string());
+// 字符串排序
+let mut array = ["lucifer", "titans", "asura", "garuda"];
+array.sort_unstable_by_key(|item| item.to_string());
+info!("The string array is {:?}", array);
+let mut array = [
+    "lucifer".to_string(),
+    "titans".to_string(),
+    "asura".to_string(),
+    "garuda".to_string(),
+];
+// 可以转换成切片
+// array[..].sort_unstable_by_key(|item| item.to_string());                                                                                                                               info!("The string array is {:?}", array);
+array.sort_unstable_by_key(|item| item.to_string());                                                                                                                               info!("The string array is {:?}", array);
+\end{code-block}
 
 浮点数的排序和最值操作，参见\colorunderlineref{float_sort}
+
+除了基础数据类型可以进行排序，同样可以针对复合数据类型进行排序。在针对复合数据
+类型排序时，需要实现\colorunderline{Eq，PartialEq，Ord和PartialOrd}这几个trait：
+\begin{code-block}{rust}
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug)]
+struct Student {
+    name: String,
+    age: u8,
+}
+fn main() {
+    let mut stu = [
+        Student {
+            name: "lucifer".to_string(),
+            age: 18,
+        },
+        Student {
+            name: "garuda".to_string(),
+            age: 36,
+        },
+    ];
+    // 按照自然序列（name）
+    stu.sort();
+    info!("The students is {:?}", stu);
+    // 根据年龄
+    stu.sort_unstable_by(|first, second| first.age.cmp(&second.age));
+    info!("The students is {:?}", stu);
+}
+\end{code-block}
 
 \subsection{超越Unsafe}
 由于Rust的目标是系统级的语言，必然需要具备操作硬件，以及裸设备的能力。而这些能力，
