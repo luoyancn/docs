@@ -161,7 +161,9 @@ match archive.unpack(".") {
 
 \section{元编程}
 Rust也包含了宏，并且，和C/C++相比，Rust的宏会展开成为抽象语法树（AST，abstract syntax tree），
-而不是普通的转换成字符串，因此，不会产生无法预料的优先权错误。最普通的宏如下：
+而不是普通的转换成字符串，因此，不会产生无法预料的优先权错误。Rust的宏包括声明宏以及过程宏。
+\subsection{声明宏}
+常见的Rust宏大部分都是声明宏，最普通的宏如下：
 \begin{code-block}{rust}
 extern crate slog_scope;
 extern crate slog_stdlog;
@@ -486,7 +488,8 @@ fn main() {
 }
 \end{code-block}
 
-Rust的宏实际上属于元编程的一部分，除了在当前的crate当中使用宏之外，
+\subsection{宏导出}
+除了在当前的crate当中使用宏之外，
 宏还可以导出，宏之间也可以相互调用。宏的导出通常使用macro\_export关键字，比如：
 \begin{code-block}{rust}
 #[macro_export]
@@ -565,6 +568,7 @@ macro_rules! hashmap {
 }
 \end{code-block}
 
+\subsection{过程宏}
 以上提到的宏，都是声明宏，可以直接当作函数/方法使用的类型，但是，如果想实现类似于
 \#[derive(Debug)]这种类型的宏，声明宏是做不到的。相对应的，这种类型的宏则被称之
 为过程宏。过程宏主要用于下面3种用途：
@@ -716,6 +720,10 @@ fn test_treemap() {
 过程宏的本质是在函数/方法当中，使用TokenStream重构，本质还是一个特殊的函数/方法。
 因此，过程宏不需要像声明宏一样的进行export，但是，必须将过程宏的函数声明为pub，
 生成的过程宏才可以被外部使用。
+
+\subsection{语法树}
+编写真正可用的过程宏实际上比上面的例子要复杂很多，但不管如何变化，Rust的宏都是依赖于
+语法树结构的，而过程宏的实现方式/过程，就是对解析的语法树进行处理的过程。
 
 \section{并发/并行/异步}
 Rust也同样支持常见的并行和并发操作，也同样分为进程，线程以及消息通信等等。

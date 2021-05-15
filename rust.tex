@@ -24,7 +24,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 \begin{code-block}{bash}
 rustup toolchain add nightly
 rustup component add rust-src rls rust-analysis
-cargo install flamegraph cargo-geiger
+cargo install flamegraph cargo-geiger cargo-expand
 cargo +nightly install racer
 \end{code-block}
 
