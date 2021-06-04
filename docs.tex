@@ -32,6 +32,10 @@
 \usepackage{titletoc}
 % 设置minted字体
 \usepackage{fontspec}
+% 每页的脚注重新编号
+\usepackage{perpage}
+\MakePerPage{footnote}
+% 强制脚注和引用在相同页，需要使用footnote，不能使用footmark
 
 \usetikzlibrary{calc}
 \usetikzlibrary{arrows, decorations.pathmorphing,
@@ -79,7 +83,8 @@
 \setCJKmainfont{方正北魏楷书简体.ttf}
 % 设置页边距
 %\geometry{left=2.5cm,right=2.5cm,top=2.4cm,bottom=2.4cm}
-\geometry{top=2.4cm,bottom=2.4cm}
+% 设置页边距，包括脚注
+\geometry{includefoot,top=2.4cm,bottom=2.4cm}
 % 修改图注为 图1-1 xxx
 % 修改表注为 表1-1 xxx
 \renewcommand{\figurename}{图}
@@ -189,6 +194,12 @@
   \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
  {\end{minted}\end{mdframed}\par}
 %\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
+
+% 删除minted代码块当中错误代码所引起的红色边框
+\AtBeginEnvironment{minted}{\dontdofcolorbox}
+\def\dontdofcolorbox{\renewcommand\fcolorbox[4][]{##4}}
+% 另一种删除由于错误代码所引起的红色边框，影响范围较大，可用于minted，inputminted，mintedline等
+%\renewcommand{\fcolorbox}[4][]{#4}
 
 % 设置警示表格
 \newenvironment{warning}

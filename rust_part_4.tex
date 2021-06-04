@@ -305,769 +305,1195 @@ fn main() {
 }
 \end{code-block}
 
-\section{死灵书与实践}
-
-\subsection{随机数实践}
-Rust的随机数模块并不包含在标准库当中，需要使用rand这个crate，其基本的使用如下：
+\section{元编程}
+Rust也包含了宏，并且，和C/C++相比，Rust的宏会展开成为抽象语法树（AST，abstract syntax tree），
+而不是普通的转换成字符串，因此，不会产生无法预料的优先权错误。Rust的宏包括声明宏以及过程宏。
+\subsection{声明宏}
+常见的Rust宏大部分都是声明宏，最普通的宏如下：
 \begin{code-block}{rust}
-use rand::distributions::{Distribution, Uniform};
-use rand::seq::IteratorRandom;
-use rand::Rng;
-fn main() {
-    let mut rng = rand::thread_rng();
-    // 生成随机数
-    info!("The float64 rand number is {}", rng.gen::<f64>());
-    info!("The u32 rand number is {}", rng.gen::<u32>());
-    info!("The i32 rand number is {}", rng.gen::<i32>());
-    info!("The u8 rand number is {}", rng.gen::<u8>());
-    // 从指定区间生成随机数
-    info!("The range rand number is {}", rng.gen_range(0..100));
-    info!(
-        "The range rand float number is {}",
-        rng.gen_range(10.0..50.0)
-    );
-    // 从[0, 5]生成随机数
-    info!("The range rand number is {}", rng.gen_range(0..=5));
-    // 定义[1, 7)的均匀分布
-    let die = Uniform::from(1..7);
-    // 从该分布当中生成采样
-    let throw = die.sample(&mut rng);
-    info!("The sample of uniform is {:>width$}", throw, width = 5);
-    // 生成多个随机数
-    let tuple: (u8, u8, u8) = rng.gen();
-    info!("The tuple of random is {:?}", tuple);
-    // 生成随机数组
-    let array: [u8; 6] = rng.gen();
-    info!("The array of random is {:?}", array);
-    let mut exsit_array: [u8; 5] = [1, 2, 34, 5, 6];
-    // 使用随机数填充已存在的数组
-    rng.fill(&mut exsit_array);
-    info!("The array of random is {:?}", exsit_array);
-    // 从均匀分布当中随机采样3个数据
-    // 得到的结果可能出现重复的情况
-    let samples: Vec<u8> = (&mut rng).sample_iter(die).take(3).collect();
-    info!("The samples of sample range 1..7 is {:?}", samples);
-    let v = vec![1, 2, 3, 4, 5];
-    // 从vec当中采样4个数据，得到的结果不会重复
-    let sample = v.iter().choose_multiple(&mut rng, 4);
-    info!("The samples of sample range 1..5 is {:?}", sample);
-    let sample: Vec<u8> = (1..=10).choose_multiple(&mut rng, 4);
-    info!("The samples of sample range 1..10 is {:?}", sample);
-}
-\end{code-block}
-
-Rust的rand crate不仅可以生成随机数，也可以生成自定义的随机数据，比如：
-\begin{code-block}{rust}
-use rand::distributions::{Distribution, Standard, Uniform};
-use rand::seq::IteratorRandom;
-use rand::Rng;
-struct Point {
-    x: u8,
-    y: u8,
-}
-impl fmt::Display for Point {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "x: {}, y: {}", self.x, self.y)
-    }
-}
-// 在 Point 类型之上，对Standard实现Distribution trait，使得Point可以被gen函数随机生成
-impl Distribution<Point> for Standard {
-    // 默认的实现方法
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Point {
-        let (rand_x, rand_y) = rng.gen();
-        Point {
-            x: rand_x,
-            y: rand_y,
-        }
-    }
-}
-fn main() {
-    let mut rng = rand::thread_rng();
-    let rand_point = rng.gen::<Point>();
-    info!("The rand_point is {}", rand_point);
-}
-\end{code-block}
-
-同样的，可以生成随机的字符串：
-\begin{code-block}{rust}
-use rand::distributions::{Alphanumeric, Distribution, Standard, Uniform};
-use rand::seq::IteratorRandom;
-use rand::Rng;
-fn main() {
-    let mut rng = rand::thread_rng();
-    let rand_string: String = (&mut rng)
-        // 从a-z，A-Z以及0-9当中进行选择
-        .sample_iter(&Alphanumeric)
-        // 获取其中的10个元素
-        .take(10)
-        // 默认的结果是char类型，需要继续转换成String
-        .map(char::from)
-        .collect();
-    info!("The rand_string is {}", rand_string);
-}
-\end{code-block}
-
-如果默认的字符集不满足要求，还可以自定义字符集，比如下面的示例：
-\begin{code-block}{rust}
-use rand::distributions::{Alphanumeric, Distribution, Standard, Uniform};
-use rand::seq::IteratorRandom;
-use rand::Rng;
-const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-    abcdefghijklmnopqrstuvwxyz\
-    0123456789)(*&^%$#@!~";
-const PASSWORD_LEN: usize = 10;
-fn main() {
-    let mut rng = rand::thread_rng();
-    let password: String = (0..PASSWORD_LEN)
-        .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect();
-    info!("The password is {}", password);
-    // 也可以更换成之前的采样函数，看起来更为精炼
-    let passwd: String = CHARSET
-        .choose_multiple(&mut rng, 10)
-        .map(|r| *r as char)
-        .collect();
-    info!("The password is {}", passwd);
-}
-\end{code-block}
-
-同样的，针对自定义的数据类型，同样可以采用采样方法，进行随机数据的提取：
-\begin{code-block}{rust}
-use rand::distributions::{Alphanumeric, Distribution, Standard, Uniform};
-use rand::seq::IteratorRandom;
-use rand::Rng;
-#[derive(Debug)]
-struct Person {
-    name: String,
-    age: u8,
-}
-fn main() {
-    let mut rng = rand::thread_rng();
-    let persons = vec![
-        Person {
-            name: "lucifer".to_string(),
-            age: 18,
-        },
-        Person {
-            name: "titans".to_string(),
-            age: 19,
-        },
-        Person {
-            name: "garuda".to_string(),
-            age: 36,
-        },
-    ];
-    // 从person的vec当中，随机抽取2个元素
-    let rand_person: Vec<_> = persons.choose_multiple(&mut rng, 2).collect();
-    info!("The rand person is {:?}", rand_person);
-}
-\end{code-block}
-
-\subsection{类型再论}
-Rust的类型比较多，char，字符串，整数，浮点数等等。这些基础类型和其他语言比较类似，
-但是也包含了自己的特点：比如，char类型占据4个字节，可以存放任何一个unicode字符；
-对于ASCII字符，只需要一个字节即可，而一个字节的数据，则可以放在u8类型的数据当中，
-因此，对于ASCII类型的字符串/字符数组，可以使用u8类型（即单字节）的数组进行存放，
-这样，占用的资源空间会比char的数组小：
-\begin{code-block}{rust}
-fn main() {
-    // 字符串前面的b，表示将对应的字面量存放在u8类型当中
-    let s: &[u8] = b"hello";
-    info!("{:?}", s);
-}
-\end{code-block}
-同时，Rust支持的整数类型比较广泛，包括8bit，16bit，32bit，64bit，最大可以支持到
-128bit；而特殊的isize和usize，则是和平台相关。如果平台是32位的，则isize和usize为
-32位，如果是64位，则其数据宽度为64位。
-
-整个Rust的类型当中，只有空类型占据的空间是最小的，都是0。Rust的空类型包括单元类型
-（unit，即空元组）以及空结构体：
-\begin{code-block}{rust}
-// empty是空元组类型
-let empty : () = ();
-// 空结构体
-struct Empty();
-\end{code-block}
-为了查看类型所占用的空间，可以使用size\_of函数进行查看：
-\begin{code-block}{rust}
-use std::mem;
-struct Empty();
-fn main() {
-    info!("The Empty struct size is {}", mem::size_of::<Empty>());
-    // 查看空元组所占据的内存大小
-    info!("The none tuple size is {}", mem::size_of::<()>());
-}
-\end{code-block}
-
-在Rust当中，浮点类型是非常特殊的数据类型。浮点类型当中，存在一个特殊的值：NaN，
-即非法的浮点数值，因为该数据的存在，浮点数不具备全序关系（total order）。所谓的
-全序，偏序，Rust当中的定义如下：对于集合X当中的元素a，b，c
-\begin{itemize}
-  \item 如果a<b，则!(a>b)一定成立；反之，如果a>b，则!(a<b)一定成立，即反对称性
-  \item 如果a<b，b<c，则a<c，即传递性
-  \item 对于X当中的所有元素，都存在a<b，或者a>b，或者a==b，三者必居其一，即完全性
-\end{itemize}
-如果X集合只满足前面2条，则称之为偏序；具备上述所有特征，则为全序。由于浮点数的NaN
-不满足上述第3条规则，因此，Rust的浮点数属于偏序，而非全序，这回导致一个问题：浮点
-数无法排序——非NaN的数值无法与NaN进行比较：
-\begin{code-block}{rust}
-let nan = std::f32::NAN;
-let x = 0.4f32;
-// 下列结果全部为false
-info!("{}", nan > x);
-info!("{}", nan < x);
-info!("{}", nan == x);
-\end{code-block}
-为此，Rust设计了2个Trait表示全序与偏序：\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{std::cmp::Ord}（全序）以及
-\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{std::cmd::PartialOrd}（偏序）。
-PartialOrd这个Trait的partial\_cmp方法返回的是Option<Ordering>，而Ord返回的却是
-Ordering。Rust的f32和f64都只实现了PartialOrd，因此，浮点类型无法进行排序，也同样无法
-求取最值，如下列代码，则是无法运行的：
-\begin{code-block}{rust}
-let f_vec = vec![1f32, 2.0, 4.0, 0.0, -1.2];
-let bigest_f = f_vec.iter().max();
-\end{code-block}
-对上诉代码进行编译，会直接提示如下类似的错误：
-\begin{figure}[H]
-  \centering
-  \includegraphics[scale=0.2]{rust_float_cmp_error.png}
-  \caption{浮点数的最值错误求解}
-  \label{fig:rust_float_cmp_error}
-\end{figure}
-浮点数的排序只能通过partial\_cmp（比较相等关系）进行变换处理，如下方代码：
-\label{float_sort}
-\begin{code-block}{rust}
-let mut f_vec = vec![1f32, 2.0, 4.0, 0.0, -1.2];
-// 升序排列
-f_vec.sort_by(|first, second| first.partial_cmp(second).unwrap());
-// 获取排序后的最后一位
-let max = f_vec.last().unwrap();
-// 或者如下进行
-// let max = f_vec.as_slice().last().unwrap();
-// 降序排列
-f_vec.sort_by(|first, second| second.partial_cmp(first).unwrap());
-\end{code-block}
-
-作为常用数据类型之一，Rust的数组也存在自己的特点，比如同类型的数组之间可以相互赋值：
-\begin{code-block}{rust}
-let mut array: [u32; 4] = [1, 23, 4, 5];
-let array_copy: [u32; 4] = [5, 6, 7, 8];
-array = array_copy;
-\end{code-block}
-支持数组之间的直接比较，只是数组当中的元素本身就可以进行比较才行：
-\begin{code-block}{rust}
-let array: [u32; 4] = [1, 23, 4, 5];
-let array_copy: [u32; 4] = [5, 6, 7, 8];
-info!("{:?}", array < array_copy);
-\end{code-block}
-
-Rust当中的函数也可以称之为类型的一种，并且，每个函数都有自己单独的类型，函数的类型
-是fn。但是，函数的参数列表会影响fn类型的判断和表达，比如下面的例子：
-\begin{code-block}{rust}
-fn add_tuple(t: (u32, u32)) -> u32 {
-    t.0 + t.1
-}
-fn add_two((x, y): (u32, u32)) -> u32 {
-    x + y
-}
-fn add_normal(x: u32, y: u32) -> u32 {
-    x + y
-}
-\end{code-block}
-实际上，add\_tuple和add\_two这2个函数被fn类型识别成为具有相同签名的类型，因此，
-在理论上，我们可以使用同一个变量，接收这2个函数的指针：
-\begin{code-block}{rust}
-fn main() {
-    let mut func = add_tuple;
-    func = add_two;
-    ...
-}
-\end{code-block}
-但是，上述代码却是错误的：虽然签名相同，但是，类型不同：
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\linewidth]{rust_func_type.png}
-  \caption{相同签名的不同函数类型}
-  \label{fig:rust_func_type}
-\end{figure}
-解决方法，则是将其转换成通用的fn类型：
-\begin{code-block}{rust}
-fn main() {
-    // 显示指定func的类型
-    let mut func: fn((u32, u32)) -> u32 = add_tuple;
-    // 使用as进行类型的转换
-    // let mut func = add_tuple as fn((u32, u32)) -> u32;
-    func = add_two;
-    ...
-}
-\end{code-block}
-但是，需要注意，add\_normal的功能看上去和前面两个函数的功能相同，但是，他们的
-函数签名完全不同，因此，不能将其转换成func。
-
-函数是Rust的头等公民，可以在函数/方法当中定义函数，也可以在函数/方法当中定义结构
-体，甚至于定义结构体的方法和实现，以及静态变量，常量等：
-\begin{code-block}{rust}
-fn func_as_first(x: u32, y: u32) -> (u32, u32) {
-    struct Point {
-        x: u32,
-        y: u32,
+extern crate slog_scope;
+extern crate slog_stdlog;
+#[macro_use]
+extern crate log;
+extern crate logger;
+// macro_rules! 表示后续的内容是一个宏
+// greeting表示宏的名称
+macro_rules! greeting {
+    // () 表示该宏不接收任何参数
+    () => {
+        // 宏定义展开的具体内容
+        info!("hello macro");
     };
-    impl Point {
-        fn area(&self) -> u32 {
-            self.x * self.y
-        }
-        fn cycle(&self) -> u32 {
-            self.x + self.y
+}
+fn main() {
+    let logger = logger::initlogger(false, "", 0);
+    let _guard = slog_scope::set_global_logger(logger);
+    slog_stdlog::init().unwrap();
+    greeting!();
+}
+\end{code-block}
+但是，宏不可能一直是无参数的，它还包含了多种使用方式。宏的参数使用\$符号表示，并
+使用指示符来注明类型，如下：
+\begin{code-block}{rust}
+macro_rules! create_function {
+    // 宏接收一个ident指示符表示的参数，并创建一个func_name的函数
+    // ident指示符表示变量名（函数名）
+    ($func_name: ident) => {
+        fn $func_name() {
+            // stringify宏负责将ident指示符表示的参数转换成字符串
+            info!("You called the {}()", stringify!($func_name));
         }
     };
-    let p = Point { x: x, y: y };
-    (p.area(), p.cycle())
 }
-\end{code-block}
-
-常规的函数类型，都会存在返回值，这些返回值要么是特定的类型，要么就是()，即类似
-C/C++的返回void。如果需要什么都不返回，则可以使用!，这种函数称之为发散函数，比如
-在处理panic时，有时就需要使用发散函数：
-\begin{code-block}{rust}
-fn diverges() -> ! {
-    panic!("This function never returns!");
-}
-\end{code-block}
-Panic操作会直接导致软件栈展开，因此，后续的操作都不会执行，其返回的就是一个!。
-发散函数的最大特点，就是可以被转换成任意一个类型，虽然执行的时候最终还是会崩溃，
-如下：
-\begin{code-block}{rust}
-let x : i32 = diverges();
-let y : String = diverges();
-\end{code-block}
-但是，发散函数最大的作用，在于解决编译器的类型检查：
-\begin{code-block}{rust}
-let p = if x {
-    panic!("error");
-} else {
-    100
-};
-\end{code-block}
-对于let-if而言，if-else的每个分支都必须是相同的数据类型，通过发散函数的任意类型
-转换特性即!与任何类型兼容，所以上述代码才能编译通过。
-
-所有的Rust变量，函数都是类型的一种，都可以通过一定的手段和方式，获得类型的具体信息。
-常见的方式有两种，一种是使用错误信息进行推断，一种则是使用标准库函数进行获得。
-
-通过构造一个特殊的函数，然后调用该函数，则可以获得相关的类型信息：
-\begin{code-block}{rust}
-// 接收一个unit参数
-fn type_id(_: ()) {}
-
-fn main() {
-    let ref i = 5;
-    type_id(i);
-}
-\end{code-block}
-
-而另外的方式，则是使用标准库函数，不过，这个标准库函数在Rust的默认stable分支当中
-是不可用的，需要在nightly分支当中进行编译使用，并且，还需要启用一些特性：
-\begin{code-block}{rust}
-#![feature(core_intrinsics)]
-use std;
-// 使用泛型参数进行不同类型的数据接收
-fn print_type<T>(_arg: &T) {
-    println!(
-        "The type name of arg is {}",
-        std::intrinsics::type_name::<T>()
-    );
+// 使用宏创建函数，函数名为func
+create_function!(func);
+macro_rules! formatres {
+    // 宏接收一个expr指示符表示的表达式（可以是代码块，函数/方法，其他宏）
+    // expr指示符表示表达式
+    // $expression表示表达式最后的执行结果
+    ($expression: expr) => {
+        info!("{} = {}", stringify!($expression), $expression)
+    };
 }
 fn main() {
-    let ref x = 5;
-    print_type(&x);
+    // 调用func函数
+    func();
+    formatres!(1 + 32);
+    formatres!("lucifer");
+    formatres!(format!("{}, age is {}", "zhangjl", 32));
 }
 \end{code-block}
-编译上述代码时，则需要对编译指令进行部分的调整：
-\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{bash}{cargo +nightly build}，
-然后即可实现对参数类型的打印输出。
+宏的指示符有很多，各自用于不同的场景，所有的宏指示符如下：
+\begin{itemize}
+  \item block：代码块，由{}限定的代码
+  \item expr：表达式，会生成具体的值
+  \item ident：变量名/函数名，标识符
+  \item item：语言项，即组成一个Rust包的基本单位，如模块，声明，函数/类型/结构体/impl定义
+  \item pat：模式
+  \item path：路径，类似std::iter等
+  \item stmt：语句，一般以;结尾的代码
+  \item tt：标记树
+  \item ty：类型
+  \item meta：元数据信息，即包含在\#[...]以及\#![...]当中的信息
+  \item vis：可见性，如pub
+  \item lifetime：指代生命周期参数
+\end{itemize}
 
-在Rust当中，与Python不同，函数/方法并不存在默认参数，但是，结构体当中的字段，却可以
-有默认值，只是，这个默认值的实现，必须和Default Trait相结合，如下：
+类似于方法，Rust的宏也可以进行重载，只不过，这个重载的实现比较类似于match的分支
+处理流程，分割宏的分支即进行重载，则需要使用符号“:”进行：
 \begin{code-block}{rust}
-struct ColoredString {
-    input: String,
-    fg_color: String,
-    bg_color: String,
+macro_rules! assert_bool {
+    // 括号中的分号;表示调用该宏时，需要传递2条语句或者表达式
+    ($left: expr; and $right: expr) => {
+        info!(
+            "{} and {} is {}",
+            stringify!($left),
+            stringify!($right),
+            $left && $right
+        )
+    };
+    // 分支之间需要使用分号;进行分割与结束
+    ($left: expr; or $right: expr) => {
+        info!(
+            "{} or {} is {}",
+            stringify!($left),
+            stringify!($right),
+            $left || $right
+        )
+    };
 }
-impl Default for ColoredString {
-    fn default() -> Self {
-        ColoredString {
-            input: String::default(),
-            fg_color: String::default(),
-            bg_color: String::default(),
+fn main() {
+    assert_bool!(1 + 1 == 2; and 2 * 2 == 4 );
+    assert_bool!(1 + 1 == 3; or 2 * 2 == 6 );
+}
+\end{code-block}
+
+宏定义的另外一个好处就是可以处理不定参数，在处理不定参数时，需要使用+操作符以及*
+操作符，+表示参数可能出现一次或多次，*则表示参数可能出现0次或多次：
+\begin{code-block}{rust}
+use std::cmp;
+macro_rules! find_min {
+    // 如果传入的只有一个参数，直接返回当前参数值
+    ($x: expr) => {
+        $x
+    };
+    // 传入多个参数，表示后续更多的参数，即x后至少还有一个参数
+    ($x: expr, $($y: expr), +) => {
+        // 递归调用宏本身
+        cmp::min($x, find_min!($($y), +))
+    };
+}
+fn main() {
+    info!("{}", find_min!(12));
+    info!("{}", find_min!(12, 65, 40 - 32));
+    let a = 1;
+    let b = 2;
+    let c = 3;
+    info!("{}", find_min!(a, a - b, c));
+}
+\end{code-block}
+上述的宏是使用表达式模式进行的，如果采用变量模式，即使用ident模式，则上述代码需要
+变更为如下：
+\begin{code-block}{rust}
+use std::cmp;
+macro_rules! find_min {
+    ($x: ident) => {
+        $x
+    };
+    ($x: ident, $($y: ident), +) => {
+        cmp::min($x, find_min!($($y), +))
+    };
+}
+fn main() {
+    // 错误的使用方式，12是一个表达式，而并非变量名
+    // info!("{}", find_min!(12));
+    let a = 1;
+    let b = 2;
+    let c = 3;
+    info!("{}", find_min!(a, b, c));
+}
+\end{code-block}
+通过对比，可以发现，在某些场景下，表达式方式比ident方式更加通用，也更加合理一些。
+
+比较奇特的是，在Rust的宏当中，可以使用自定义的关键字，实现特殊功能，比如自定义
+关键字evaluation，表示将表达式进行计算：
+\begin{code-block}{rust}
+macro_rules! calc {
+    // 自定义关键字evalution，使用该宏时，前面必须加上evalution前缀关键词
+    (evalution $e: expr) => {
+        // 强制将表达式e变成数值i32类型，即将表达式e进行计算
+        let val: i32 = $e;
+        info!("{} = {}", stringify!($e), val);
+    };
+    // 当传入参数不定时
+    (evalution $e: expr, $(evalution $es: expr),+) => {
+        calc!(evalution $e);
+        calc!($(evalution $es),+)
+    }
+}
+fn main() {
+    calc!(evalution 1 + 100);
+    calc!(evalution 1+2, evalution 3 + 4, evalution 5 +6 );
+    calc!(evalution 1-2, evalution 3 * 4, evalution (5 +6) * (5 - 9) );
+}
+\end{code-block}
+由于宏的高度可定制性，因此，上述的宏代码可以变更为如下的模式，但是2者的功能完全
+一样：
+\begin{code-block}{rust}
+macro_rules! calc {
+    (evalution $e:expr) => {{
+        let val: i32 = $e;
+        info!("{} = {}", stringify! {$e}, val);
+    }};
+    (evalution $e:expr, $(evalution $es:expr),+) => {{
+        calc! { evalution $e }
+        calc! { $(evalution $es),+ }
+    }};
+}
+fn main() {
+    // 下面两种方式都正确
+    calc!{evalution 1 + 100};
+    calc!(evalution 1+2, evalution 3 + 4, evalution 5 +6 );
+}
+\end{code-block}
+
+实际上，*和+不仅可以用于参数处理，也可以用于语法扩展的部分，比如，我们想实现类似
+如下的一个宏：
+\begin{code-block}{rust}
+let empty = hashmap![];
+let counts = hashmap!['A' => 0, 'C' => 0, 'G' => 0, 'T' => 0];
+\end{code-block}
+则宏定义大致可能如下：
+\begin{code-block}{rust}
+macro_rules! hashmap {
+    ($key: expr => $val: expr) => {{
+        let mut map = ::std::collections::HashMap::new();
+        map.insert($key, $val);
+        map
+    }};
+}
+\end{code-block}
+但是，到目前为止，上述的宏只能实现对一对数据的操作，无法实现任意对数据的插入操作，
+因此，我们需要使用+或者*符号进行扩展，由于我们需要支持初始化一个空的hashmap，因此
+选择使用*进行扩展：
+\begin{code-block}{rust}
+macro_rules! hashmap {
+    ($key: expr => $val: expr) => {{
+        let mut map = ::std::collections::HashMap::new();
+        map.insert($key, $val);
+        map
+    }};
+}
+\end{code-block}
+虽然参数支持了任意个数，但是，在宏体当中，map的插入操作只执行了一次，我们可以继续
+使用*和+对语法部分进行扩展，扩展之后，完整的宏定义如下：
+\begin{code-block}{rust}
+macro_rules! hashmap {
+    ($($key: expr => $val: expr), *) => {{
+        let mut map = HashMap::new();
+        $(map.insert($key, $val); )*
+        map
+    }};
+}
+\end{code-block}
+使用时，则按照上述的使用方式即可：
+\begin{code-block}{rust}
+let map = hashmap!["lucifer" => 12, "titans" => 18];
+let mut empty: HashMap<String, u8> = hashmap![];
+\end{code-block}
+默认情况下，cargo并没有提供将宏定义进行展开显示的功能，但是，我们可以通过rustc
+将代码展开，确认宏定义确实是按照我们的想法进行工作的。只是需要注意，将宏定义进行
+展开显示，需要使用nightly分支，因此，我们的操作基本如下：
+\begin{code-block}{bash}
+# 切换到nightly分支
+rustup default nightly
+# 对代码进行展开
+rustc -Z unstable-options --pretty=expanded src/main.rs
+cargo rustc -- -Z unstable-options --pretty=expanded
+# 如果代码需要依赖其他的非std的crate的，则应当如下执行
+# rustc -Z unstable-options --pretty=expanded -L ../target/debug/deps src/main.rs
+\end{code-block}
+如果一切正常，则我们调用宏的代码就会被展开成如下的形式：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_macro_expand.png}
+  \caption{宏展开}
+  \label{fig:rust_macro_expand}
+\end{figure}
+
+Rust宏的灵活性非常大，可以像C/C++一样，在宏当中嵌套/调用宏：
+\begin{code-block}{rust}
+macro_rules! serial_cmd {
+    ($expression: expr, $port: expr, $item: expr, $timeout: expr) => {{
+        let mut cmd = HEADER.to_vec();
+        cmd.push($item);
+        cmd.push($expression);
+        match ($port).write(&cmd) {
+            Ok(_) => info!(
+                "Sucess {}(0x{:X>02}) the {} board, and command is {:?}",
+                stringify!($expression),
+                $expression,
+                $item,
+                &cmd
+            ),
+            Err(e) => error!(
+                "Failed to {}(0x{:X>02}) the {} board: {}",
+                stringify!($expression),
+                $expression,
+                $item,
+                e
+            ),
         }
-    }
+        if 0 < $timeout {
+            thread::sleep(Duration::from_secs($timeout));
+        }
+    }};
 }
-fn main() {
-    let color = ColoredString::default();
-}
-\end{code-block}
-从上述代码当中可以看出，实际上，并不是Rust的结构体字段赋予了初始值，而是通过一个
-名为default的方法，构造一个我们认为应该具有默认值的结构体。在Rust当中，常用的基本
-数据类型都实现了Default Trait，可以直接使用对应的default方法。
-
-\subsection{Trait类型与泛型再论}
-关于类型，Trait也是比较重要的一个话题。在之前的示例当中，Trait全部是在具体的类型
-上实现的，但是，Trait本身也可以在智能指针（Box）上实现，比如：
-\begin{code-block}{rust}
-trait Shape {
-    fn area(self: Box<Self>) -> f64;
-}
-struct Circle {
-    radius: f64,
-}
-impl Shape for Circle {
-    fn area(self: Box<Self>) -> f64 {
-        PI * self.radius * self.radius
-    }
-}
-fn main() {
-    let c = Box::new(Circle { radius: 4f64 });
-    info!("{}", c.area());
-    // 由于trait实现是在智能指针box上，因此，下面的使用是错误的
-    // let c = Circle { radius: 4f64 }
-    // c.area()
+macro_rules! serial_for_all_cmd {
+    ($expression: expr, $port: expr, $timeout: expr) => {{
+        for item in &CODE {
+            serial_cmd!($expression, $port, *item, $timeout);
+        }
+    }};
 }
 \end{code-block}
-甚至在Trait上实现Trait，比如下方：
+也可以直接在宏当中，插入语句块，作为宏执行的一部分：
 \begin{code-block}{rust}
-trait Shape {
-    fn area(&self) -> f64;
-}
-trait Round {
-    fn get_radius(&self) -> f64;
-}
-struct Circle {
-    radius: f64,
-}
-impl Round for Circle {
-    fn get_radius(&self) -> f64 {
-        self.radius
-    }
-}
-impl Shape for dyn Round {
-    fn area(&self) -> f64 {
-        let radius = self.get_radius();
-        PI * radius * radius
-    }
-}
-\end{code-block}
-Shape是一个Trait，Round同样也是一个Trait，Circle实现了Round，Round实现了Shape，
-但是，由于Round本身是一个Trait，拥有不确定性，因此，在实现Shape的时候，需要添加
-dyn关键字，提示这个Round不是普通的类型，而是一个Trait。上述代码当中，Circle间接
-的实现了Shape，但是，Circle的类型无法直接使用Shape的方法，只能通过智能指针的方
-式，将Circle转换成Round的类型，再进行使用，如下：
-\begin{code-block}{rust}
-fn main() {
-    let c: Box<dyn Round> = Box::new(Circle { radius: 4f64 });
-    info!("{}", c.area());
-}
-\end{code-block}
-如果再把这个例子改得复杂一些，让Circle和Sphere同时实现Round，则我们可以使用Round
-指针计算2个不同类型数据的结果：
-\begin{code-block}{rust}
-trait Shape {
-    fn area(&self) -> f64;
-}
-trait Round {
-    fn calc(&self) -> f64;
-}
-struct Circle {
-    radius: f64,
-}
-impl Round for Circle {
-    fn calc(&self) -> f64 {
-        PI * self.radius * self.radius
-    }
-}
-struct Sphere {
-    radius: f64,
-}
-impl Round for Sphere {
-    fn calc(&self) -> f64 {
-        4f64 * PI * self.radius * self.radius
-    }
-}
-impl Shape for dyn Round {
-    fn area(&self) -> f64 {
-        self.calc()
-    }
+macro_rules! serial_for_only_one {
+    ($port: expr, $location: expr, $($command: stmt),*) => {{
+        serial_cmd!(POWEROFF, $port, $location, 0);
+        trace!("Remove the block file to avoid the unexcepted error ...");
+        let _ = fs::remove_file("/dev/sdb");
+        serial_cmd!(SWITCH, $port, $location, 5);
+        // 执行外部代码块
+        $($command )*
+        serial_cmd!(POWEROFF, $port, $location, 0);
+        let _ = fs::remove_file("/dev/sdb");
+    }};
 }
 fn main() {
-    let circle: Box<dyn Round> = Box::new(Circle { radius: 4f64 });
-    info!("The Circle area is {}", circle.area());
-    let sphere: Box<dyn Round> = Box::new(Sphere { radius: 4f64 });
-    info!("The Sphere area is {}", sphere.area());
+    // 调用宏
+    serial_for_only_one!(port, location_u8, {println!("hello")});
 }
 \end{code-block}
 
-Trait不仅仅用于实现类型，约束类型，还可以用于为其他现有的数据类型添加方法/函数，
-比如：
+\subsection{宏导出}
+除了在当前的crate当中使用宏之外，
+宏还可以导出，宏之间也可以相互调用。宏的导出通常使用macro\_export关键字，比如：
 \begin{code-block}{rust}
-impl Round for i32 {
-    fn calc(&self) -> f64 {
-        *self as f64
-    }
-}
-fn main() {
-    let i_struct = 4i32;
-    i_struct.calc();
+#[macro_export]
+macro_rules! inc {
+    ($x: expr) => {
+       println!("{}", $x);
+    };
 }
 \end{code-block}
-这种类型的函数/方法，则称之为扩展方法/函数。从上述例子当中，我们似乎可以使用Trait
-对任意类型进行函数/方法的扩展，但是，这个是存在前提的：
+然后，在其他地方，就可以直接使用这个宏。不过，有的时候，宏的实现可能需要当前包的
+一些函数或者方法进行配合，则需要做如下的更改：
+\begin{code-block}{rust}
+// 必须将方法设置为pub，否则后续在宏定义当中，无法使用
+pub fn incr(x: u32) -> u32 {
+    x + 1
+}
+#[macro_export]
+macro_rules! inc {
+    ($x: expr) => {
+        // $crate关键字表示当前的包
+        // 当宏被导出时，自动根据上下文选择函数调用路径当中的包名
+        $crate::incr($x)
+    };
+}
+\end{code-block}
+上述的导出方式，要求宏所依赖的函数，也都必须导出，否则，在外部使用宏时，无法
+正常工作。
+
+除了使用普通的函数作为宏的依赖项之外，也可以使用宏作为宏的依赖项。和普通函数一样，
+如果一个宏的定义当中，依赖了另外一个宏，则必须同样当对应的依赖项导出为pub类型。
+但是，如果可以使用一种额外的方式，将依赖的宏，转变为宏的内部规则进行导出：
+\begin{code-block}{rust}
+#[macro_export]
+macro_rules! hashmap {
+    /* hashmap宏的内部规则，相当于如下的一个外部宏，不管接收多少参数，一律返回
+       一个空元组()
+       macro_rules! unit {
+       ($($input:tt),*) => {
+                ()
+           };
+       }
+       使用方式
+       let res = unit!(), unit!("lucifer"), unit!("garuda", "titans")
+    */
+    (@unit $($x:tt)*) => (());
+    /* hashmap宏的内部规则, 等价于如下的一个宏，作用是返回接收到的元素的个数
+       macro_rules! count {
+           // <[()]>::len()可以用于求取数组/切片的长度，使用方式如下：
+           // let lenth = <[&str]>::len(&["string", "string"])
+           // let lenth = <[String]>::len(&["string".to_string(), "string".to_string()])
+           // let lenth = <[()]>::len(&[(), ()]) // 性能更好，因为()不占据任何内存空间
+           ($($key:expr),*) => (<[()]>::len(&[$(unit! ($key)),*]));
+       }
+       使用方式
+       let res = count!(), count!("lucifer"), count!("lucifer", "titans")
+       @符号表示一个宏定义当中的内部规则，如果需要在宏当中使用宏的内部规则，
+       则使用方式是 宏名!(@内部规则名 其他变量)，对应到这个hashmap宏，则使用方式
+       如下： hashmap!(@unit $key), hashmap!(@count $($rest),*)
+    */
+    (@count $($rest:expr), *) => (<[()]>::len(&[$(hashmap!(@unit $rest)),*]));
+    /* $($key:expr => $value:expr),* 表达式本身可以匹配hashmap!()，hashmap!("1"=>2)
+     但是，无法匹配类似hashmap!["2"=>3,]这种末尾包含,符号的模式
+     $(,)* 则是用于匹配后续结尾是否带有,符号
+     即hashmap!["2"=>3,]和hashmap!["2"=>3]都可以支持
+    */
+    ($($key:expr => $value:expr),* $(,)*) => {{
+        let _cap = hashmap!(@count $($key),*);
+        let mut _map = ::std::collections::HashMap::with_capacity(_cap);
+        $( _map.insert($key, $value); )*
+        _map
+    }}
+}
+\end{code-block}
+
+\subsection{过程宏}
+以上提到的宏，都是声明宏，可以直接当作函数/方法使用的类型，但是，如果想实现类似于
+\#[derive(Debug)]这种类型的宏，声明宏是做不到的。相对应的，这种类型的宏则被称之
+为过程宏。过程宏主要用于下面3种用途：
 \begin{itemize}
-  \item impl和trait的声明/定义在同一个crate当中
-  \item 或者，impl的实现需要和类型的声明在同一个crate当中
-\end{itemize}
-如果不满足上述条件，则容易出现bug和问题，也会违反Rust的规则。
-
-Rust的Trait支持多种特性，自然也支持继承，但是注意，Rust的结构体和enum数据类型并不
-存在继承的概念。Trait的继承方式如下：
-\begin{code-block}{rust}
-trait Base {}
-trait Derived : Base {}
-\end{code-block}
-当一个结构体实现了上述的Derived这个Trait，则必须同样实现Base这个Trait，否则就会
-出现语法错误：
-\begin{code-block}{rust}
-trait Base {}
-trait Derived : Base {}
-struct T;
-impl Derived for T {}
-impl Base for T {}
-\end{code-block}
-
-Rust的Trait不仅可以包括函数的定义，同样可以直接定义函数：
-\begin{code-block}{rust}
-trait Page {
-    fn set_page(&self) {
-        info!("Page Default: 1");
-    }
-}
-trait PerPage {
-    fn set_per_page(&self) {
-        info!("Per Page Default: 1");
-    }
-}
-struct Paginate {
-    page: u32,
-}
-impl Page for Paginate {}
-impl PerPage for Paginate {}
-fn main() {
-    let page = Paginate { page: 8 };
-    page.set_page();
-    page.set_per_page();
-    page.set_skip_page();
-}
-\end{code-block}
-
-甚至于，Trait可以直接给结构体提供更多的组合方法：
-\begin{code-block}{rust}
-trait PaginateMore: Page + PerPage {
-    fn set_skip_page(&self) {
-        info!("Skip the page");
-    }
-}
-fn main() {
-    ...
-    page.set_skip_page();
-}
-\end{code-block}
-结构体根本不用自行实现Trait PaginateMore，就可以直接使用该Trait当中的方法。
-
-Trait不仅仅可以用于接口实现，在Rust当中，更重要的则是类型限定，限定某些数据只能
-做某些事情。比如下方的代码：
-\begin{code-block}{rust}
-...
-fn static_dispatch<T>(t: &T) where T: Bar {
-    ...
-}
-fn dynamic_dispatch(t : &Bar) {
-    ...
-}
-\end{code-block}
-对于实现了Trait Bar的类型来说，上述2个函数，都可以被调用，但是，从语法上，static\_dispatch
-由于使用了where，表示参数必须限定在Trait Bar类型，在编译时就能够确定；而dynamic\_dispatch
-则从语法上表示，输入的参数必须是Bar的对象，即Trait Object。运行时，Trait Object会根据虚表
-指针从虚表当中查出正确的指针，再进行动态调用，属于在运行时确定。
-
-但是并不是每一个Trait都可以当着Trait Object使用，这个和类型大小是否确定有关系。每一个
-Trait的隐藏类型参数Self默认限定为?Sized，?Sized trait包括了所有动态大小类型以及所有
-可确定大小的类型。Rust当中大部分类型都是默认可确定大小的，即<T:Sized>。当trait对象
-在运行期进行动态分发时，也必须确定大小，否则无法分配内存。只有同时满足下列条件的
-trait，才可以当作Trait Object使用：
-\begin{itemize}
-  \item Trait的Self不能被限定为Sized
-  \item Trait当中的所有方法都必须是对象安全的
+  \item 自定义派生属性：即类似于\#[derive(Debug)]这样的derive属性
+  \item 自定义属性：即类似于实现\#[cfg()]这样的属性
+  \item Bang宏：与声明宏类似，但是，是以!结尾的宏，可以当作函数/方法使用
 \end{itemize}
 
-而所谓的对象安全，则必须满足如下的条件\colorunderline{之一}：
-\begin{itemize}
-  \item 当Trait的Self被限定为Sized时，方法受Self:Sized约束
-  \item Trait的方法签名必须\colorunderline{同时满足以下3点}
-  \begin{enumerate}
-    \item 不包含任何泛型参数（Self）
-    \item 第一个参数必须为Self类型或可解引用为Self类型
-    \item Self不能出现在除第一个参数之外的其他地方
-  \end{enumerate}
-  \item Trait当中不能包含关联常量
-\end{itemize}
-
-比如下面的代码，就属于标准的对象安全：
-\begin{code-block}{rust}
-trait Bar {
-    fn bax(self, x: u32);
-    fn bay(&self);
-    fn baz(&mut self);
-}
-\end{code-block}
-Trait Bar不受Sized限制，Trait的方法没有额外的Self类型参数，没有泛型参数，因此是安全的。
-相对应的，不安全的Trait如下：
-\begin{code-block}{rust}
-// 对象不安全
-trait Foo {
-    fn bad<T>(&self, x:T);
-    fn new() -> Self;
-}
-// 对象安全
-trait Foo {
-    fn bad<T>(&self, x: T);
-    fn new() -> Self
-    where
-        Self: Sized;
-}
+过程宏要求必须放到proc\_macro类型的lib包当中，因此，过程宏的创建过程会稍微有一些
+区别：
+\begin{code-block}{bash}
+cargo new --lib procmacro
+echo -e "[lib]\nproc_macro=true" >> procmacro/Cargo.toml
 \end{code-block}
 
-当然，Sized约束也可以用于Trait定义当中。比如，自行实现一个类似any的Any Trait。
+另外，和其他的mod不太一样的是，过程宏的测试用例，不能放到相同的crate当中，必须以
+外部的方式存在，因此，过程宏的文件结构大致如下：
+\begin{code-block}{bash}
+├── Cargo.toml
+├── src
+│   └── lib.rs
+└── tests
+    └── test.rs
+\end{code-block}
+
+实现derive方式的过程宏，其示例如下：
 \begin{code-block}{rust}
-use std::ops::Fn;
-trait CustomAny {
-    fn custom_any<F>(&self, f: F) -> bool
-    where
-        Self: Sized,
-        F: Fn(u32) -> bool;
-}
-impl CustomAny for Vec<u32> {
-    fn custom_any<F>(&self, f: F) -> bool
-    where
-        Self: Sized,
-        F: Fn(u32) -> bool,
-    {
-        for &x in self {
-            if f(x) {
-                return true;
+// 必须如此进行使用
+extern crate proc_macro;
+use self::proc_macro::TokenStream;
+#[proc_macro_derive(A)]
+pub fn derive(input: TokenStream) -> TokenStream {
+    let input = input.to_string();
+    assert!(input.contains("struct A"));
+    r#"
+        impl A {
+            pub fn a(&self) -> String {
+                format!("Hello from impl A")
             }
         }
-        false
-    }
+    "#
+    .parse()
+    .unwrap()
 }
-fn main() {
-    let v: Vec<u32> = vec![1, 2, 3];
-    info!("{}", v.iter().any(|&x| x == 3));
-    info!("{}", v.custom_any(|x| x == 3));
+\end{code-block}
+上述过程宏表示，使用\#[derive(A)]为结构体A实现一个a方法，方法直接输出一句话。相对应的，
+测试用例当中的使用则应当修改如下：
+\begin{code-block}{rust}
+#[macro_use]
+extern crate procmacro;
+#[derive(A)]
+struct A;
+#[test]
+fn test_derive_a() {
+    assert_eq!("Hello from impl A", A.a());
 }
 \end{code-block}
 
-Trait当中不仅可以包含函数和方法，同样可以包含变量和常量，即所谓的关联变量以及关联
-常量。关联常量的使用稍微有些特殊，在Trait当中可以定义关联常量，但是，使用的时候，
-却是通过Trait的实现对象来使用这些关联常量的：
+而实现自定义属性宏稍微有些区别，就是必须在nightly的rust下编译，目前还没有进入到
+stable分支，一个简单的示例如下：
 \begin{code-block}{rust}
-trait Colorize {
-    // 定义关联常量
-    const FG_RED: &'static str = "31";
-    const BG_YELLOW: &'static str = "43";
-    fn red(self) -> ColoredString;
-    fn on_yellow(self) -> ColoredString;
+#![feature(register_attr)]
+extern crate proc_macro;
+use self::proc_macro::TokenStream;
+#[proc_macro_attribute]
+pub fn attr_with_args(args: TokenStream, _: TokenStream) -> TokenStream {
+    let args = args.to_string();
+    //let input = input.to_string();
+    format!("fn foo() -> &'static str {{{}}}", args)
+        .parse()
+        .unwrap()
 }
-impl Colorize for ColoredString {
-    fn red(self) -> ColoredString {
-        ColoredString {
-            // 使用关联常量，如果是Colorize::FG_RED，则会提示错误
-            fg_color: String::from(ColoredString::FG_RED),
-            ..self
-        }
-    }
-    fn on_yellow(self) -> ColoredString {
-        ColoredString {
-            bg_color: String::from(ColoredString::BG_YELLOW),
-            ..self
+\end{code-block}
+同样的，其测试用例如下：
+\begin{code-block}{rust}
+#![feature(register_attr)]
+#[macro_use]
+extern crate procmacro;
+use procmacro::attr_with_args;
+#[attr_with_args("Hello Rust")]
+fn foo() {}
+#[test]
+fn test_foo() {
+    assert_eq!("Hello Rust", foo());
+}
+\end{code-block}
+原本的foo方法，不接收参数，同样没有返回值，但是，在attr\_with\_args这个过程宏
+当中，将其强行修改为了一个返回为字符串切片的函数。
+
+实现Bang宏的方式则如下：
+\begin{code-block}{rust}
+#![feature(proc_macro_hygiene)]
+extern crate proc_macro;
+use self::proc_macro::TokenStream;
+#[proc_macro]
+pub fn treemap(input: TokenStream) -> TokenStream {
+    let input = input.to_string();
+    let input = input.trim_end_matches(',');
+    let input_v: Vec<String> = input
+        .split(",")
+        .map(|n| {
+            let mut data = if n.contains(":") {
+                n.split(":")
+            } else {
+                n.split("=>")
+            };
+            let (key, value) = (data.next().unwrap(), data.next().unwrap());
+            format!("hm.insert({}, {})", key, value)
+        })
+        .collect();
+    let count: usize = input.len();
+    let token = format!(
+        "{{
+        let mut hm = ::std::collections::HashMap::with_capacity({});
+        {}
+        hm
+    }}",
+        count,
+        input_v
+            .iter()
+            .map(|n| format!("{};", n))
+            .collect::<String>()
+    );
+    token.parse().unwrap()
+}
+\end{code-block}
+
+Bang宏可以如同声明宏一样的进行使用，其使用方式如下：
+\begin{code-block}{rust}
+#[macro_use]
+extern crate procmacro;
+#[test]
+fn test_treemap() {
+    let hm = treemap! {"a":1, "b": 2};
+    assert_eq!(hm["a"], 1);
+    let hm = treemap! {"a" => 1, "b" => 4};
+    assert_eq!(hm["b"], 4);
+}
+\end{code-block}
+
+过程宏的本质是在函数/方法当中，使用TokenStream重构，本质还是一个特殊的函数/方法。
+因此，过程宏不需要像声明宏一样的进行export，但是，必须将过程宏的函数声明为pub，
+生成的过程宏才可以被外部使用。
+
+\subsection{语法树}
+编写真正可用的过程宏实际上比上面的例子要复杂很多，但不管如何变化，Rust的宏都是依赖于
+语法树结构的，而过程宏的实现方式/过程，就是对解析的语法树进行处理的过程。关于语法树
+的解析和读取，通常采用的是第三方的Rust Crate进行操作，目前比较常用的是\href{https://github.com/dtolnay/quote}{Quote}，
+\href{https://github.com/dtolnay/syn}{Syn}以及\href{https://github.com/alexcrichton/proc-macro2}{Proc-macro2}。
+在编写真正的过程宏时，通常都需要上述3个crate的协助，需要在Cargo.toml当中添加如下的内容：
+\begin{code-block}{toml}
+[dependencies]
+quote = "1.0.9"
+syn = {version = "1.0.72", features = ["full", "extra-traits"]}
+proc-macro2 = "1.0.26"
+[lib]
+proc-macro = true
+\end{code-block}
+另外，当lib当中设置\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{toml}{proc-macro=true}之后，
+则对应的crate只能导出过程宏，不能导出其他的类型数据。
+
+所有的编程语言都离不开词法分析，Rust同样如此。在Rust当中，通常使用TokenStream进行词法分析，
+解析代码内容，编写过程宏离不开对TokenStream的解析。在调试过程宏的时候，由于标准输出
+不可用，因此通常只能通过标准错误输出进行信息的打印。通常情况下，都是使用\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{eprint!}
+或者\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{eprintln!}进行过程宏的调试输出。
+一个简单的过程宏示例如下，当然，由于我们进行了输出，也可以看到Rust的语法树的大致结构：
+\begin{code-block}{rust}
+use proc_macro::TokenStream;
+#[proc_macro_attribute]
+pub fn test_proc_macro(attr: TokenStream, item: TokenStream) -> TokenStream {
+    eprintln!("{:#?}", attr);
+    eprintln!("{:#?}", item);
+    item
+}
+\end{code-block}
+调用的时候，需要在其他的crate当中引入这个crate：
+\begin{code-block}{rust}
+use procmacros::test_proc_macro;
+fn main() {
+    ...
+}
+#[test_proc_macro("lucifer")]
+fn hello() {
+    info!("hello");
+}
+\end{code-block}
+
+默认情况下，代码需要经过编译，才能判断是否存在问题，不过，rust提供了1种简便的思路
+来检测代码是否存在问题：\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{bash}{cargo check}。
+该指令不会对代码进行实质的编译动作，但是会对过程宏进行预处理（即将其转变成正常的Rust代码），
+因此，会得到类似如下的一些输出：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_cargo_check.png}
+  \caption{代码检测与预处理}
+  \label{fig:rust_cargo_check}
+\end{figure}
+
+除了使用上述指令之外，也可以采用宏展开的方式，但是默认的宏展开方式需要使用nightly
+分支，第三方工具cargo-expand则可以支持在stable分支直接展开。
+但是，需要注意expand指令只能在源码（即rs文件）所在路径执行：\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{bash}{cargo expand}。
+然后会得到类似如下的输出：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_cargo_expand.png}
+  \caption{宏代码展开}
+  \label{fig:rust_cargo_expand}
+\end{figure}
+通过expand指令，可以将代码当中的宏代码全部转换为正常的Rust代码，从而方便进行阅读
+识别和调试修改。
+
+在编译混合有过程宏的Rust代码时，其基本流程是先展开过程宏，将其处理成普通的Rust代码，
+然后再合并这些代码，最后再进行编译。从\colorunderlineref{fig:rust_cargo_check}所示当中，
+可以看到有很多的特殊的标记，这些标记共同组成了Rust的抽象语法树结构：
+\begin{itemize}
+  \item Ident：标识符
+  \item span：表示对应的元素在代码当中出现的位置（字节顺序）
+  \item Group：组，表示语法树的组别
+  \item delimiter：分隔符
+  \item stream：表示每一组的内容（TokenStream）
+  \item punct：标点符号
+  \item literal：字符字面量
+\end{itemize}
+
+TokenStream只是一系列符号的组合，与语义无关，因此，如果将之前代码的过程宏调用填充
+入无意义的数据，过程宏的处理同样不会有什么问题：
+\begin{code-block}{rust}
+#[test_proc_macro(!&)@)(*&$9)]
+fn hello() {
+    info!("hello");
+}
+\end{code-block}
+上述代码在编译阶段的结果输出大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_token_stream.png}
+  \caption{TokenStream}
+  \label{fig:rust_token_stream}
+\end{figure}
+从上述结果可以看到，TokenStream还是一种比较低级的处理形式，如果手工写一个TokenStream，
+极易出现错误，因此需要使用上文提到的syn和quote，将TokenStream转换成具有语义信息
+抽象度更高的数据结构：抽象语法树。将上述的过程宏代码改写如下：
+\begin{code-block}{rust}
+use proc_macro::TokenStream;
+use proc_macro2;
+use quote::quote;
+use syn::{self, parse_macro_input, spanned::Spanned, AttributeArgs, Item};
+// 标记该过程宏为属性模式
+#[proc_macro_attribute]
+pub fn test_proc_macro_ast(attr: TokenStream, item: TokenStream) -> TokenStream {
+    // 将属性转换成语法数进行输出，即#[test_proc_macro(!&)@)(*&$9)]这部分代码
+    eprintln!("{:#?}", parse_macro_input!(attr as AttributeArgs));
+    // 将真正的代码转换成语法树输出，即被#[...]所修饰的代码
+    let body_ast = parse_macro_input!(item as Item);
+    eprintln!("{:#?}", body_ast);
+    // 将语法树转换成TokenStream返回给编译器
+    // quote返回的并不是TokenStream，而是proc_macro2::TokenStream类型，必须转换
+    // #body_ast并不是Rust的合法语法，而是quote的自定义语法格式
+    quote!(#body_ast).into()
+}
+\end{code-block}
+如果对上述代码进行check，则会发现其输出结果大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_ast.png}
+  \caption{抽象语法树}
+  \label{fig:rust_ast}
+\end{figure}
+注意，此时的输出就不再是纯粹的TokenStream（无语义）了，而是带有语义分析的抽象语法树
+结构。抽象语法树可以完整的检查代码当中的语法逻辑问题，因此，如果像之前的代码，
+使用不符合语法的方式调用这个过程宏，则代码的预编译阶段就无法通过，编译器会直接提示错误。
+而这个错误，则是由\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{parse_macro_input!}这个
+宏提示出来的。
+
+\subsection{过程宏案例-派生过程宏Builder}
+假设当前有一个结构体如下：
+\begin{code-block}{rust}
+#[derive(Builder)]
+pub struct Command {
+    executable: String,
+    #[builder(each = "arg")]
+    args: Vec<String>,
+    current_dir: Option<String>,
+}
+\end{code-block}
+在该结构体上应用一个名为Builder的过程宏，使得在编译阶段最终生成的代码如下：
+\begin{code-block}{rust}
+pub struct Command {
+    executable: String,
+    #[builder(each = "arg")]
+    args: Vec<String>,
+    current_dir: Option<String>,
+}
+pub struct CommandBuilder {
+    executable: Option<String>,
+    args: Option<Vec<String>>,
+    env: Option<Vec<String>>,
+    current_dir: Option<String>,
+}
+impl Command {
+    pub fn builder() -> CommandBuilder {
+        CommandBuilder {
+            executable: None,
+            args: None,
+            env: None,
+            current_dir: None,
         }
     }
 }
 \end{code-block}
+即利用\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{#[derive(Builder)]}宏
+对任意结构体实现工厂模式代码的自动生成。
 
-Trait不仅仅可以实现泛型，泛型也不仅限于Trait和<T>，对于函数/方法，也可以使用在
-泛型、生命周期以及Trait当中，比如，显式的指定闭包的生命周期：
+为实现这个Builder宏，首先实现其基本的结构：
 \begin{code-block}{rust}
-// 将函数作为泛型参数
-struct Pick<F> {
-    data: (u32, u32),
-    func: F,
+use proc_macro::TokenStream;
+use proc_macro2;
+use quote::quote;
+use syn::{self, parse_macro_input, spanned::Spanned, AttributeArgs, Item};
+// 派生宏，不再使用proc_macro_attribute（属性宏）
+#[proc_macro_derive(Builder)]
+pub fn derive(input: TokenStream) -> TokenStream {
+    // 读取输出，转换成语法树
+    let st = parse_macro_input!(input as syn::DeriveInput);
+    TokenStream::new()
 }
-impl<F> Pick<F>
-where
-    // for<>只能用于标记生命周期
-    F: for<'f> Fn(&'f (u32, u32)) -> &'f u32,
-{
-    fn call(&self) -> &u32 {
-        (self.func)(&self.data)
-    }
-}
+\end{code-block}
 
-fn max(data: &(u32, u32)) -> &u32 {
-    if data.0 > data.1 {
-        return &data.0;
-    }
-    &data.1
+然后实现一个真正的语法树展开函数：
+\begin{code-block}{rust}
+fn do_expand(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    // 获取语法树ident信息，即结构体名称（字面量）
+    let struct_name_literal = st.ident.to_string();
+    // 构造新的结构体名称
+    let builder_name_literal = format!("{}Builder", struct_name_literal);
+    // 构造新的结构体的标识符（不是string）
+    // 第一个为标识符的字面量，第二个为位置信息
+    let builder_name_ident = syn::Ident::new(&builder_name_literal, st.span());
+    let struct_name_ident = &st.ident;
+    let ret = quote!(
+        // #builder_name_ident 表示使用之前的 builder_name_ident替换当前位置的内容
+        // 是quote宏的自定义语法格式
+        pub struct #builder_name_ident {
+        }
+        impl #struct_name_ident {
+            pub fn builder() -> #builder_name_ident {
+                #builder_name_ident {
+                }
+            }
+        }
+    );
+    Ok(ret)
 }
-fn main() {
-    let pick = Pick {
-        data: (32, 34),
-        func: max,
+\end{code-block}
+注意，上述代码当中的st（语法树）结构是一个\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{syn::DeriveInput}结构体\footnote{参考：\url{https://docs.rs/syn/1.0.72/syn/struct.DeriveInput.html}}，其内在结构如下：
+\begin{code-block}{rust}
+pub struct DeriveInput {
+    pub attrs: Vec<Attribute>, // 结构体/函数的属性，即#[]部分
+    pub vis: Visibility,       // 可见性，pub，private
+    pub ident: Ident,          // 标识符
+    pub generics: Generics,    // 泛型
+    pub data: Data,            // 字段，其类型可以是struct和enum以及联合体Union等
+}
+\end{code-block}
+可以针对该结构体进行解析，从而得到语法树的各个元素。
+
+有了do\_expand函数进行语法树的展开和修改之后，再回过头来修改框架的实现：
+\begin{code-block}{rust}
+#[proc_macro_derive(Builder)]
+pub fn derive(input: TokenStream) -> TokenStream {
+    let st = parse_macro_input!(input as syn::DeriveInput);
+    match do_expand(&st) {
+        // 转换成TokenStream
+        Ok(token_stream) => token_stream.into(),
+        // 将错误转换成编译器能够识别的TokenStream
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+\end{code-block}
+
+到此时，一个Builder属性宏的基本框架已经有了，通过\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{bash}{cargo expand}将
+代码展开，最终得到的结果大致如下，当然，目前还缺乏结构体的字段内容：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_expand.png}
+  \caption{Builder宏的展开结果}
+  \label{fig:rust_expand}
+\end{figure}
+
+需要注意的是，本例使用的是派生式的过程宏，而不是属性式的过程宏。属性式的过程宏
+可以对其装饰的代码进行直接的修改，而派生式的过程宏则无法对代码进行直接的修改，
+而是转为将代码追加在原始代码后面。
+
+接下来开始对结构体字段进行填充。在填充之前，首先对语法树DeriveInput进行简单的一些
+介绍，该结构体当中存在一个Data字段\footnote{参考：\url{https://docs.rs/syn/1.0.72/syn/enum.Data.html}}，
+而这个字段的详细定义，则如下：
+\begin{code-block}{rust}
+pub enum Data {
+    Struct(DataStruct), // 针对结构体
+    Enum(DataEnum),     // 针对Enum
+    Union(DataUnion),   // 针对union
+}
+\end{code-block}
+由于本例当中，关注的是结构体，因此，需要重点关注\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{DataStruct}
+这个字段\footnote{参考：\url{https://docs.rs/syn/1.0.72/syn/struct.DataStruct.html}}，该字段的具体定义如下：
+\begin{code-block}{rust}
+pub struct DataStruct {
+    pub struct_token: Struct,       // 对应struct字面量
+    pub fields: Fields,             // 对应struct的字段，filed
+    pub semi_token: Option<Semi>,   // 分号，可选
+}
+\end{code-block}
+结构体的字段变量，放在了\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{Fields}当中，
+这个结构体的定义则大致如下\footnote{参考：\url{https://docs.rs/syn/1.0.72/syn/enum.Fields.html}}
+\begin{code-block}{rust}
+pub enum Fields {
+    Named(FieldsNamed),         // 有名字段
+    Unnamed(FieldsUnnamed),     // 无名字段
+    Unit,                       // 元组，类似（）
+}
+\end{code-block}
+将有名字段的结构体继续进行展开，最终，我们会得到一个名为\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{Field}
+的结构体\footnote{Field定义：\url{https://docs.rs/syn/1.0.72/syn/struct.Field.html}}，
+这个结构体的定义大致如下：
+\begin{code-block}{rust}
+pub struct Field {
+    pub attrs: Vec<Attribute>,          // 字段属性
+    pub vis: Visibility,                // 字段可见性
+    pub ident: Option<Ident>,           // 字段名称
+    pub colon_token: Option<Colon>,     // 冒号
+    pub ty: Type,                       // 字段类型
+}
+\end{code-block}
+而对结构体字段的填充过程，实际上就是用代码实现，最终找到上述结构体，并对其继续
+构造的一个过程。由于整个语法树结构比较复杂，单独使用一个函数来实现对结构体的解析
+和构造，获取结构体的字段定义\footnote{关于使用Token!替换Comma的说明：\url{https://docs.rs/syn/1.0.72/syn/token/struct.Comma.html}}：
+\begin{code-block}{rust}
+// get_filed_from_derive_input方法当中的result，实际上是一个
+// Punctuated<Field, Comma>对象，其中Comma表示逗号。
+// 不过，syn的文档描述当中，说明了最好不要直接使用Comma这种变量，
+// 而是使用Token![,]这种宏表示
+type StructFields = syn::punctuated::Punctuated<syn::Field, syn::Token![,]>;
+
+fn get_filed_from_derive_input(st: &syn::DeriveInput) -> syn::Result<&StructFields> {
+    // 根据上面结构体的定义，对输入的语法树节点进行解析
+    // 但是，只匹配有名字段
+    if let syn::Data::Struct(syn::DataStruct {
+        fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
+        ..
+    }) = st.data
+    {
+        return Ok(named);
+    }
+
+    // 如果没有，则返回一个编译器可以使用的错误信息
+    // 返回错误在源代码当中的位置信息
+    Err(syn::Error::new_spanned(
+        st,
+        "Must define on Struct, Not on Enum",
+    ))
+}
+\end{code-block}
+
+接着构造一个函数来产生结构体的字段定义：
+\begin{code-block}{rust}
+fn generate_builder_struct_fields_def(
+    st: &syn::DeriveInput,
+) -> syn::Result<proc_macro2::TokenStream> {
+    // 获取语法树处理之后得到的所有字段
+    let fields = get_filed_from_derive_input(st)?;
+
+    // 获得字段（语法树的标识符）
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+
+    // 获得标识符的类型信息
+    let types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
+
+    // 使用quote宏进行构造
+    let ret = quote! {
+        // #(),* 表示重复操作，操作的就是#()当中的内容
+        // #indets和#types表示使用对应的变量进行替换
+        // 这里使用的是Option的绝对路径，目的是防止和用户自定义的其他类型发生冲突
+        #(#idents: std::option::Option<#types>), *
     };
-    info!("{}", pick.call());
+    Ok(ret)
+}
+\end{code-block}
+通过上述的函数，我们就可以定义结构体的字段了。接下来是对结构体字段的初始化，
+这个操作也采用一个函数进行：
+\begin{code-block}{rust}
+fn generate_builder_struct_fields_init(
+    st: &syn::DeriveInput,
+) -> syn::Result<Vec<proc_macro2::TokenStream>> {
+    // 获取语法树当中的所有字段
+    let fields = get_filed_from_derive_input(st)?;
+
+    let init_data: Vec<_> = fields
+        .iter()
+        .map(|f| {
+            let ident = &f.ident;
+            quote! {
+                // 对ident全部设置为None
+                #ident: std::option::Option::None
+            }
+        })
+        .collect();
+    Ok(init_data)
 }
 \end{code-block}
 
-\subsection{常见的设计模式}
-建造者模式是Rust当中最常用的设计模式之一，其主旨思想在于将可变和不可变进行分离，
-一种基本的示例如下：
+最后，将上述的2个函数结合到\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{do_expand}函数当中，改造之后的函数则如下：
 \begin{code-block}{rust}
-use std::f64::consts;
-pub struct Circle {
-    radius: f64,
-}
-pub struct CircleBuilder {
-    radius: f64,
-}
-impl Circle {
-    pub fn new() -> CircleBuilder {
-        CircleBuilder { radius: 0.0 }
-    }
-    pub fn area(&self) -> f64 {
-        self.radius * self.radius * consts::PI
-    }
-}
-impl CircleBuilder {
-    pub fn radius(&mut self, radius: f64) -> &mut CircleBuilder {
-        self.radius = radius;
-        self
-    }
-    pub fn build(&self) -> Circle {
-        Circle {
-            radius: self.radius,
+fn do_expand(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    ...
+    let builder_struct_fields_def = generate_builder_struct_fields_def(st)?;
+
+    let builder_struct_fields_init = generate_builder_struct_fields_init(st)?;
+
+    let ret = quote!(
+        pub struct #builder_name_ident {
+            #builder_struct_fields_def
         }
+
+        impl #struct_name_ident {
+            pub fn builder() -> #builder_name_ident {
+                #builder_name_ident {
+                    // quote的宏语法
+                    // #(),* 表示重复操作，操作的就是#()当中的内容
+                    #(#builder_struct_fields_init),*
+                }
+            }
+        }
+
+    );
+    ...
+    Ok(ret)
+}
+\end{code-block}
+
+在面向对象的设计思路当中，通常还对结构体/类添加相关的getter/setter等方法，同样的，
+我们也可以利用过程宏实现这类操作，比如，使用一个函数实现Builder的setter方法：
+\begin{code-block}{rust}
+fn generate_setter(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let fields = get_filed_from_derive_input(st)?;
+
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
+
+    // 构造一个可变的tokenstream
+    let mut final_token_stream = proc_macro2::TokenStream::new();
+
+    // 并行迭代idents和types
+    for (ident, type_) in idents.iter().zip(types.iter()) {
+        // 生成setter的tokenstream
+        let token_stream_slice = quote! {
+
+            fn #ident(&mut self, #ident: #type_) -> Self {
+                self.#ident = std::option::Option::Some(#ident);
+                self
+            }
+
+        };
+
+        // 追加到最终的tokenstream当中
+        final_token_stream.extend(token_stream_slice);
     }
+    Ok(final_token_stream)
+}
+\end{code-block}
+
+继续改造之后比较完整的\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{do_expand}函数如下：
+\begin{code-block}{rust}
+fn do_expand(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    ...
+    let setter_functions = generate_setter(st)?;
+    let ret = quote!(
+        ...
+        impl #builder_name_ident {
+            #setter_functions
+        }
+    );
+    Ok(ret)
+}
+\end{code-block}
+上述代码通过\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{bash}{cargo expand}之后，
+其结果大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_expand_2.png}
+  \caption{Builder宏的展开结果2}
+  \label{fig:rust_expand_2}
+\end{figure}
+
+作为Builder模式，Builder结构体必然还需要一个类似于build的函数或者方法，来生成真正的
+结构体。在类似于build这样的函数/方法当中，通常需要完成2件事情：1是检查builder结构
+的所有字段是否可以填充原始结构体，即字段是否都存在；2是生成一个原始结构体。同样的，
+可以利用函数/方法来实现对字段的检查，以及字段的初始化：
+\begin{code-block}{rust}
+fn check_fileds(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let fields = get_filed_from_derive_input(st)?;
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let mut final_check_stream = proc_macro2::TokenStream::new();
+    for ident in idents.iter() {
+        let check_stream_slice = quote! {
+            // 检测字段是否为空
+            if self.#ident.is_none() {
+                let err_msg = format!("{} field is missing", stringify!(#ident));
+                // 返回错误
+                return std::result::Result::Err(err_msg.into());
+            }
+        };
+        final_check_stream.extend(check_stream_slice);
+    }
+    Ok(final_check_stream)
+}
+fn build_target_fields(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let fields = get_filed_from_derive_input(st)?;
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let mut final_init_stream = proc_macro2::TokenStream::new();
+    for ident in idents.iter() {
+        let init_stream_slice = quote! {
+            #ident: self.#ident.clone().unwrap(),
+        };
+        final_init_stream.extend(init_stream_slice);
+    }
+    Ok(final_init_stream)
+}
+\end{code-block}
+
+到此为止，基本上，利用过程宏，实现Builder模式就大致完成了。将所有的代码整合在一起，
+整个过程宏的完整代码如下：
+\begin{code-block}{rust}
+use proc_macro::TokenStream;
+use proc_macro2;
+use quote::quote;
+use syn::{self, parse_macro_input, spanned::Spanned};
+
+#[proc_macro_derive(Builder)]
+pub fn derive(input: TokenStream) -> TokenStream {
+    let st = parse_macro_input!(input as syn::DeriveInput);
+    match do_expand(&st) {
+        Ok(token_stream) => token_stream.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+
+fn do_expand(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let struct_name_literal = st.ident.to_string();
+    let builder_name_literal = format!("{}Builder", struct_name_literal);
+    let builder_name_ident = syn::Ident::new(&builder_name_literal, st.span());
+    let struct_name_ident = &st.ident;
+
+    let builder_struct_fields_def = generate_builder_struct_fields_def(st)?;
+    let builder_struct_fields_init = generate_builder_struct_fields_init(st)?;
+
+    let setter_functions = generate_setter(st)?;
+    let checked_res = check_fileds(st)?;
+    let build_res = build_target_fields(st)?;
+
+    let ret = quote!(
+        pub struct #builder_name_ident {
+            #builder_struct_fields_def
+        }
+
+        impl #struct_name_ident {
+            pub fn builder() -> #builder_name_ident {
+                #builder_name_ident {
+                    #(#builder_struct_fields_init),*
+                }
+            }
+        }
+
+        impl #builder_name_ident {
+            #setter_functions
+            pub fn build(&mut self) -> std::result::Result<#struct_name_ident, std::boxed::Box<dyn std::error::Error>>{
+                #checked_res
+                Ok(#struct_name_ident {
+                    #build_res
+                })
+            }
+        }
+
+    );
+    Ok(ret)
+}
+
+fn check_fileds(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let fields = get_filed_from_derive_input(st)?;
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let mut final_check_stream = proc_macro2::TokenStream::new();
+
+    for ident in idents.iter() {
+        let check_stream_slice = quote! {
+            if self.#ident.is_none() {
+                let err_msg = format!("{} field is missing", stringify!(#ident));
+                return std::result::Result::Err(err_msg.into());
+            }
+        };
+        final_check_stream.extend(check_stream_slice);
+    }
+    Ok(final_check_stream)
+}
+
+fn build_target_fields(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let fields = get_filed_from_derive_input(st)?;
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let mut final_init_stream = proc_macro2::TokenStream::new();
+    for ident in idents.iter() {
+        let init_stream_slice = quote! {
+            #ident: self.#ident.clone().unwrap(),
+        };
+        final_init_stream.extend(init_stream_slice);
+    }
+    Ok(final_init_stream)
+}
+
+fn generate_setter(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let fields = get_filed_from_derive_input(st)?;
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
+
+    let mut final_token_stream = proc_macro2::TokenStream::new();
+    for (ident, type_) in idents.iter().zip(types.iter()) {
+        let token_stream_slice = quote! {
+            fn #ident(&mut self, #ident: #type_) -> & mut Self {
+                self.#ident = std::option::Option::Some(#ident);
+                self
+            }
+        };
+        final_token_stream.extend(token_stream_slice);
+    }
+    Ok(final_token_stream)
+}
+
+type StructFields = syn::punctuated::Punctuated<syn::Field, syn::Token![,]>;
+
+fn get_filed_from_derive_input(st: &syn::DeriveInput) -> syn::Result<&StructFields> {
+    if let syn::Data::Struct(syn::DataStruct {
+        fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
+        ..
+    }) = st.data
+    {
+        return Ok(named);
+    }
+    Err(syn::Error::new_spanned(
+        st,
+        "Must define on Struct, Not on Enum",
+    ))
+}
+
+fn generate_builder_struct_fields_def(
+    st: &syn::DeriveInput,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let fields = get_filed_from_derive_input(st)?;
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
+
+    let ret = quote! {
+        #(#idents: std::option::Option<#types>), *
+    };
+
+    Ok(ret)
+}
+
+fn generate_builder_struct_fields_init(
+    st: &syn::DeriveInput,
+) -> syn::Result<Vec<proc_macro2::TokenStream>> {
+    let fields = get_filed_from_derive_input(st)?;
+    let init_data: Vec<_> = fields
+        .iter()
+        .map(|f| {
+            let ident = &f.ident;
+            quote! {
+                #ident: std::option::Option::None
+            }
+        })
+        .collect();
+    Ok(init_data)
+}
+\end{code-block}
+
+使用该宏的代码则如下：
+\begin{code-block}{rust}
+#[derive(Debug, Builder)]
+pub struct Command {
+    executable: String,
+    args: Vec<String>,
+    env: Vec<String>,
+    current_dir: String,
+}
+fn main() {
+    let builder = Command::builder()
+        .executable("lucifer".to_owned())
+        .args(vec![])
+        .env(vec![])
+        .current_dir("target".to_owned())
+        .build()
+        .unwrap();
+    info!("{:#?}", builder);
 }
 \end{code-block}
 
