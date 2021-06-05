@@ -1,1 +1,32 @@
+\subsection{过程宏案例-派生过程宏Builder深入}
+通常情况下，Rust的结构体并不是要求所有的字段都必须有值，或者必须初始化，存在可选的
+字段，因此，可以继续对Builder过程宏进行改造。比如，可以要求
+
+% 对代码段添加引用的示例
+% \begin{sourcecode}
+% \begin{code-block}{rust}
+% #[derive(Debug, Builder)]
+% pub struct Command {
+%     executable: String,
+%     args: Vec<String>,
+%     env: Vec<String>,
+%     current_dir: String,
+% }
+% fn main() {
+%     let builder = Command::builder()
+%         .executable("lucifer".to_owned())
+%         .args(vec![])
+%         .env(vec![])
+%         .current_dir("target".to_owned())
+%         .build()
+%         .unwrap();
+%     info!("{:#?}", builder);
+% }
+% \end{code-block}
+% \caption{My Func}
+% \label{lst:main}
+% \end{sourcecode}
+%
+% Reference to \nameref{lst:main}
+
 \input{rust_part_6}

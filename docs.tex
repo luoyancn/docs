@@ -4,7 +4,8 @@
 \usepackage{xeCJK}
 \usepackage{indentfirst}
 \usepackage{fancyhdr}
-\usepackage{minted}
+\usepackage[newfloat]{minted}
+\usepackage{float}
 \usepackage{pifont}
 \usepackage{geometry}
 % hyperref之前
@@ -91,6 +92,13 @@
 \renewcommand{\tablename}{表}
 \renewcommand {\thetable} {\thechapter{}-\arabic{table}}
 \renewcommand {\thefigure} {\thechapter{}-\arabic{figure}}
+% 增加对代码的引用支持，实现类似图表一样的引用链接
+\newenvironment{sourcecode}{\captionsetup{type=listing}}{}
+% 修改代码引用标记
+\SetupFloatingEnvironment{listing}{name=代码段}
+% 修改代码的题注和序号
+\renewcommand {\thelisting} {\thechapter{}-\arabic{listing}}
+
 % 去除冒号
 \captionsetup{labelformat=default,labelsep=space}
 % 修改图注和标注的字体大小
