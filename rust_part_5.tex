@@ -1,32 +1,277 @@
 \subsection{过程宏案例-派生过程宏Builder深入}
 通常情况下，Rust的结构体并不是要求所有的字段都必须有值，或者必须初始化，存在可选的
-字段，因此，可以继续对Builder过程宏进行改造。比如，可以要求
+字段，因此，可以继续对Builder过程宏进行改造。比如将上例当中的
+\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{Command}结构体
+定义修改为如下：
+\begin{code-block}{rust}
+pub struct Command {
+    executable: String,
+    args: Vec<String>,
+    env: Vec<String>,
+    current_dir: Option<String>,
+}
+\end{code-block}
+即\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{current_dir}
+为可选字段，而Builder生成的结构体\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{CommandBuilder}
+则如下：
+\begin{code-block}{rust}
+pub struct CommandBuilder {
+    executable: Option<String>,
+    args: Option<Vec<String>>,
+    env: Option<Vec<String>>,
+    current_dir: Option<String>,
+}
+\end{code-block}
 
-% 对代码段添加引用的示例
-% \begin{sourcecode}
-% \begin{code-block}{rust}
-% #[derive(Debug, Builder)]
-% pub struct Command {
-%     executable: String,
-%     args: Vec<String>,
-%     env: Vec<String>,
-%     current_dir: String,
-% }
-% fn main() {
-%     let builder = Command::builder()
-%         .executable("lucifer".to_owned())
-%         .args(vec![])
-%         .env(vec![])
-%         .current_dir("target".to_owned())
-%         .build()
-%         .unwrap();
-%     info!("{:#?}", builder);
-% }
-% \end{code-block}
-% \caption{My Func}
-% \label{lst:main}
-% \end{sourcecode}
-%
-% Reference to \nameref{lst:main}
+而这样的结构体，如果将其展开为语法树，原始结构体的\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{current_dir}
+字段形式大致如下：
+\begin{code-block}{json}
+Path(
+    TypePath {
+        qself: None,
+        path: Path {
+            leading_colon: None,
+            segments: [
+                PathSegment {
+                    ident: Ident {
+                        ident: "Option",
+                        span: #0 bytes(1337..1343),
+                    },
+                    arguments: AngleBracketed(
+                        AngleBracketedGenericArguments {
+                            colon2_token: None,
+                            lt_token: Lt,
+                            args: [
+                                Type(
+                                    Path(
+                                        TypePath {
+                                            qself: None,
+                                            path: Path {
+                                                leading_colon: None,
+                                                segments: [
+                                                    PathSegment {
+                                                        ident: Ident {
+                                                            ident: "String",
+                                                            span: #0 bytes(1344..1350),
+                                                        },
+                                                        arguments: None,
+                                                    },
+                                                ],
+                                            },
+                                        },
+                                    ),
+                                ),
+                            ],
+                            gt_token: Gt,
+                        },
+                    ),
+                },
+            ],
+        },
+    },
+)
+\end{code-block}
+相比之下，普通的字段类型，其语法树结构可能如下：
+\begin{code-block}{rust}
+Path(
+    TypePath {
+        qself: None,
+        path: Path {
+            leading_colon: None,
+            segments: [
+                PathSegment {
+                    ident: Ident {
+                        ident: "String",
+                        span: #0 bytes(1267..1273),
+                    },
+                    arguments: None,
+                },
+            ],
+        },
+    },
+)
+\end{code-block}
+可以看到，2者的区别比较大。如果还是沿用上一个示例的方式进行Builder的构建，会出现
+这样一个问题：Builder宏所生成的结构体会被处理成如下的形式：
+\begin{code-block}{rust}
+pub struct CommandBuilder {
+    executable: std::option::Option<String>,
+    args: std::option::Option<Vec<String>>,
+    env: std::option::Option<Vec<String>>,
+    current_dir: std::option::Option<Option<String>>,   // 被多层Option封装
+}
+\end{code-block}
+上面的形式显然无法满足我们的需求。因此，为达到上述目的，需要对字段的类型进行进
+一步的处理。对于过程宏而言（syn包），字段的类型是一个结构体，其定义大致如下\footnote{类型的定义：\url{https://docs.rs/syn/1.0.72/syn/enum.Type.html}}：
+\begin{code-block}{rust}
+pub enum Type {
+    Array(TypeArray),
+    BareFn(TypeBareFn),
+    Group(TypeGroup),
+    ImplTrait(TypeImplTrait),
+    Infer(TypeInfer),
+    Macro(TypeMacro),
+    Never(TypeNever),
+    Paren(TypeParen),
+    Path(TypePath),
+    Ptr(TypePtr),
+    Reference(TypeReference),
+    Slice(TypeSlice),
+    TraitObject(TypeTraitObject),
+    Tuple(TypeTuple),
+    Verbatim(TokenStream),
+    // some variants omitted
+}
+\end{code-block}
+
+需要做的，就是对字段类型的语法树进行解构，一步一步的按照需求，准确的定位Option所标识的
+字段，并将其的内层类型取出来。因此，需要对上一章节\nameref{builder}的代码进行重构。
+
+首先需要实现的，就是对可选字段（Option）的语法树定位和处理，并且返回对应的TokenStream：
+\begin{code-block}{rust}
+fn get_option_fields(st: &syn::Type) -> Option<&syn::Type> {
+    // 对type语法树进行解构
+    if let syn::Type::Path(syn::TypePath {
+        path: syn::Path { segments, .. },
+        ..
+    }) = st
+    {
+        if let Some(segment) = segments.last() {
+            // 找到Option字段
+            if segment.ident.to_string() == "Option" {
+                {
+                    if let syn::PathArguments::AngleBracketed(
+                        syn::AngleBracketedGenericArguments { ref args, .. },
+                    ) = segment.arguments
+                    {
+                        // 获得真实的数据类型
+                        if let Some(syn::GenericArgument::Type(inner_type)) = args.first() {
+                            return Some(inner_type);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+\end{code-block}
+然后，根据需求，将原有的代码进行改写，比如，Builder的结构体字段定义函数，需要修改
+\begin{code-block}{rust}
+fn generate_builder_struct_fields_def(
+    st: &syn::DeriveInput,
+) -> syn::Result<proc_macro2::TokenStream> {
+    ...
+    let types: Vec<_> = fields
+        .iter()
+        .map(|f| {
+            if let Some(ty) = get_option_fields(&f.ty) {
+                ty
+            } else {
+                &f.ty
+            }
+        })
+        .collect();
+    ...
+}
+\end{code-block}
+Builder的setter方法需要修改：
+\begin{code-block}{rust}
+fn generate_setter(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    ...
+    for (ident, type_) in idents.iter().zip(types.iter()) {
+        let token_stream_slice = if let Some(inner_type) = get_option_fields(type_) {
+            quote! {
+                pub fn #ident(&mut self, #ident: #inner_type) -> & mut Self {
+                    self.#ident = std::option::Option::Some(#ident);
+                    self
+                }
+            }
+        } else {
+            quote! {
+                pub fn #ident(&mut self, #ident: #type_) -> & mut Self {
+                    self.#ident = std::option::Option::Some(#ident);
+                    self
+                }
+            }
+        };
+        final_token_stream.extend(token_stream_slice);
+    }
+    ...
+}
+\end{code-block}
+同样的，Builder的字段检查和初始化方法也需要修改：
+\begin{code-block}{rust}
+fn check_fileds(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let fields = get_filed_from_derive_input(st)?;
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
+    let mut final_check_stream = proc_macro2::TokenStream::new();
+
+    for (ident, type_) in idents.iter().zip(types.iter()) {
+        if get_option_fields(type_).is_some() {
+            continue;
+        }
+        let check_stream_slice = quote! {
+            if self.#ident.is_none() {
+                let err_msg = format!("{} field is missing", stringify!(#ident));
+                return std::result::Result::Err(err_msg.into());
+            }
+        };
+        final_check_stream.extend(check_stream_slice);
+    }
+    Ok(final_check_stream)
+}
+
+fn build_target_fields(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let fields = get_filed_from_derive_input(st)?;
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
+    let mut final_init_stream = proc_macro2::TokenStream::new();
+    for (ident, types_) in idents.iter().zip(types.iter()) {
+        let init_stream_slice = if get_option_fields(types_).is_none() {
+            quote! {
+                #ident: self.#ident.clone().unwrap(),
+            }
+        } else {
+            quote! {
+                #ident: self.#ident.clone(),
+            }
+        };
+        final_init_stream.extend(init_stream_slice);
+    }
+    Ok(final_init_stream)
+}
+\end{code-block}
+
+完成上述操作之后，在主函数当中，就可以以多种方式进行builder的初始化：
+\begin{code-block}{rust}
+fn main(){
+    let builder = Command::builder()
+        .executable("lucifer".to_owned())
+        .args(vec![])
+        .env(vec![])
+        .current_dir("target".to_owned())
+        .build()
+        .unwrap();
+    info!("{:#?}", builder);
+
+    let builder = Command::builder()
+        .executable("lucifer".to_owned())
+        .args(vec![])
+        .env(vec!["titans".to_owned(), "garuda".to_owned()])
+        .build()
+        .unwrap();
+    info!("{:#?}", builder);
+}
+
+#[derive(Debug, Builder)]
+pub struct Command {
+    executable: String,
+    args: Vec<String>,
+    env: Vec<String>,
+    current_dir: Option<String>,
+}
+\end{code-block}
 
 \input{rust_part_6}

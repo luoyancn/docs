@@ -263,6 +263,33 @@
 % 页码从正文开始计算，不从目录开始
 \mainmatter
 
+% 对代码段添加引用的示例
+% \begin{sourcecode}
+% \begin{code-block}{rust}
+% #[derive(Debug, Builder)]
+% pub struct Command {
+%     executable: String,
+%     args: Vec<String>,
+%     env: Vec<String>,
+%     current_dir: String,
+% }
+% fn main() {
+%     let builder = Command::builder()
+%         .executable("lucifer".to_owned())
+%         .args(vec![])
+%         .env(vec![])
+%         .current_dir("target".to_owned())
+%         .build()
+%         .unwrap();
+%     info!("{:#?}", builder);
+% }
+% \end{code-block}
+% \caption{My Func}
+% \label{lst:main}
+% \end{sourcecode}
+%
+% Reference to \nameref{lst:main}
+
 \part{OpenStack}
 \include{mitaka}
 \part{Ironic篇}

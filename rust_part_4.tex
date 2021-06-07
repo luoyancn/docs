@@ -853,13 +853,13 @@ proc-macro2 = "1.0.26"
 [lib]
 proc-macro = true
 \end{code-block}
-另外，当lib当中设置\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{toml}{proc-macro=true}之后，
+另外，当lib当中设置\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{toml}{proc-macro=true}之后，
 则对应的crate只能导出过程宏，不能导出其他的类型数据。
 
 所有的编程语言都离不开词法分析，Rust同样如此。在Rust当中，通常使用TokenStream进行词法分析，
 解析代码内容，编写过程宏离不开对TokenStream的解析。在调试过程宏的时候，由于标准输出
-不可用，因此通常只能通过标准错误输出进行信息的打印。通常情况下，都是使用\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{eprint!}
-或者\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{eprintln!}进行过程宏的调试输出。
+不可用，因此通常只能通过标准错误输出进行信息的打印。通常情况下，都是使用\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{eprint!}
+或者\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{eprintln!}进行过程宏的调试输出。
 一个简单的过程宏示例如下，当然，由于我们进行了输出，也可以看到Rust的语法树的大致结构：
 \begin{code-block}{rust}
 use proc_macro::TokenStream;
@@ -883,7 +883,7 @@ fn hello() {
 \end{code-block}
 
 默认情况下，代码需要经过编译，才能判断是否存在问题，不过，rust提供了1种简便的思路
-来检测代码是否存在问题：\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}{cargo check}。
+来检测代码是否存在问题：\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{bash}{cargo check}。
 该指令不会对代码进行实质的编译动作，但是会对过程宏进行预处理（即将其转变成正常的Rust代码），
 因此，会得到类似如下的一些输出：
 \begin{figure}[H]
@@ -895,7 +895,7 @@ fn hello() {
 
 除了使用上述指令之外，也可以采用宏展开的方式，但是默认的宏展开方式需要使用nightly
 分支，第三方工具cargo-expand则可以支持在stable分支直接展开。
-但是，需要注意expand指令只能在源码（即rs文件）所在路径执行：\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}{cargo expand}。
+但是，需要注意expand指令只能在源码（即rs文件）所在路径执行：\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{bash}{cargo expand}。
 然后会得到类似如下的输出：
 \begin{figure}[H]
   \centering
@@ -966,10 +966,11 @@ pub fn test_proc_macro_ast(attr: TokenStream, item: TokenStream) -> TokenStream 
 注意，此时的输出就不再是纯粹的TokenStream（无语义）了，而是带有语义分析的抽象语法树
 结构。抽象语法树可以完整的检查代码当中的语法逻辑问题，因此，如果像之前的代码，
 使用不符合语法的方式调用这个过程宏，则代码的预编译阶段就无法通过，编译器会直接提示错误。
-而这个错误，则是由\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{parse_macro_input!}这个
+而这个错误，则是由\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{parse_macro_input!}这个
 宏提示出来的。
 
 \subsection{过程宏案例-派生过程宏Builder}
+\label{builder}
 假设当前有一个结构体如下：
 \begin{code-block}{rust}
 #[derive(Builder)]
@@ -1005,7 +1006,7 @@ impl Command {
     }
 }
 \end{code-block}
-即利用\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{#[derive(Builder)]}宏
+即利用\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{#[derive(Builder)]}宏
 对任意结构体实现工厂模式代码的自动生成。
 
 为实现这个Builder宏，首先实现其基本的结构：
@@ -1049,7 +1050,7 @@ fn do_expand(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     Ok(ret)
 }
 \end{code-block}
-注意，上述代码当中的st（语法树）结构是一个\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{syn::DeriveInput}结构体\footnote{参考：\url{https://docs.rs/syn/1.0.72/syn/struct.DeriveInput.html}}，其内在结构如下：
+注意，上述代码当中的st（语法树）结构是一个\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{syn::DeriveInput}结构体\footnote{参考：\url{https://docs.rs/syn/1.0.72/syn/struct.DeriveInput.html}}，其内在结构如下：
 \begin{code-block}{rust}
 pub struct DeriveInput {
     pub attrs: Vec<Attribute>, // 结构体/函数的属性，即#[]部分
@@ -1075,7 +1076,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
 }
 \end{code-block}
 
-到此时，一个Builder属性宏的基本框架已经有了，通过\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}{cargo expand}将
+到此时，一个Builder属性宏的基本框架已经有了，通过\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{bash}{cargo expand}将
 代码展开，最终得到的结果大致如下，当然，目前还缺乏结构体的字段内容：
 \begin{figure}[H]
   \centering
@@ -1098,7 +1099,7 @@ pub enum Data {
     Union(DataUnion),   // 针对union
 }
 \end{code-block}
-由于本例当中，关注的是结构体，因此，需要重点关注\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{DataStruct}
+由于本例当中，关注的是结构体，因此，需要重点关注\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{DataStruct}
 这个字段\footnote{参考：\url{https://docs.rs/syn/1.0.72/syn/struct.DataStruct.html}}，该字段的具体定义如下：
 \begin{code-block}{rust}
 pub struct DataStruct {
@@ -1107,7 +1108,7 @@ pub struct DataStruct {
     pub semi_token: Option<Semi>,   // 分号，可选
 }
 \end{code-block}
-结构体的字段变量，放在了\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{Fields}当中，
+结构体的字段变量，放在了\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{Fields}当中，
 这个结构体的定义则大致如下\footnote{参考：\url{https://docs.rs/syn/1.0.72/syn/enum.Fields.html}}
 \begin{code-block}{rust}
 pub enum Fields {
@@ -1116,7 +1117,7 @@ pub enum Fields {
     Unit,                       // 元组，类似（）
 }
 \end{code-block}
-将有名字段的结构体继续进行展开，最终，我们会得到一个名为\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{Field}
+将有名字段的结构体继续进行展开，最终，我们会得到一个名为\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{Field}
 的结构体\footnote{Field定义：\url{https://docs.rs/syn/1.0.72/syn/struct.Field.html}}，
 这个结构体的定义大致如下：
 \begin{code-block}{rust}
@@ -1205,7 +1206,7 @@ fn generate_builder_struct_fields_init(
 }
 \end{code-block}
 
-最后，将上述的2个函数结合到\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{do_expand}函数当中，改造之后的函数则如下：
+最后，将上述的2个函数结合到\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{do_expand}函数当中，改造之后的函数则如下：
 \begin{code-block}{rust}
 fn do_expand(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     ...
@@ -1265,7 +1266,7 @@ fn generate_setter(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStrea
 }
 \end{code-block}
 
-继续改造之后比较完整的\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{do_expand}函数如下：
+继续改造之后比较完整的\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{do_expand}函数如下：
 \begin{code-block}{rust}
 fn do_expand(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     ...
@@ -1279,7 +1280,7 @@ fn do_expand(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     Ok(ret)
 }
 \end{code-block}
-上述代码通过\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}{cargo expand}之后，
+上述代码通过\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{bash}{cargo expand}之后，
 其结果大致如下：
 \begin{figure}[H]
   \centering
