@@ -12,7 +12,7 @@
 \usepackage{hyperref}
 \usepackage{graphicx}
 \usepackage[utf8]{inputenc}
-\usepackage[dvipsnames,table]{xcolor}
+\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}
 \usepackage{caption}
 %\usepackage{tabularx}
 \usepackage{ltablex}
@@ -35,12 +35,17 @@
 \usepackage{fontspec}
 % 每页的脚注重新编号
 \usepackage{perpage}
+\usepackage{afterpage}
+\usepackage{eso-pic}
+
+% 每页的脚注重新编号
 \MakePerPage{footnote}
 % 强制脚注和引用在相同页，需要使用footnote，不能使用footmark
 
-\usetikzlibrary{calc}
-\usetikzlibrary{arrows, decorations.pathmorphing,
-                backgrounds, positioning, fit, petri, automata}
+\tcbuselibrary{skins}
+\usetikzlibrary{matrix,fit,chains,calc,scopes,arrows,
+                decorations.pathmorphing,backgrounds,
+                positioning,petri,automata}
 \tikzset{font=\tiny}
 \definecolor{yellow1}{rgb}{1,0.8,0.2}
 
@@ -72,6 +77,15 @@
 
 \newcommand{\colorunderlineref}[1]{{\color{RedOrange} \dunderline{1pt}{\nameref{#1}}}}
 \newcommand{\colorunderline}[1]{{\color{WildStrawberry} \dunderline{1pt}{#1}}}
+
+\newcommand\BackgroundPic{%
+\put(0,0){%
+\parbox[b][\paperheight]{\paperwidth}{%
+\vfill
+\centering
+\includegraphics[width=\paperwidth,keepaspectratio]{7.png}
+\vfill
+}}}
 
 % 设置字体
 \setmainfont{Times New Roman}
@@ -240,13 +254,51 @@
 
 \begin{document}
 
+%\begin{titlepage}
+%    \centering{
+%    {\fontsize{40}{48}\selectfont 综合手册} }\\
+%    \vspace{\fill}
+%    \centering{\Large{张家龙}}\\
+%    \vspace{80mm}
+%\end{titlepage}
+
+
+% 设置封面
 \begin{titlepage}
-    \centering{
-    {\fontsize{40}{48}\selectfont 综合手册} }\\
-    \vspace{\fill}
-    \centering{\Large{张家龙}}\\
-    \vspace{80mm}
+  % 单独设置封面的页面布局（页边距）
+  \newgeometry{margin=1.8cm,top=2.4cm,bottom=2.4cm}
+  \AddToShipoutPicture*{\BackgroundPic}
+  \centering
+  \begin{tcolorbox}[boxrule=6pt, colframe=OliveGreen, height=\textheight, width=\textwidth,enhanced,tikz={opacity=0.5,transparency group}]
+  {
+    \begin{center}
+      \vspace*{0.14\textheight}
+      \fontsize{45}{45}\scshape 综合手册\\
+      \vspace*{0.018\textheight}
+      \vspace*{0.2\textheight}
+      \vspace*{0.2\textheight}
+      \fontsize{28}{28}\scshape 张家龙\\
+      \vspace*{0.1\textheight}
+      \centering
+      \begin{tikzpicture}[start chain=main going right,]
+        \node[on chain,align=center,draw=none] (a1){};
+        {
+          [start branch=A going below]
+          \node[on chain,align=center,draw=none,scale=0.01](d1){};
+        }
+
+        \node[on chain,align=center,draw=none] (a2){};
+        {
+          [start branch=B going below]
+          \node[on chain,align=center,draw=none,scale=0.01](s1){};
+          \node[on chain,align=center,draw=none,](s2){};
+        }
+      \end{tikzpicture}
+    \end{center}}
+  \end{tcolorbox}
 \end{titlepage}
+% 恢复原本设定的页面布局
+\afterpage{\restoregeometry}
 
 \newpage
 % 去除目录前后的空白页
