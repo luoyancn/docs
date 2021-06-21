@@ -219,6 +219,11 @@
  {\end{minted}\end{mdframed}\par}
 %\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
 
+% 设置单行代码样式，当页面宽度不够时，bgcolor参数将影响换行操作
+\newcommand{\codeinlinebg}[1]{\mintinline[bgcolor=lbcolor,]{#1}}
+% 无bgcolor，将不影响单行代码的换行操作
+\newcommand{\codeinline}[1]{\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
+
 % 删除minted代码块当中错误代码所引起的红色边框
 \AtBeginEnvironment{minted}{\dontdofcolorbox}
 \def\dontdofcolorbox{\renewcommand\fcolorbox[4][]{##4}}

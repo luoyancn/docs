@@ -1,7 +1,7 @@
 \subsection{过程宏案例-派生过程宏Builder深入}
 通常情况下，Rust的结构体并不是要求所有的字段都必须有值，或者必须初始化，存在可选的
 字段，因此，可以继续对Builder过程宏进行改造。比如将上例当中的
-\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{Command}结构体
+\codeinlinebg{rust}{Command}结构体
 定义修改为如下：
 \begin{code-block}{rust}
 pub struct Command {
@@ -11,8 +11,8 @@ pub struct Command {
     current_dir: Option<String>,
 }
 \end{code-block}
-即\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{current_dir}
-为可选字段，而Builder生成的结构体\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{CommandBuilder}
+即\codeinlinebg{rust}{current_dir}
+为可选字段，而Builder生成的结构体\codeinlinebg{rust}{CommandBuilder}
 则如下：
 \begin{code-block}{rust}
 pub struct CommandBuilder {
@@ -23,7 +23,7 @@ pub struct CommandBuilder {
 }
 \end{code-block}
 
-而这样的结构体，如果将其展开为语法树，原始结构体的\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{current_dir}
+而这样的结构体，如果将其展开为语法树，原始结构体的\codeinlinebg{rust}{current_dir}
 字段形式大致如下：
 \begin{code-block}{json}
 Path(
@@ -502,38 +502,35 @@ fn main() {
         .unwrap();
 }
 \end{code-block}
-即，使用\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{#[builder(each = "arg")]}
+即，使用\codeinlinebg{rust}{#[builder(each = "arg")]}
 这样的代码对结构体的字段进行标记，标记之后，原本对结构体进行初始化，使用的是一个vec结构（args），
 后续可以使用单个元素（arg）进行追加的方式进行初始化。通常来说，实现这种宏，都应该要求builder当中的标签
 和真实的属性名之间最好有区别。如果要求标签和属性名相同，则需要进行额外的其他特殊处理，即需要避免生成一个一次性通过列表进行赋值的方法。
 以上述代码为例，如果使用builder宏装饰env字段，并且标签也是env，那么，针对env字段，最好的方式就是不要实现一个
-使用列表直接复制的函数，即\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{builder.env("something")}与
-\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{builder.env(vec!["nothing", "ok"])}这2种形式
+使用列表直接复制的函数，即\codeinlinebg{rust}{builder.env("something")}与
+\codeinlinebg{rust}{builder.env(vec!["nothing", "ok"])}这2种形式
 无法并存，只能存在一个。另外的重点是，这个builder宏，只能在被使用了
-\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{#[derive(Builder)]}
+\codeinlinebg{rust}{#[derive(Builder)]}
 修饰之后的结构体当中使用，而不能单独使用，因此，类似builder的宏被称之为惰性属性
-宏，其完整的定义形式，一般是\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{rust}{#[proc_macro_derive(Builder, attributes(builder))]}
+宏，其完整的定义形式，一般是\codeinline{rust}{#[proc_macro_derive(Builder, attributes(builder))]}
 这种。
 
 惰性属性宏与常见的属性过程宏基本上是一样的，因此，在处理惰性属性宏之前，先看看
 常见的属性是什么样式的。简单的查看结构体的属性语法树结构，可以如下进行操作：
 \begin{code-block}{rust}
 #[proc_macro_derive(Test)]
-fn do_expand_each(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
-    let struct_name_literal = st.ident.to_string();
+pub fn do_test(input: TokenStream) -> TokenStream {
+    let st = parse_macro_input!(input as syn::DeriveInput);
     let attr = st.attrs.first().unwrap();
     eprintln!("{:#?}", attr);
     proc_macro2::TokenStream::new().into()
 }
-
 ...
 #[derive(Test)]
 #[blog::com(Bar)]
 pub struct CommandEach {
     executable: String,
-    #[builder(each = "arg")]
     args: Vec<String>,
-    #[builder(each = "env")]
     ...
 }
 fn main() {
@@ -579,6 +576,93 @@ Attribute {
         },
     ],
 }
+\end{code-block}
+在上述的输出当中，需要关注的有几个点：
+\begin{enumerate}
+  \item 属性的style值为Outer，如果对结构体的装饰变成了\codeinlinebg{rust}{#![derive]}这种，则style会变成Inner
+  \item Rust会把属性拆分成2部分，path和tokens，其中path表示路径，tokens则是一个原始的TokenStream，并没有变成语法树节点，仅仅只是做了分词处理，没有任何语义，需要自行解析，因此，可以在其中加入自己规定的语法结构
+  \item path指导编译器决定如何处理后面的部分
+  \item tokens如果本身是一个符合Rust语法规范的结构，可以采用\codeinlinebg{rust}{parse_meta}方法将path和tokens解析成为\codeinlinebg{rust}{syn::Meta}数据类型，使之成为独立的语法树节点
+\end{enumerate}
+
+关于\codeinlinebg{rust}{syn::Meta}\footnote{类型定义：\url{https://docs.rs/syn/1.0.73/syn/enum.Meta.html}}
+数据类型，其中包含3种：
+\begin{enumerate}
+  \item \codeinlinebg{rust}{syn::Meta::Path}表示一个路径，\codeinlinebg{rust}{#[A]}只有一个小节，但是A也是一个Path；\codeinlinebg{rust}{#[A::B::C]}也是一个Path，但是会被拆分成多个PathSegment。
+  \item \codeinlinebg{rust}{syn::Meta::List}表示一个列表，这个列表必须由一个前置路径和一个括号标记组成，括号内部的内容通过逗号分割为多个条目（组成列表），每个条目又是一个\codeinlinebg{rust}{syn::Meta}
+数据类型。比如\codeinlinebg{rust}{#[Foo(AA,BB,CC)]}当中，Foo就是前置路径，而AA等则是列表项，同时，也是\codeinlinebg{rust}{syn::Meta}数据类型；
+而\codeinlinebg{rust}{#[Foo(AAA,BBB(CCC,DDD))]}表示列表可以嵌套，Foo是全局的前置路径，而BBB是内层\codeinlinebg{rust}{syn::Meta::List}的前置路径。
+  \item \codeinlinebg{rust}{syn::Meta::NameValue}则是常见的键值对，key部分是一个\codeinlinebg{rust}{syn::Path}类型，而value则通常是字符串。比如
+\codeinlinebg{rust}{#[xxx="yyy"]}。默认情况下，kv对只能有一对，如果需要有多个kv对，则必须使用list类型，即\codeinline{rust}{#[Foo(x="y",w="z")]}这种形式。
+\end{enumerate}
+只要是attr符合上述标准，则可以使用\codeinlinebg{rust}{parse_meta}函数对其进行解析，比如下面的例子：
+\begin{code-block}{rust}
+#[proc_macro_derive(Test)]
+pub fn do_test(input: TokenStream) -> TokenStream {
+    let st = parse_macro_input!(input as syn::DeriveInput);
+    let attr = st.attrs.first().unwrap();
+    // 直接解析attr，将attr解析成Rust的语法树节点
+    let meta = attr.parse_meta();
+    eprintln!("{:#?}", meta);
+    proc_macro2::TokenStream::new().into()
+}
+
+...
+#[derive(Test)]
+#[Foo(x = "lucifer")]
+pub struct CommandEach {
+    executable: String,
+    args: Vec<String>,
+...
+}
+\end{code-block}
+上述代码通过\codeinlinebg{bash}{cargo check}之后，可以得到类似如下的结果：
+\begin{code-block}{json}
+Ok(
+    List(
+        MetaList {
+            path: Path {
+                leading_colon: None,
+                segments: [
+                    PathSegment {
+                        ident: Ident {
+                            ident: "Foo",
+                            span: #0 bytes(1414..1417),
+                        },
+                        arguments: None,
+                    },
+                ],
+            },
+            paren_token: Paren,
+            nested: [
+                Meta(
+                    NameValue(
+                        MetaNameValue {
+                            path: Path {
+                                leading_colon: None,
+                                segments: [
+                                    PathSegment {
+                                        ident: Ident {
+                                            ident: "x",
+                                            span: #0 bytes(1418..1419),
+                                        },
+                                        arguments: None,
+                                    },
+                                ],
+                            },
+                            eq_token: Eq,
+                            lit: Str(
+                                LitStr {
+                                    token: "lucifer",
+                                },
+                            ),
+                        },
+                    ),
+                ),
+            ],
+        },
+    ),
+)
 \end{code-block}
 
 在Rust的语法树当中，如果对一个结构体的字段进行展开，其基本
@@ -666,6 +750,7 @@ Field {
 },
 \end{code-block}
 需要注意的是，上述语法树内容，全部表示的是结构体字段的属性标记，并非结构体字段
-本身的语法树结构，可以看到，其结构和Rust的Attribute是相同的。
+本身的语法树结构，可以看到，其结构和原始的Attribute是相同的。属性标签是Rust当中
+常用的标签，也非常灵活。
 
 \input{rust_part_6}

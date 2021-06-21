@@ -917,7 +917,7 @@ info!("The final result of s is {:?}", s);
   \label{fig:rust_feature_error}
 \end{figure}
 遇到这种错误，则需要直接修改对应的类库的源代码。以上述错误为例，编译的help表示
-需要添加代码\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}{add `#![feature(array_value_iter_slice)]` to the crate attributes to enable}，
+需要添加代码\codeinline{bash}{add `#![feature(array_value_iter_slice)]` to the crate attributes to enable}，
 则我们应当在对应的crate的lib.rs的头部当中，添加内容如下：
 \begin{figure}[H]
   \centering
@@ -1142,8 +1142,8 @@ info!("{}", nan > x);
 info!("{}", nan < x);
 info!("{}", nan == x);
 \end{code-block}
-为此，Rust设计了2个Trait表示全序与偏序：\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{std::cmp::Ord}（全序）以及
-\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{rust}{std::cmd::PartialOrd}（偏序）。
+为此，Rust设计了2个Trait表示全序与偏序：\codeinlinebg{rust}{std::cmp::Ord}（全序）以及
+\codeinlinebg{rust}{std::cmd::PartialOrd}（偏序）。
 PartialOrd这个Trait的partial\_cmp方法返回的是Option<Ordering>，而Ord返回的却是
 Ordering。Rust的f32和f64都只实现了PartialOrd，因此，浮点类型无法进行排序，也同样无法
 求取最值，如下列代码，则是无法运行的：
@@ -1307,7 +1307,7 @@ fn main() {
 }
 \end{code-block}
 编译上述代码时，则需要对编译指令进行部分的调整：
-\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,bgcolor=lbcolor]{bash}{cargo +nightly build}，
+\codeinlinebg{bash}{cargo +nightly build}，
 然后即可实现对参数类型的打印输出。
 
 在Rust当中，与Python不同，函数/方法并不存在默认参数，但是，结构体当中的字段，却可以
