@@ -207,7 +207,6 @@ fn check_fileds(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> 
     let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
     let types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
     let mut final_check_stream = proc_macro2::TokenStream::new();
-
     for (ident, type_) in idents.iter().zip(types.iter()) {
         if get_option_fields(type_).is_some() {
             continue;
@@ -250,7 +249,6 @@ use proc_macro::TokenStream;
 use proc_macro2;
 use quote::quote;
 use syn::{self, parse_macro_input, spanned::Spanned};
-
 #[proc_macro_derive(Builder)]
 pub fn derive(input: TokenStream) -> TokenStream {
     let st = parse_macro_input!(input as syn::DeriveInput);
@@ -259,25 +257,20 @@ pub fn derive(input: TokenStream) -> TokenStream {
         Err(error) => error.to_compile_error().into(),
     }
 }
-
 fn do_expand(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let struct_name_literal = st.ident.to_string();
     let builder_name_literal = format!("{}Builder", struct_name_literal);
     let builder_name_ident = syn::Ident::new(&builder_name_literal, st.span());
     let struct_name_ident = &st.ident;
-
     let builder_struct_fields_def = generate_builder_struct_fields_def(st)?;
     let builder_struct_fields_init = generate_builder_struct_fields_init(st)?;
-
     let setter_functions = generate_setter(st)?;
     let checked_res = check_fileds(st)?;
     let build_res = build_target_fields(st)?;
-
     let ret = quote!(
         pub struct #builder_name_ident {
             #builder_struct_fields_def
         }
-
         impl #struct_name_ident {
             pub fn builder() -> #builder_name_ident {
                 #builder_name_ident {
@@ -285,7 +278,6 @@ fn do_expand(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                 }
             }
         }
-
         impl #builder_name_ident {
             #setter_functions
             pub fn build(&mut self) -> std::result::Result<#struct_name_ident, std::boxed::Box<dyn std::error::Error>>{
@@ -295,17 +287,14 @@ fn do_expand(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                 })
             }
         }
-
     );
     Ok(ret)
 }
-
 fn check_fileds(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let fields = get_filed_from_derive_input(st)?;
     let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
     let types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
     let mut final_check_stream = proc_macro2::TokenStream::new();
-
     for (ident, type_) in idents.iter().zip(types.iter()) {
         if get_option_fields(type_).is_some() {
             continue;
@@ -320,7 +309,6 @@ fn check_fileds(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> 
     }
     Ok(final_check_stream)
 }
-
 fn build_target_fields(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let fields = get_filed_from_derive_input(st)?;
     let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
@@ -340,12 +328,10 @@ fn build_target_fields(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenS
     }
     Ok(final_init_stream)
 }
-
 fn generate_setter(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let fields = get_filed_from_derive_input(st)?;
     let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
     let types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
-
     let mut final_token_stream = proc_macro2::TokenStream::new();
     for (ident, type_) in idents.iter().zip(types.iter()) {
         let token_stream_slice = if let Some(inner_type) = get_option_fields(type_) {
@@ -367,9 +353,7 @@ fn generate_setter(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStrea
     }
     Ok(final_token_stream)
 }
-
 type StructFields = syn::punctuated::Punctuated<syn::Field, syn::Token![,]>;
-
 fn get_filed_from_derive_input(st: &syn::DeriveInput) -> syn::Result<&StructFields> {
     if let syn::Data::Struct(syn::DataStruct {
         fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
@@ -383,7 +367,6 @@ fn get_filed_from_derive_input(st: &syn::DeriveInput) -> syn::Result<&StructFiel
         "Must define on Struct, Not on Enum",
     ))
 }
-
 fn generate_builder_struct_fields_def(
     st: &syn::DeriveInput,
 ) -> syn::Result<proc_macro2::TokenStream> {
@@ -399,14 +382,11 @@ fn generate_builder_struct_fields_def(
             }
         })
         .collect();
-
     let ret = quote! {
         #(#idents: std::option::Option<#types>), *
     };
-
     Ok(ret)
 }
-
 fn get_option_fields(st: &syn::Type) -> Option<&syn::Type> {
     if let syn::Type::Path(syn::TypePath {
         path: syn::Path { segments, .. },
@@ -430,7 +410,6 @@ fn get_option_fields(st: &syn::Type) -> Option<&syn::Type> {
     }
     None
 }
-
 fn generate_builder_struct_fields_init(
     st: &syn::DeriveInput,
 ) -> syn::Result<Vec<proc_macro2::TokenStream>> {
@@ -459,7 +438,6 @@ fn main(){
         .build()
         .unwrap();
     info!("{:#?}", builder);
-
     let builder = Command::builder()
         .executable("lucifer".to_owned())
         .args(vec![])
@@ -468,7 +446,6 @@ fn main(){
         .unwrap();
     info!("{:#?}", builder);
 }
-
 #[derive(Debug, Builder)]
 pub struct Command {
     executable: String,
@@ -490,7 +467,6 @@ pub struct Command {
     env: Vec<String>,
     current_dir: Option<String>,
 }
-
 fn main() {
     ...
     let builder = Command::builder()
@@ -509,11 +485,25 @@ fn main() {
 以上述代码为例，如果使用builder宏装饰env字段，并且标签也是env，那么，针对env字段，最好的方式就是不要实现一个
 使用列表直接复制的函数，即\codeinlinebg{rust}{builder.env("something")}与
 \codeinlinebg{rust}{builder.env(vec!["nothing", "ok"])}这2种形式
-无法并存，只能存在一个。另外的重点是，这个builder宏，只能在被使用了
+无法并存，只能存在第一个。另外的重点是，这个builder宏，只能在被使用了
 \codeinlinebg{rust}{#[derive(Builder)]}
 修饰之后的结构体当中使用，而不能单独使用，因此，类似builder的宏被称之为惰性属性
 宏，其完整的定义形式，一般是\codeinline{rust}{#[proc_macro_derive(Builder, attributes(builder))]}
 这种。
+
+由于上述需求的存在，在处理arg和env参数时，就无法再套用之前例子当中的Option类型来
+包裹这两个参数了，换言之，对于增加了标签\codeinline{rust}{#[builder(each="arg")]}的
+字段，就不能将其在Builder当中处理成Option类型，而是必须保留成Vec类型，即该结构所对应
+的Builder结构体，其展开的内容应当如下所示：
+\begin{code-block}{rust}
+pub struct CommandEachBuilder {
+    executable: std::option::Option<String>,
+    args: Vec<String>,
+    env: Vec<String>,
+    current_dir: std::option::Option<String>,
+}
+\end{code-block}
+这点在后续的处理当中非常重要。
 
 惰性属性宏与常见的属性过程宏基本上是一样的，因此，在处理惰性属性宏之前，先看看
 常见的属性是什么样式的。简单的查看结构体的属性语法树结构，可以如下进行操作：
@@ -606,7 +596,6 @@ pub fn do_test(input: TokenStream) -> TokenStream {
     eprintln!("{:#?}", meta);
     proc_macro2::TokenStream::new().into()
 }
-
 ...
 #[derive(Test)]
 #[Foo(x = "lucifer")]
@@ -752,5 +741,611 @@ Field {
 需要注意的是，上述语法树内容，全部表示的是结构体字段的属性标记，并非结构体字段
 本身的语法树结构，可以看到，其结构和原始的Attribute是相同的。属性标签是Rust当中
 常用的标签，也非常灵活。
+
+回到本案例的需求，针对包含有属性标签字段的结构体，首先需要解决的，就是找到这些
+带有标签的结构体字段：
+\begin{code-block}{rust}
+fn get_attr_field_ident(field: &syn::Field) -> Option<syn::Ident> {
+    for attr in &field.attrs {
+        if let Ok(syn::Meta::List(syn::MetaList {
+            ref path,
+            ref nested,
+            ..
+        })) = attr.parse_meta()
+        {
+            if let Some(__path__) = path.segments.first() {
+                if __path__.ident == "builder" {
+                    if let Some(syn::NestedMeta::Meta(syn::Meta::NameValue(__dict__))) =
+                        nested.first()
+                    {
+                        if __dict__.path.is_ident("each") {
+                            if let syn::Lit::Str(ref arg_token) = __dict__.lit {
+                                return Some(syn::Ident::new(
+                                    arg_token.value().as_str(),
+                                    attr.span(),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+\end{code-block}
+上述代码的作用，就是遍历字段的属性（Attr），对其进行解构，如果存在\codeinline{rust}{builder="each"}这种模式的标签，则返回
+找到的标签字段（即本例当中的each字段标签），解构的内容参照之前的属性被解析成Meta的相关内容。
+
+获得字段的标签属性之后，接下来就是对结构体的字段进行处理。由于对字段添加了标签，
+原有的处理方式已经不太适用了，新的处理方式需要考虑至少3种不同的情况：
+\begin{enumerate}
+  \item 必需的原始类型被Option包裹
+  \item 保留原始的Vec类型
+  \item 使用Option包裹可选的原始类型
+\end{enumerate}
+在开始处理这些结构体字段之前，需要首先了解每一种结构体字段的语法树结构大致是什么
+样子，才可以有的放矢，比如，不带标签的标量数据类型（即常见的String，int等没有使用
+Vec或者Option包裹的数据类型）的语法树大致如下：
+\begin{code-block}{json}
+Field {
+    attrs: [],
+    vis: Inherited,
+    ident: Some(
+        Ident {
+            ident: "executable",
+            span: #0 bytes(1686..1696),
+        },
+    ),
+    colon_token: Some(
+        Colon,
+    ),
+    ty: Path(
+        TypePath {
+            qself: None,
+            path: Path {
+                leading_colon: None,
+                segments: [
+                    PathSegment {
+                        ident: Ident {
+                            ident: "String",
+                            span: #0 bytes(1698..1704),
+                        },
+                        arguments: None,
+                    },
+                ],
+            },
+        },
+    ),
+}
+\end{code-block}
+同样的，不带标签的矢量数据类型（Vec或者Option）的语法树结构大致如下：
+\begin{code-block}{json}
+Field {
+    attrs: [],
+    vis: Inherited,
+    ident: Some(
+        Ident {
+            ident: "others",
+            span: #0 bytes(1813..1819),
+        },
+    ),
+    colon_token: Some(
+        Colon,
+    ),
+    ty: Path(
+        TypePath {
+            qself: None,
+            path: Path {
+                leading_colon: None,
+                segments: [
+                    PathSegment {
+                        ident: Ident {
+                            ident: "Vec",
+                            span: #0 bytes(1821..1824),
+                        },
+                        arguments: AngleBracketed(
+                            AngleBracketedGenericArguments {
+                                colon2_token: None,
+                                lt_token: Lt,
+                                args: [
+                                    Type(
+                                        Path(
+                                            TypePath {
+                                                qself: None,
+                                                path: Path {
+                                                    leading_colon: None,
+                                                    segments: [
+                                                        PathSegment {
+                                                            ident: Ident {
+                                                                ident: "String",
+                                                                span: #0 bytes(1825..1831),
+                                                            },
+                                                            arguments: None,
+                                                        },
+                                                    ],
+                                                },
+                                            },
+                                        ),
+                                    ),
+                                ],
+                                gt_token: Gt,
+                            },
+                        ),
+                    },
+                ],
+            },
+        },
+    ),
+}
+\end{code-block}
+带有标签的标量数据类型，其语法树结构则可能如下：
+\begin{code-block}{json}
+Field {
+    attrs: [
+        Attribute {
+            pound_token: Pound,
+            style: Outer,
+            bracket_token: Bracket,
+            path: Path {
+                leading_colon: None,
+                segments: [
+                    PathSegment {
+                        ident: Ident {
+                            ident: "builder",
+                            span: #0 bytes(1688..1695),
+                        },
+                        arguments: None,
+                    },
+                ],
+            },
+            tokens: TokenStream [
+                Group {
+                    delimiter: Parenthesis,
+                    stream: TokenStream [
+                        Ident {
+                            ident: "each",
+                            span: #0 bytes(1696..1700),
+                        },
+                        Punct {
+                            ch: '=',
+                            spacing: Alone,
+                            span: #0 bytes(1701..1702),
+                        },
+                        Literal {
+                            kind: Str,
+                            symbol: "arg",
+                            suffix: None,
+                            span: #0 bytes(1703..1708),
+                        },
+                    ],
+                    span: #0 bytes(1695..1709),
+                },
+            ],
+        },
+    ],
+    vis: Inherited,
+    ident: Some(
+        Ident {
+            ident: "executable",
+            span: #0 bytes(1715..1725),
+        },
+    ),
+    colon_token: Some(
+        Colon,
+    ),
+    ty: Path(
+        TypePath {
+            qself: None,
+            path: Path {
+                leading_colon: None,
+                segments: [
+                    PathSegment {
+                        ident: Ident {
+                            ident: "String",
+                            span: #0 bytes(1727..1733),
+                        },
+                        arguments: None,
+                    },
+                ],
+            },
+        },
+    ),
+}
+\end{code-block}
+带有标签的矢量数据类型的语法树结构则是如下类似：
+\begin{code-block}{json}
+Field {
+    attrs: [
+        Attribute {
+            pound_token: Pound,
+            style: Outer,
+            bracket_token: Bracket,
+            path: Path {
+                leading_colon: None,
+                segments: [
+                    PathSegment {
+                        ident: Ident {
+                            ident: "builder",
+                            span: #0 bytes(1741..1748),
+                        },
+                        arguments: None,
+                    },
+                ],
+            },
+            tokens: TokenStream [
+                Group {
+                    delimiter: Parenthesis,
+                    stream: TokenStream [
+                        Ident {
+                            ident: "each",
+                            span: #0 bytes(1749..1753),
+                        },
+                        Punct {
+                            ch: '=',
+                            spacing: Alone,
+                            span: #0 bytes(1754..1755),
+                        },
+                        Literal {
+                            kind: Str,
+                            symbol: "arg",
+                            suffix: None,
+                            span: #0 bytes(1756..1761),
+                        },
+                    ],
+                    span: #0 bytes(1748..1762),
+                },
+            ],
+        },
+    ],
+    vis: Inherited,
+    ident: Some(
+        Ident {
+            ident: "args",
+            span: #0 bytes(1768..1772),
+        },
+    ),
+    colon_token: Some(
+        Colon,
+    ),
+    ty: Path(
+        TypePath {
+            qself: None,
+            path: Path {
+                leading_colon: None,
+                segments: [
+                    PathSegment {
+                        ident: Ident {
+                            ident: "Vec",
+                            span: #0 bytes(1774..1777),
+                        },
+                        arguments: AngleBracketed(
+                            AngleBracketedGenericArguments {
+                                colon2_token: None,
+                                lt_token: Lt,
+                                args: [
+                                    Type(
+                                        Path(
+                                            TypePath {
+                                                qself: None,
+                                                path: Path {
+                                                    leading_colon: None,
+                                                    segments: [
+                                                        PathSegment {
+                                                            ident: Ident {
+                                                                ident: "String",
+                                                                span: #0 bytes(1778..1784),
+                                                            },
+                                                            arguments: None,
+                                                        },
+                                                    ],
+                                                },
+                                            },
+                                        ),
+                                    ),
+                                ],
+                                gt_token: Gt,
+                            },
+                        ),
+                    },
+                ],
+            },
+        },
+    ),
+}
+\end{code-block}
+
+有了以上对于结构体字段语法树结构的了解，处理结构体字段的代码可以大致如下：
+\begin{code-block}{rust}
+fn get_generic_fields_type_each<'a>(
+    st: &'a syn::Type,
+    outer_ident_name: &str,
+) -> Option<&'a syn::Type> {
+    if let syn::Type::Path(syn::TypePath {
+        path: syn::Path { segments, .. },
+        ..
+    }) = st
+    {
+        if let Some(segment) = segments.last() {
+            // 解析原始结构体的字段类型（type），针对使用Option和Vec描述的类型
+            // 返回其内部的真实数据类型
+            if segment.ident.to_string() == outer_ident_name {
+                if let syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                    args,
+                    ..
+                }) = &segment.arguments
+                {
+                    if let Some(syn::GenericArgument::Type(inner_type)) = args.first() {
+                        return Some(inner_type);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+fn generate_builder_struct_fields_def_each(
+    fields: &StructFields,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let types: Vec<_> = fields
+        .iter()
+        .map(|f| {
+            // 如果原始结构体字段的数据类型本身是使用Option封装的，则提取其内部数据类型
+            if let Some(inner_type) = get_generic_fields_type_each(&f.ty, "Option") {
+                quote!(std::option::Option<#inner_type>)
+            } else if get_attr_field_ident(f).is_some() {
+                // 如果原始字段上存在标签，在本例当中的做法，是将其默认识别成vec类型
+                // 因此，不再使用Option进行包裹
+                let origin_type = &f.ty;
+                quote!(#origin_type)
+            } else {
+                // 其他的继续使用Option进行包裹，即使原始字段是Vec类型
+                let origin_type = &f.ty;
+                quote!(std::option::Option<#origin_type>)
+            }
+        })
+        .collect();
+    Ok(quote!( #(#idents: #types), *))
+}
+\end{code-block}
+
+获取到结构体的字段之后，接下来就是对这些字段进行初始化操作：
+\begin{code-block}{rust}
+fn generate_builder_struct_fields_init_each(
+    fields: &StructFields,
+) -> syn::Result<Vec<proc_macro2::TokenStream>> {
+    let init_data: Vec<_> = fields
+        .iter()
+        .map(|f| {
+            let ident = &f.ident;
+            // 如果原始结构体的字段上存在标签，该字段将被识别为Vec类型
+            // 直接使用Vec进行初始化
+            if get_attr_field_ident(f).is_some() {
+                quote!(#ident: std::vec::Vec::new())
+            } else {
+                // 否则，使用Option进行填充
+                quote!(#ident: std::option::Option::None)
+            }
+        })
+        .collect();
+    Ok(init_data)
+}
+\end{code-block}
+
+接下来，就是生成Builder结构体的setter函数：
+\begin{code-block}{rust}
+fn generate_setter_each(fields: &StructFields) -> syn::Result<proc_macro2::TokenStream> {
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
+    let mut final_token_stream = proc_macro2::TokenStream::new();
+    for (idx, (ident, type_)) in idents.iter().zip(types.iter()).enumerate() {
+        let mut tokenstream_piece;
+        // 如果原始字段是Option类型
+        if let Some(inner_type) = get_generic_fields_type_each(type_, "Option") {
+            tokenstream_piece = quote! {
+                pub fn #ident(&mut self, #ident: #inner_type) -> & mut Self {
+                    // 使用Option的内部数据类型对字段进行初始化
+                    self.#ident = std::option::Option::Some(#ident);
+                    self
+                }
+            };
+        // 如果原始字段上存在标签
+        } else if let Some(ref builder_for_each) = get_attr_field_ident(&fields[idx]) {
+            // 检测当前字段是否是Vec
+            let inner_type = get_generic_fields_type_each(type_, "Vec").ok_or(syn::Error::new(
+                fields[idx].span(),
+                "each field must be specified with Vec field",
+            ))?;
+            tokenstream_piece = quote! {
+                pub fn #builder_for_each(&mut self, #builder_for_each: #inner_type) -> & mut Self {
+                    self.#ident.push(#builder_for_each);
+                    self
+                }
+            };
+            // 如果标签名称和字段名称不同，还需要生成一个字段本身的setter方法
+            if builder_for_each != ident.as_ref().unwrap() {
+                tokenstream_piece.extend(quote! {
+                    pub fn #ident(&mut self, #ident: #type_) -> & mut Self {
+                        self.#ident = #ident.clone();
+                        self
+                    }
+                });
+            }
+        } else {
+            tokenstream_piece = quote! {
+                pub fn #ident(&mut self, #ident: #type_) -> & mut Self {
+                    self.#ident = std::option::Option::Some(#ident);
+                    self
+                }
+            };
+        };
+        final_token_stream.extend(tokenstream_piece);
+    }
+    Ok(final_token_stream)
+}
+\end{code-block}
+
+最后的重点，则是生成本需求的build方法，实现Rust的建造者模式：
+\begin{code-block}{rust}
+fn generate_builder_function(
+    fields: &StructFields,
+    origin_struct_ident: &syn::Ident,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
+    let mut check_pieces = Vec::new();
+    for (idx, (__ident__, __type__)) in idents.iter().zip(types.iter()).enumerate() {
+        // 如果字段不是Option或者不存在标签，表示该字段为必需字段，必须进行初始化
+        if get_generic_fields_type_each(__type__, "Option").is_none()
+            && get_attr_field_ident(&fields[idx]).is_none()
+        {
+            check_pieces.push(quote! {
+                if self.#__ident__.is_none() {
+                    let err = format!("{} field missing", stringify!(#__ident__));
+                    return std::result::Result::Err(err.into())
+                }
+            });
+        }
+    }
+    let mut fill_result = Vec::new();
+    for (idx, (__ident__, __type__)) in idents.iter().zip(types.iter()).enumerate() {
+        // 如果字段存在标签，直接将字段进行拷贝
+        if get_attr_field_ident(&fields[idx]).is_some() {
+            fill_result.push(quote!(#__ident__: self.#__ident__.clone()));
+        // 如果原始字段是Option类型，则将builder的类型进行解包，返回真实的数据类型
+        } else if get_generic_fields_type_each(__type__, "Option").is_none() {
+            fill_result.push(quote!(#__ident__: self.#__ident__.clone().unwrap()));
+        } else {
+            fill_result.push(quote!(#__ident__: self.#__ident__.clone()));
+        }
+    }
+    let final_token = quote! {
+        pub fn build(&mut self) -> std::result::Result<#origin_struct_ident, std::boxed::Box<dyn std::error::Error>>{
+            #(#check_pieces)*
+            Ok(#origin_struct_ident {
+                #(#fill_result),*
+            })
+        }
+    };
+    Ok(final_token)
+}
+\end{code-block}
+
+有了以上的基础，我们将其有机的结合起来：
+\begin{code-block}{rust}
+use proc_macro::TokenStream;
+use proc_macro2;
+use quote::quote;
+use syn::{self, parse_macro_input, spanned::Spanned};
+type StructFields = syn::punctuated::Punctuated<syn::Field, syn::Token![,]>;
+#[proc_macro_derive(BuilderEach, attributes(builder))]
+pub fn deriveach(input: TokenStream) -> TokenStream {
+    let st = parse_macro_input!(input as syn::DeriveInput);
+    match do_expand_each(&st) {
+        Ok(token_stream) => token_stream.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+fn do_expand_each(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let struct_name_literal = st.ident.to_string();
+    let builder_name_literal = format!("{}Builder", struct_name_literal);
+    let builder_name_ident = syn::Ident::new(&builder_name_literal, st.span());
+    let struct_name_ident = &st.ident;
+    let fields = get_filed_from_derive_input_each(st)?;
+    let builder_struct_fields_def = generate_builder_struct_fields_def_each(fields)?;
+    let builder_struct_fields_init = generate_builder_struct_fields_init_each(fields)?;
+    let setter_functions = generate_setter_each(fields)?;
+    let build_function = generate_builder_function(fields, &struct_name_ident)?;
+    let ret = quote!(
+        pub struct #builder_name_ident {
+            #builder_struct_fields_def
+        }
+        impl #struct_name_ident {
+            pub fn builder() -> #builder_name_ident {
+                #builder_name_ident {
+                    #(#builder_struct_fields_init),*
+                }
+            }
+        }
+        impl #builder_name_ident {
+            #setter_functions
+            #build_function
+        }
+    );
+    Ok(ret)
+}
+fn get_filed_from_derive_input_each(st: &syn::DeriveInput) -> syn::Result<&StructFields> {
+    if let syn::Data::Struct(syn::DataStruct {
+        fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
+        ..
+    }) = st.data
+    {
+        return Ok(named);
+    }
+    Err(syn::Error::new_spanned(
+        st,
+        "Must define on Struct, Not on Enum",
+    ))
+}
+fn get_attr_field_ident(field: &syn::Field) -> Option<syn::Ident> {...}
+fn get_generic_fields_type_each<'a>(st: &'a syn::Type, outer_ident_name: &str,
+) -> Option<&'a syn::Type> {...}
+fn generate_builder_struct_fields_def_each(fields: &StructFields,
+) -> syn::Result<proc_macro2::TokenStream> {...}
+fn generate_builder_struct_fields_init_each(fields: &StructFields,
+) -> syn::Result<Vec<proc_macro2::TokenStream>> {...}
+fn generate_setter_each(fields: &StructFields) -> syn::Result<proc_macro2::TokenStream> {...}
+fn generate_builder_function(fields: &StructFields, origin_struct_ident: &syn::Ident,
+) -> syn::Result<proc_macro2::TokenStream> {...}
+\end{code-block}
+
+最终，我们看看其使用方式以及结果：
+\begin{code-block}{rust}
+#[derive(Debug, BuilderEach)]
+pub struct CommandEach {
+    executable: String,
+    #[builder(each = "arg")]
+    args: Vec<String>,
+    #[builder(each = "env")]
+    env: Vec<String>,
+    others: Vec<String>,
+    current_dir: Option<String>,
+}
+fn main() {
+    let builder = CommandEach::builder()
+        .executable("lucifer".to_owned())
+        .arg("lucifer".to_owned())
+        .arg("titans".to_owned())
+        .env("zhangjl".to_owned())
+        .env("luoyan".to_owned())
+        .others(vec![])
+        .build()
+        .unwrap();
+    info!("{:#?}", builder);
+    let builder = CommandEach::builder()
+        .executable("lucifer".to_owned())
+        .others(vec![])
+        .build()
+        .unwrap();
+    info!("{:#?}", builder);
+}
+\end{code-block}
+
+如果通过\codeinlinebg{bash}{cargo expand}将代码进行展开，得到的结果类似如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_label_expand.png}
+  \caption{带标签的结构体展开}
+  \label{fig:rust_label_expand}
+\end{figure}
+而上述代码的执行结果，则大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_label_result.png}
+  \caption{带标签的结构体的执行结果}
+  \label{fig:rust_label_result}
+\end{figure}
+可以看到，CommandEach和Command的结果是截然不同的。
 
 \input{rust_part_6}
