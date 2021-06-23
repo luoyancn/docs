@@ -1348,4 +1348,139 @@ fn main() {
 \end{figure}
 可以看到，CommandEach和Command的结果是截然不同的。
 
+现在结构体支持标签了，但是，新的问题又出现了：上述的过程宏要求的标签是\codeinline{rust}{#[builder(each = "...")]}
+这种模式，如果标签写错了，即each写成了其他的字符，从程序安全的角度，应当给予足够
+的错误信息提示，因此，之前的获取标签的函数需要进行改写：
+\begin{code-block}{rust}
+fn get_attr_field_ident(field: &syn::Field) -> syn::Result<Option<syn::Ident>> {
+    for attr in &field.attrs {
+        // 获得标签的语法树节点
+        if let Ok(syn::Meta::List(ref list)) = attr.parse_meta() {
+            // 二次解构
+            let syn::MetaList {
+                ref path,
+                ref nested,
+                ..
+            } = list;
+            if let Some(__path__) = path.segments.first() {
+                if __path__.ident == "builder" {
+                    if let Some(syn::NestedMeta::Meta(syn::Meta::NameValue(__dict__))) =
+                        nested.first()
+                    {
+                        if __dict__.path.is_ident("each") {
+                            if let syn::Lit::Str(ref arg_token) = __dict__.lit {
+                                return Ok(Some(syn::Ident::new(
+                                    arg_token.value().as_str(),
+                                    attr.span(),
+                                )));
+                            }
+                        } else {
+                            // 如果builder当中的标签不是each，则返回一个错误
+                            // 错误的范围则限定在标签的语法树节点
+                            return Err(syn::Error::new_spanned(
+                                list,
+                                r#"expected `builder(each = "...")`"#,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+\end{code-block}
+
+由于需要返回错误信息，因此，也需要对其他使用到该函数的地方进行修改。对于普通的
+使用方式，直接在该方法的后面添加\codeinlinebg{rust}{?}即可，而如果是闭包，则需要
+稍微注意一下。调用了\codeinlinebg{rust}{get_attr_field_ident}函数的代码修改如下：
+\begin{code-block}{rust}
+fn generate_builder_function(
+    fields: &StructFields,
+    origin_struct_ident: &syn::Ident,
+) -> syn::Result<proc_macro2::TokenStream> {
+    ...
+    for (idx, (__ident__, __type__)) in idents.iter().zip(types.iter()).enumerate() {
+        if get_generic_fields_type_each(__type__, "Option").is_none()
+            && get_attr_field_ident(&fields[idx])?.is_none()
+        ...
+    }
+    let mut fill_result = Vec::new();
+    for (idx, (__ident__, __type__)) in idents.iter().zip(types.iter()).enumerate() {
+        if get_attr_field_ident(&fields[idx])?.is_some() {
+            fill_result.push(quote!(#__ident__: self.#__ident__.clone()));
+        }
+        ...
+    }
+    ...
+    Ok(final_token)
+}
+fn generate_setter_each(fields: &StructFields) -> syn::Result<proc_macro2::TokenStream> {
+    ...
+    for (idx, (ident, type_)) in idents.iter().zip(types.iter()).enumerate() {
+        let mut tokenstream_piece;
+        if let Some(inner_type) = get_generic_fields_type_each(type_, "Option") {
+            ...
+        } else if let Some(ref builder_for_each) = get_attr_field_ident(&fields[idx])? {
+            ...
+        }
+    }
+}
+fn generate_builder_struct_fields_init_each(
+    fields: &StructFields,
+) -> syn::Result<Vec<proc_macro2::TokenStream>> {
+    let init_data: syn::Result<Vec<proc_macro2::TokenStream>> = fields
+        .iter()
+        .map(|f| {
+            let ident = &f.ident;
+            if get_attr_field_ident(f)?.is_some() {
+                Ok(quote!(#ident: std::vec::Vec::new()))
+            } else {
+                Ok(quote!(#ident: std::option::Option::None))
+            }
+        })
+        .collect();
+    Ok(init_data?)
+}
+fn generate_builder_struct_fields_def_each(
+    fields: &StructFields,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let idents: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+    let types: syn::Result<Vec<_>> = fields
+        .iter()
+        .map(|f| {
+            if let Some(inner_type) = get_generic_fields_type_each(&f.ty, "Option") {
+                Ok(quote!(std::option::Option<#inner_type>))
+            } else if get_attr_field_ident(f)?.is_some() {
+                let origin_type = &f.ty;
+                Ok(quote!(#origin_type))
+            } else {
+                let origin_type = &f.ty;
+                Ok(quote!(std::option::Option<#origin_type>))
+            }
+        })
+        .collect();
+    let __types__ = types?;
+    Ok(quote!( #(#idents: #__types__), *))
+}
+\end{code-block}
+其余代码保持不变，这样，如果在使用该过程宏时写错了标签，即类似如下：
+\begin{code-block}{rust}
+#[derive(BuilderEach)]
+pub struct CommandEach {
+    executable: String,
+    #[builder(each = "arg")]
+    args: Vec<String>,
+    #[builder(eac = "env")]
+    env: Vec<String>,
+    ...
+}
+\end{code-block}
+则代码在编译的时候，就会出现如下比较明确的错误信息，当然了，正确的标签则不会提示错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_label_error.png}
+  \caption{处理有错误的标签}
+  \label{fig:rust_label_error}
+\end{figure}
 \input{rust_part_6}
