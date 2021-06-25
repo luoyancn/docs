@@ -125,7 +125,7 @@ pub enum Type {
 \end{code-block}
 
 需要做的，就是对字段类型的语法树进行解构，一步一步的按照需求，准确的定位Option所标识的
-字段，并将其的内层类型取出来。因此，需要对上一章节\nameref{builder}的代码进行重构。
+字段，并将其的内层类型取出来。因此，需要对上一章节\colorunderlineref{builder}的代码进行重构。
 
 首先需要实现的，就是对可选字段（Option）的语法树定位和处理，并且返回对应的TokenStream：
 \begin{code-block}{rust}
@@ -456,6 +456,7 @@ pub struct Command {
 \end{code-block}
 
 \subsection{过程宏案例-派生过程宏Builder的派生属性}
+\label{builder_attribute}
 如果继续进行深入，考虑下面的一种形式：
 \begin{code-block}{rust}
 #[derive(Builder)]

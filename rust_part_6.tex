@@ -1,3 +1,187 @@
 \subsection{过程宏案例-自定义Debug}
+Rust提供了一个默认的Debug Trait，使得可以对任意的数据类型进行格式化的输出。但是，有的
+时候，可能需要一些更细粒度的控制，比如，控制到具体的一个字段的输出格式这样的需求：
+\begin{code-block}{rust}
+#[derive(CustomDebug)]
+pub struct Field {
+    name: String,
+    #[debug = "0b{:08b}"]
+    bitmask: u8,
+}
+\end{code-block}
+当我们使用这个自定义的Debug宏对这个结构体进行打印时，我们期望得到如下的输出：
+\begin{code-block}{bash}
+Field { name: "st0", bitmask: 0b00011100 }
+\end{code-block}
+
+从需求的模式上看，该案例和\colorunderlineref{builder_attribute}非常类似。但是，由于本需求
+不要求生成其他的类似builder之类的结构体，而是对原生的Debug Trait进行了扩展，因此具有
+自身的特殊性。
+
+在Rust当中，如果想手动实现Debug Trait，而不是通过类似\codeinline{rust}{#[derive(Debug)]}
+的方式使用，则基本的实例如下：
+\begin{code-block}{rust}
+struct Test {
+    name: String,
+    age: u8,
+}
+
+impl fmt::Debug for Test {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Test")
+            .field("name", &self.name)
+            .field("age", &self.age)
+            .finish()
+    }
+}
+\end{code-block}
+但是，通常情况下基本用不着自己实现Debug Trait。但是，在该案例当中，由于需求是实现
+一个自定义的Debug过程宏，则不可避免的，需要先实现Rust自带的这个Debug Trait，再
+往其中添加自己的其他内容。过程宏的名字与实现的Trait之间名字可以不一样，不过按照
+Rust约定，一般情况下，过程宏与实现的Trait的之间，名字应当相同。但是，在本例当中，
+如果我们直接使用Debug作为过程宏的名称，则会与Rust本身的Debug出现冲突。
+
+从上面的例子可以看到，Debug Trait实际上并没有做什么特殊的处理，只是做了一个字符
+串的处理。而自定义Debug的首要目的，就是实现上述的过程，只不过，是通过解析语法树
+的方式来解决：
+\begin{code-block}{rust}
+#[proc_macro_derive(CustomDebug)]
+pub fn derive_debug(input: TokenStream) -> TokenStream {
+    let st = parse_macro_input!(input as syn::DeriveInput);
+    match do_expand_debug(&st) {
+        Ok(token_stream) => token_stream.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+fn do_expand_debug(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    Ok(generate_debug_trait(st)?)
+}
+fn generate_debug_trait(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let struct_name_literal = st.ident.to_string();
+    let struct_name_ident = &st.ident;
+    let mut debug_body = proc_macro2::TokenStream::new();
+    debug_body.extend(quote! {
+        ft.debug_struct(#struct_name_literal)
+    });
+    let fields = get_filed_from_derive_input_debug(st)?;
+    for field in fields.iter() {
+        let ident = field.ident.as_ref().unwrap();
+        let ident_iteral = ident.to_string();
+        debug_body.extend(quote! {.field(#ident_iteral, &self.#ident)});
+    }
+    debug_body.extend(quote! {.finish()});
+    let ret = quote! {
+        impl std::fmt::Debug for #struct_name_ident {
+            fn fmt(&self, ft: &mut std::fmt::Formatter) -> std::fmt::Result {
+                #debug_body
+            }
+        }
+    };
+    Ok(ret)
+}
+fn get_filed_from_derive_input_debug(st: &syn::DeriveInput) -> syn::Result<&StructFields> {
+    if let syn::Data::Struct(syn::DataStruct {
+        fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
+        ..
+    }) = st.data
+    {
+        return Ok(named);
+    }
+    Err(syn::Error::new_spanned(
+        st,
+        "Must define on Struct, Not on Enum",
+    ))
+}
+\end{code-block}
+如果我们将代码进行展开，可以看到如下的输出：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_macro_impl_debug.png}
+  \caption{使用过程宏实现Debug Trait}
+  \label{fig:rust_macro_impl_debug}
+\end{figure}
+
+紧接着便是对特殊字段的格式化参数进行处理。和之前的例子相似，由于也是使用标签实现的，
+因此也是属于惰性属性的一种，只是稍微有些却别：本例当中的惰性属性不再是一个list，而是
+一个kv，因此处理上稍微有所变化：
+\begin{code-block}{rust}
+#[proc_macro_derive(CustomDebug, attributes(debug))]
+pub fn derive_debug(input: TokenStream) -> TokenStream {
+    ...
+}
+
+fn get_speciald_format_of_field(field: &syn::Field) -> syn::Result<Option<String>> {
+    for attr in &field.attrs {
+        if let Ok(syn::Meta::NameValue(syn::MetaNameValue {
+            ref path, ref lit, ..
+        })) = attr.parse_meta()
+        {
+            if path.is_ident("debug") {
+                if let syn::Lit::Str(ref ident_str) = lit {
+                    return Ok(Some(ident_str.value()));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+\end{code-block}
+
+剩下的，则是对之前的\codeinlinebg{rust}{generate_debug_trait}函数进行一定的修改：
+\begin{code-block}{rust}
+fn generate_debug_trait(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let struct_name_literal = st.ident.to_string();
+    let struct_name_ident = &st.ident;
+    let mut debug_body = proc_macro2::TokenStream::new();
+    debug_body.extend(quote! {
+        ft.debug_struct(#struct_name_literal)
+    });
+    let fields = get_filed_from_derive_input_debug(st)?;
+    for field in fields.iter() {
+        let ident = field.ident.as_ref().unwrap();
+        let ident_iteral = ident.to_string();
+        // 如果字段上设置有debug的格式化标签，获取格式化参数
+        if let Some(format_label) = get_speciald_format_of_field(&field)? {
+            // 使用格式化参数对字段进行格式化
+            debug_body
+                .extend(quote! {.field(#ident_iteral, &format_args!(#format_label ,&self.#ident))});
+        } else {
+            debug_body.extend(quote! {.field(#ident_iteral, &self.#ident)});
+        }
+    }
+    debug_body.extend(quote! {.finish()});
+    let ret = quote! {
+        impl std::fmt::Debug for #struct_name_ident {
+            fn fmt(&self, ft: &mut std::fmt::Formatter) -> std::fmt::Result {
+                #debug_body
+            }
+        }
+    };
+    Ok(ret)
+}
+\end{code-block}
+然后就可以对结构体进行格式化输出了：
+\begin{code-block}{rust}
+#[derive(CustomDebug)]
+pub struct Custom {
+    name: String,
+    #[debug = "0b{:08b}"]
+    age: u8,
+}
+fn main() {
+    let cus = Custom {
+        name: "zhangjl".to_owned(),
+        age: 33,
+    };
+    info!("{:#?}", cus);
+}
+\end{code-block}
+最终得到的结果，大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_field_format.png}
+  \caption{字段的定制格式化}
+  \label{fig:rust_field_format}
+\end{figure}
 
 \input{rust_part_7}
