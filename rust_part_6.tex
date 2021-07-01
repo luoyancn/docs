@@ -118,7 +118,17 @@ fn get_speciald_format_of_field(field: &syn::Field) -> syn::Result<Option<String
         {
             if path.is_ident("debug") {
                 if let syn::Lit::Str(ref ident_str) = lit {
-                    return Ok(Some(ident_str.value()));
+                    let ret = ident_str.value();
+                    let len = ret.len();
+                    // 获取标识符的倒数第二位，即类似"{:08b}"这种，进行比对
+                    match ret.chars().nth(len - 2) {
+                        Some('e') | Some('E') | Some('o') | Some('p') | Some('b') | Some('x')
+                        | Some('X') | Some('?') => return Ok(Some(ident_str.value())),
+                        // 提前返回错误格式化参数所造成的错误
+                        _ => {
+                            return Err(syn::Error::new(ident_str.span(), "Unexpected format args"))
+                        }
+                    }
                 }
             }
         }
@@ -183,5 +193,625 @@ fn main() {
   \caption{字段的定制格式化}
   \label{fig:rust_field_format}
 \end{figure}
+
+\subsection{过程宏案例-泛型参数的支持}
+到目前为止，还没有涉及到任何关于泛型的情况，但是，泛型是Rust当中非常重要的部分，
+也是过程宏无法避免的一部分。首先观察一下带有泛型参数结构体的语法树结构，以下面的
+代码为例：
+\begin{code-block}{rust}
+#[proc_macro_derive(Just)]
+pub fn derive_type(input: TokenStream) -> TokenStream {
+    let st = parse_macro_input!(input as syn::DeriveInput);
+    eprintln!("{:#?}", st);
+    proc_macro2::TokenStream::new().into()
+}
+...
+#[derive(Just)]
+pub struct ForType<T, U>
+where
+    T: PartialEq + ToOwned,
+    U: Copy + Iterator,
+{
+    name: T,
+    age: U,
+}
+\end{code-block}
+通过代码进行展开之后，其语法结构树大致如下：
+\begin{code-block}{rust}
+DeriveInput {
+    ...
+    generics: Generics {
+        lt_token: Some(
+            Lt,
+        ),
+        params: [
+            Type(
+                TypeParam {
+                    attrs: [],
+                    ident: Ident {
+                        ident: "T",
+                        span: #0 bytes(2136..2137),
+                    },
+                    colon_token: None,
+                    bounds: [],
+                    eq_token: None,
+                    default: None,
+                },
+            ),
+            Comma,
+            Type(
+                TypeParam {
+                    attrs: [],
+                    ident: Ident {
+                        ident: "U",
+                        span: #0 bytes(2139..2140),
+                    },
+                    colon_token: None,
+                    bounds: [],
+                    eq_token: None,
+                    default: None,
+                },
+            ),
+        ],
+        gt_token: Some(
+            Gt,
+        ),
+        where_clause: Some(
+            WhereClause {
+                where_token: Where,
+                predicates: [
+                    Type(
+                        PredicateType {
+                            lifetimes: None,
+                            bounded_ty: Path(
+                                TypePath {
+                                    qself: None,
+                                    path: Path {
+                                        leading_colon: None,
+                                        segments: [
+                                            PathSegment {
+                                                ident: Ident {
+                                                    ident: "T",
+                                                    span: #0 bytes(2152..2153),
+                                                },
+                                                arguments: None,
+                                            },
+                                        ],
+                                    },
+                                },
+                            ),
+                            colon_token: Colon,
+                            bounds: [
+                                Trait(
+                                    TraitBound {
+                                        paren_token: None,
+                                        modifier: None,
+                                        lifetimes: None,
+                                        path: Path {
+                                            leading_colon: None,
+                                            segments: [
+                                                PathSegment {
+                                                    ident: Ident {
+                                                        ident: "PartialEq",
+                                                        span: #0 bytes(2155..2164),
+                                                    },
+                                                    arguments: None,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                ),
+                                Add,
+                                Trait(
+                                    TraitBound {
+                                        paren_token: None,
+                                        modifier: None,
+                                        lifetimes: None,
+                                        path: Path {
+                                            leading_colon: None,
+                                            segments: [
+                                                PathSegment {
+                                                    ident: Ident {
+                                                        ident: "ToOwned",
+                                                        span: #0 bytes(2167..2174),
+                                                    },
+                                                    arguments: None,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                ),
+                            ],
+                        },
+                    ),
+                    Comma,
+                    Type(
+                        PredicateType {
+                            lifetimes: None,
+                            bounded_ty: Path(
+                                TypePath {
+                                    qself: None,
+                                    path: Path {
+                                        leading_colon: None,
+                                        segments: [
+                                            PathSegment {
+                                                ident: Ident {
+                                                    ident: "U",
+                                                    span: #0 bytes(2180..2181),
+                                                },
+                                                arguments: None,
+                                            },
+                                        ],
+                                    },
+                                },
+                            ),
+                            colon_token: Colon,
+                            bounds: [
+                                Trait(
+                                    TraitBound {
+                                        paren_token: None,
+                                        modifier: None,
+                                        lifetimes: None,
+                                        path: Path {
+                                            leading_colon: None,
+                                            segments: [
+                                                PathSegment {
+                                                    ident: Ident {
+                                                        ident: "Copy",
+                                                        span: #0 bytes(2183..2187),
+                                                    },
+                                                    arguments: None,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                ),
+                                Add,
+                                Trait(
+                                    TraitBound {
+                                        paren_token: None,
+                                        modifier: None,
+                                        lifetimes: None,
+                                        path: Path {
+                                            leading_colon: None,
+                                            segments: [
+                                                PathSegment {
+                                                    ident: Ident {
+                                                        ident: "Iterator",
+                                                        span: #0 bytes(2190..2198),
+                                                    },
+                                                    arguments: None,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                ),
+                            ],
+                        },
+                    ),
+                    Comma,
+                ],
+            },
+        ),
+    },
+    data: Struct(
+        DataStruct {
+            struct_token: Struct,
+            fields: Named(
+                FieldsNamed {
+                    brace_token: Brace,
+                    named: [
+                        Field {
+                            attrs: [],
+                            vis: Inherited,
+                            ident: Some(
+                                Ident {
+                                    ident: "name",
+                                    span: #0 bytes(2206..2210),
+                                },
+                            ),
+                            colon_token: Some(
+                                Colon,
+                            ),
+                            ty: Path(
+                                TypePath {
+                                    qself: None,
+                                    path: Path {
+                                        leading_colon: None,
+                                        segments: [
+                                            PathSegment {
+                                                ident: Ident {
+                                                    ident: "T",
+                                                    span: #0 bytes(2212..2213),
+                                                },
+                                                arguments: None,
+                                            },
+                                        ],
+                                    },
+                                },
+                            ),
+                        },
+
+                        Comma,
+        ...
+
+}
+\end{code-block}
+从上述的语法树结构可以看出：
+\begin{enumerate}
+  \item 泛型参数作用在整个结构体上，单独使用generics表示
+  \item 泛型参数在语法树节点上，和泛型参数所装饰的类型/字段没有必然的联系
+  \item 泛型参数的\codeinlinebg{rust}{where}限定，单独使用了where\_clause进行保存
+\end{enumerate}
+
+如果想实现对带泛型参数的结构体的Debug Trait，从Rust的语法规则上，有如下的需求：
+\begin{code-block}{rust}
+pub struct ForType<T, U> {
+    name: T,
+    age: U,
+}
+
+...
+impl<T: Debug, U: Debug> Debug for ForType<T, U> {...}
+\end{code-block}
+因此，在使用过程宏对泛型参数进行处理实现Debug Trait时，也必须满足上述的要求。
+
+对于包含有泛型函数的结构体，其语法树结构（DeriveInput）会包含
+generics（\codeinlinebg{rust}{syn::Generics}）参数\footnote{结构体描述：\url{https://docs.rs/syn/1.0.73/syn/struct.Generics.html}}，
+而该结构体当中非常重要的字段params，其具体类型\codeinlinebg{rust}{syn::GenericParam}\footnote{结构体定义：\url{https://docs.rs/syn/1.0.73/syn/enum.GenericParam.html}}
+如下：
+\begin{code-block}{rust}
+pub enum GenericParam {
+    Type(TypeParam),
+    Lifetime(LifetimeDef),
+    Const(ConstParam),
+}
+\end{code-block}
+可以看到，对于过程宏而言，泛型参数的定义非常广泛，包含了泛型类型，生命周期以及常量等。
+在添加上述的泛型参数时，需要使用到一个工具函数：\codeinlinebg{rust}{split_for_impl}。
+该函数的作用，就是将真正的泛型类型（\codeinline{rust}{syn::GenericParam}）解析
+成3部分：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_impl_split.png}
+  \caption{泛型类型的解析}
+  \label{fig:rust_impl_split}
+\end{figure}
+
+基于以上的基础，现在，我们添加上对于泛型参数的支持：
+\begin{code-block}{rust}
+fn get_generics(st: &syn::DeriveInput) -> syn::Generics {
+    let mut generics_params = st.generics.clone();
+    for param in generics_params.params.iter_mut() {
+        // 如果是泛型参数T，则要求T必须满足本身实现了Debug Trait
+        if let syn::GenericParam::Type(t) = param {
+            // 对类型的末尾追加内容，即将std::fmt::Debug格式化成语法树节点
+            t.bounds.push(parse_quote!(std::fmt::Debug));
+        }
+    }
+    generics_params
+}
+
+fn generate_debug_trait(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    ...
+    let generics = get_generics(&st);
+    let (impl_block, generic_block, where_block) = generics.split_for_impl();
+    let ret = quote! {
+        impl #impl_block std::fmt::Debug for #struct_name_ident #generic_block #where_block {
+            fn fmt(&self, ft: &mut std::fmt::Formatter) -> std::fmt::Result {
+                #debug_body
+            }
+        }
+    };
+
+    Ok(ret)
+}
+\end{code-block}
+其余的代码保持不变。接下来，使用示例代码进行测试：
+\begin{code-block}{rust}
+#[derive(CustomDebug)]
+pub struct Custom {
+    name: String,
+    #[debug = "0b{:08b}"]
+    age: u8,
+}
+\end{code-block}
+这种没有泛型参数的，不会有什么变化，通过\codeinlinebg{bash}{cargo expand}展开之后
+的结果基本和之前是相同的；如果将代码进行修改，添加上泛型参数：
+\begin{code-block}{rust}
+#[derive(CustomDebug)]
+pub struct Custom<T, U> {
+    name: T,
+    #[debug = "0b{:08b}"]
+    age: U,
+}
+\end{code-block}
+则展开之后的代码大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_with_generic.png}
+  \caption{泛型参数的展开}
+  \label{fig:rust_with_generic}
+\end{figure}
+而如果结构体当中包含了生命周期：
+\begin{code-block}{rust}
+#[derive(CustomDebug)]
+pub struct Custom<'a, T> {
+    name: &'a str,
+    #[debug = "0b{:08b}"]
+    age: u8,
+    other: T,
+}
+\end{code-block}
+则展开之后的结果大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_with_generic_and_lifetime.png}
+  \caption{泛型参数和生命周期的展开}
+  \label{fig:rust_with_generic_and_lifetime}
+\end{figure}
+
+在上面的处理当中，泛型参数默认都是普通类型，并且没有进行嵌套。考虑下面的情况：
+\begin{code-block}{rust}
+pub struct GeekKindergarten<T, U> {
+    blog: Foo<U>,
+    ideawand: PhantomData<T>,
+}
+\end{code-block}
+如果按照之前的处理方式，那我们的过程宏对泛型参数的处理，生成的限定条件应该是
+\codeinlinebg{rust}{T: Debug, U: Debug}。但是，由于在Rust当中，\codeinline{rust}{PhantomData}
+本身就已经实现了Debug Trait，因此，从实际上讲，是没有必要对U或者\codeinlinebg{rust}{PhantomData<U>}做
+Trait限定的。面对这类本身已经实现了Debug的泛型结构体，有一种应对办法，即在生成Trait限定时，
+不是针对每一个泛型参数去限制，而是对结构体中每一个字段的类型来添加限制，简而言之，
+限定条件应该修改为\codeinlinebg{rust}{Foo<U>: Debug, PhantomData<T>: Debug}。
+\important{但是这种方式的副作用非常大，因此，在实际的生产环境当中，几乎无人使用。}
+
+由于\codeinlinebg{rust}{PhantomData}在Rust当中使用非常频繁，通常的做法是：判断是否
+包含\codeinlinebg{rust}{PhantomData}类型的字段，如果有，则查看被其包裹的泛型参数
+是否只是在\codeinlinebg{rust}{PhantomData}当中出现过，如果是，则不对相关的泛型参数添加Debug Trait限定了。
+以下面的代码为例：
+\begin{code-block}{rust}
+struct GeekKindergarten<T, U, V, W> {
+    blog: T,
+    ideawand: PhantomData<U>,
+    com: U,
+    foo: PhantomData<V>,
+    bar: Baz<W>,
+}
+\end{code-block}
+\note{
+\begin{enumerate}
+  \item 泛型参数\codeinlinebg{rust}{T}没有出现在\codeinlinebg{rust}{PhantomData}的类型当中，因此，需要添加Debug Trait限定
+  \item 泛型参数\codeinlinebg{rust}{U}出现在了\codeinlinebg{rust}{PhantomData}当中，但是，由于其同时作为了结构体的其他字段，因此，仍然需要添加Debug限定
+  \item \codeinlinebg{rust}{V}只出现在了\codeinlinebg{rust}{PhantomData}当中，无需添加Debug限定
+  \item \codeinlinebg{rust}{W}虽然被其他的类型包裹，但是并没有出现在\codeinlinebg{rust}{PhantomData}，因此，同样需要增加Debug限定
+\end{enumerate}
+}
+
+根据这些提示，需要首先针对\codeinlinebg{rust}{PhantomData}进行处理，即将其包裹的
+数据类型提取出来，在处理之前，首先看看包含了\codeinlinebg{rust}{PhantomData}的
+结构体字段的语法树结构：
+\begin{code-block}{rust}
+#[derive(CustomDebug)]
+pub struct Custom<'a, T, U> {
+    name: &'a str,
+    #[debug = "0b{:08b}"]
+    age: u8,
+    other: T,
+    phd: PhantomData<U>,
+}
+\end{code-block}
+以上述代码为例，其phd字段的语法树结构如下：
+\begin{code-block}{json}
+Field {
+    attrs: [],
+    vis: Inherited,
+    ident: Some(
+        Ident {
+            ident: "phd",
+            span: #0 bytes(2201..2204),
+        },
+    ),
+    colon_token: Some(
+        Colon,
+    ),
+    ty: Path(
+        TypePath {
+            qself: None,
+            path: Path {
+                leading_colon: None,
+                segments: [
+                    PathSegment {
+                        ident: Ident {
+                            ident: "PhantomData",
+                            span: #0 bytes(2206..2217),
+                        },
+                        arguments: AngleBracketed(
+                            AngleBracketedGenericArguments {
+                                colon2_token: None,
+                                lt_token: Lt,
+                                args: [
+                                    Type(
+                                        Path(
+                                            TypePath {
+                                                qself: None,
+                                                path: Path {
+                                                    leading_colon: None,
+                                                    segments: [
+                                                        PathSegment {
+                                                            ident: Ident {
+                                                                ident: "U",
+                                                                span: #0 bytes(2218..2219),
+                                                            },
+                                                            arguments: None,
+                                                        },
+                                                    ],
+                                                },
+                                            },
+                                        ),
+                                    ),
+                                ],
+                                gt_token: Gt,
+                            },
+                        ),
+                    },
+                ],
+            },
+        },
+    ),
+}
+\end{code-block}
+因此，提取\codeinlinebg{rust}{PhantomData}字段的包裹数据类型操作大致如下：
+\begin{code-block}{rust}
+fn get_phantomdata_generic_type_name(filed: &syn::Field) -> syn::Result<Option<String>> {
+    if let syn::Type::Path(syn::TypePath {
+        path: syn::Path { ref segments, .. },
+        ..
+    }) = filed.ty
+    {
+        if let Some(syn::PathSegment {
+            ref ident,
+            ref arguments,
+        }) = segments.last()
+        {
+            if ident == "PhantomData" {
+                if let syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                    args,
+                    ..
+                }) = arguments
+                {
+                    if let Some(syn::GenericArgument::Type(syn::Type::Path(ref arg_path))) =
+                        args.first()
+                    {
+                        if let Some(generic_ident) = arg_path.path.segments.first() {
+                            return Ok(Some(generic_ident.ident.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+\end{code-block}
+同样的，也需要将其他字段的类型提取出来，需要注意类似\codeinlinebg{rust}{bar: Baz<W>}这种，
+只需要将其中的Baz类型提取出来。这种字段的语法树结构和上面的类似，只是\codeinlinebg{rust}{PhantomData}
+被其他的数据类型所替换而已，因此，其处理函数非常类似：
+\begin{code-block}{rust}
+fn get_field_type_name(field: &syn::Field) -> syn::Result<Option<String>> {
+    if let syn::Type::Path(syn::TypePath {
+        path: syn::Path { ref segments, .. },
+        ..
+    }) = field.ty
+    {
+        if let Some(syn::PathSegment { ref ident, .. }) = segments.last() {
+            return Ok(Some(ident.to_string()));
+        }
+    }
+    Ok(None)
+}
+\end{code-block}
+
+有了上述的基础之后，接下来修改其他函数：
+\begin{code-block}{rust}
+fn get_generics(st: &syn::DeriveInput) -> syn::Result<syn::Generics> {
+    let fields = get_filed_from_derive_input_debug(st)?;
+    let mut generics_params = st.generics.clone();
+    let mut field_type_name = Vec::new();
+    let mut phantomdata_type_param_names = Vec::new();
+    for field in fields {
+        if let Some(name) = get_field_type_name(&field)? {
+            field_type_name.push(name);
+        }
+        if let Some(phd) = get_phantomdata_generic_type_name(&field)? {
+            phantomdata_type_param_names.push(phd);
+        }
+    }
+    for param in generics_params.params.iter_mut() {
+        if let syn::GenericParam::Type(t) = param {
+            let type_name = t.ident.to_string();
+            // 如果PhantomData类型包裹了对应的类型，并且，结构体的原始字段并不包含对应的类型
+            // 则不追加Debug限定
+            if phantomdata_type_param_names.contains(&type_name)
+                && !field_type_name.contains(&type_name)
+            {
+                continue;
+            }
+            t.bounds.push(parse_quote!(std::fmt::Debug));
+        }
+    }
+    Ok(generics_params)
+}
+\end{code-block}
+
+然后对示例代码进行展开：
+\begin{code-block}{rust}
+#[derive(CustomDebug)]
+pub struct Custom<'a, T, U, W, X> {
+    name: &'a str,
+    #[debug = "0b{:08b}"]
+    age: u8,
+    other: T,
+    phd: PhantomData<U>,
+    www: Bar<W>,
+    phd2: PhantomData<X>,
+    xxx: X,
+}
+\end{code-block}
+则得到的结果如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_with_generic_and_phantomdata.png}
+  \caption{包含嵌套泛型参数的CustomDebug}
+  \label{fig:rust_with_generic_and_phantomdata}
+\end{figure}
+可以看到，展开的结果完全符合之前的需求和条件。
+
+\subsection{过程宏案例-深度嵌套泛型与Visitor模式}
+Trait在Rust当中使用非常广泛，也经常用于泛型嵌套当中。比如，\colorunderline{Rust当中的关联类型}，就
+经常和Trait以及泛型结合在一起：
+\begin{code-block}{rust}
+trait Contains {
+    type A; // Trait Contains的关联类型
+    type B; // Trait Contains的关联类型
+    fn contains(&self, _: &Self::A, _: &Self::B) -> bool;
+    fn first(&self) -> Self::A;
+    fn last(&self) -> Self::B;
+}
+struct Container(i32, i32);
+impl Contains for Container {
+    // 指出 `A` 和 `B` 是什么类型。如果 `input`（输入）类型
+    // 为 `Container(i32, i32)`，那么 `output`（输出）类型
+    // 会被确定为 `i32` 和 `i32`。
+    type A = i32;
+    type B = i32;
+    fn contains(&self, number_1: &Self::A, number_2: &Self::B) -> bool {
+        (&self.0 == number_1) && (&self.1 == number_2)
+    }
+    fn first(&self) -> Self::A { self.0 }
+    fn last(&self) -> Self::B { self.1 }
+}
+\end{code-block}
+
+假设有下面的代码：
+\begin{code-block}{rust}
+pub trait Trait {
+    type Value;
+}
+pub struct Geek<T:Trait> {
+    blog: T::Value,
+    ideawand: PhantomData<T::Value>,
+    com: Foo<Bar<Baz<T::Value>>>,
+}
+\end{code-block}
+如果我们需要对上述的结构体\codeinlinebg{rust}{Geek}进行语法树节点的解析，比如，针对
+\codeinline{rust}{com: Foo<Bar<Baz<T::Value>>>}当中的\codeinlinebg{rust}{T::Value}
+进行解析和提取，就比较麻烦，按照之前的介绍，则需要使用很多层的\codeinlinebg{rust}{if-let}
+进行解构。比较幸运的是，\codeinlinebg{rust}{syn}提供了一种\colorblock{Visit访问模式}。
+
+
+
+
+
 
 \input{rust_part_7}

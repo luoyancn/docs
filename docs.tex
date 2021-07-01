@@ -2,6 +2,8 @@
 %\documentclass[b5paper,openany,twoside]{book}
 \documentclass[b5paper]{book}
 \usepackage{xeCJK}
+% 中文字体下划线支持
+\usepackage{xeCJKfntef}
 \usepackage{indentfirst}
 \usepackage{fancyhdr}
 \usepackage[newfloat]{minted}
@@ -28,7 +30,7 @@
 % 用于处理过长url
 \usepackage{xurl}
 \usepackage{charter}
-\usepackage{tcolorbox}
+\usepackage[most]{tcolorbox}
 \usepackage[explicit]{titlesec}
 \usepackage{titletoc}
 % 设置minted字体
@@ -41,18 +43,15 @@
 \usepackage{metalogo}
 
 % 每页的脚注重新编号
-\MakePerPage{footnote}
 % 强制脚注和引用在相同页，需要使用footnote，不能使用footmark
-
+\MakePerPage{footnote}
 \tcbuselibrary{skins}
 \usetikzlibrary{matrix,fit,chains,calc,scopes,arrows,
                 decorations.pathmorphing,backgrounds,
                 positioning,petri,automata}
-\tikzset{font=\tiny}
+%\tikzset{font=\tiny}
 \definecolor{yellow1}{rgb}{1,0.8,0.2}
-
 \DeclareGraphicsRule{.mps}{eps}{.mps}{}
-
 \definecolor{lbcolor}{rgb}{0.9,0.9,0.9}
 \usemintedstyle{tango}
 % 设置minted字体
@@ -73,12 +72,14 @@
     urlcolor=cyan!50!black!90
 }
 
-\newcommand\dunderline[3][-1pt]{{%
-  \sbox0{#3}%
-  \ooalign{\copy0\cr\rule[\dimexpr#1-#2\relax]{\wd0}{#2}}}}
-
-\newcommand{\colorunderlineref}[1]{{\color{RedOrange} \dunderline{1pt}{\nameref{#1}}}}
-\newcommand{\colorunderline}[1]{{\color{WildStrawberry} \dunderline{1pt}{#1}}}
+%\newcommand{\colorunderlineref}[1]{{\color{RedOrange} \dunderline{1pt}{\colorunderlineref{#1}}}}
+%\newcommand{\colorunderline}[1]{{\color{WildStrawberry} \dunderline{1pt}{#1}}}
+% 中文的文字背景色块
+\newcommand{\colorblock}[1]{\CJKsout*[thickness=2.5ex, format=\color{BurntOrange}]{#1}}
+% 中文下划线
+\newcommand{\colorunderline}[1]{\CJKunderline[thickness=0.5ex, format=\color{WildStrawberry},skip=false]{#1}}
+% nameref颜色的单独设置，可以与目录区的linkcolor区分开
+\newcommand{\colorunderlineref}[1]{\hypersetup{linkcolor=RedOrange}\nameref{#1}\hypersetup{linkcolor=black}}
 
 \newcommand\BackgroundPic{%
 \put(0,0){%
@@ -239,7 +240,8 @@
 
 % 设置另外一种警示框模式
 \newenvironment{attention}
-{\par\medskip\noindent
+{\par\parshape0 \linewidth\textwidth
+\par\medskip\noindent
 \begin{tikzpicture}
   \node[inner sep = 0pt] (box) \bgroup
   \begin{minipage}[t]{.99\textwidth}
@@ -258,6 +260,22 @@
     ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
 \end{tikzpicture}
 \par\medskip}
+
+% 设置着色提示框
+\tcbset{textmarker/.style={%
+        enhanced,
+        parbox=false,boxrule=0mm,boxsep=0mm,arc=0mm,
+        outer arc=0mm,left=3mm,right=3mm,top=7pt,bottom=7pt,
+        toptitle=1mm,bottomtitle=1mm}}
+\newtcolorbox{hintBox}{textmarker,borderline west={6pt}{0pt}{yellow},colback=yellow!10!white}
+\newtcolorbox{importantBox}{textmarker,borderline west={6pt}{0pt}{red},colback=red!10!white}
+\newtcolorbox{noteBox}{textmarker,borderline west={6pt}{0pt}{green},colback=green!10!white}
+% 普通的着色提示框
+\newcommand{\note}[1]{\begin{noteBox} \textbf{Note:} #1 \end{noteBox}}
+% 普通的着色警示框
+\newcommand{\warn}[1]{\begin{hintBox} \textbf{Warning:} #1 \end{hintBox}}
+% 普通的着色严重框
+\newcommand{\important}[1]{\begin{importantBox} \textbf{Important:} #1 \end{importantBox}}
 
 \begin{document}
 
@@ -359,7 +377,7 @@
 % \label{lst:main}
 % \end{sourcecode}
 %
-% Reference to \nameref{lst:main}
+% Reference to \colorunderlineref{lst:main}
 
 \part{OpenStack}
 \include{mitaka}

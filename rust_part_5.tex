@@ -583,7 +583,7 @@ Attribute {
   \item \codeinlinebg{rust}{syn::Meta::List}表示一个列表，这个列表必须由一个前置路径和一个括号标记组成，括号内部的内容通过逗号分割为多个条目（组成列表），每个条目又是一个\codeinlinebg{rust}{syn::Meta}
 数据类型。比如\codeinlinebg{rust}{#[Foo(AA,BB,CC)]}当中，Foo就是前置路径，而AA等则是列表项，同时，也是\codeinlinebg{rust}{syn::Meta}数据类型；
 而\codeinlinebg{rust}{#[Foo(AAA,BBB(CCC,DDD))]}表示列表可以嵌套，Foo是全局的前置路径，而BBB是内层\codeinlinebg{rust}{syn::Meta::List}的前置路径。
-  \item \codeinlinebg{rust}{syn::Meta::NameValue}则是常见的键值对，key部分是一个\codeinlinebg{rust}{syn::Path}类型，而value则通常是字符串。比如
+  \item \codeinlinebg{rust}{syn::Meta::NameValue}则是常见的键值对，key部分是一个\codeinline{rust}{syn::Path}类型，而value则通常是字符串。比如
 \codeinlinebg{rust}{#[xxx="yyy"]}。默认情况下，kv对只能有一对，如果需要有多个kv对，则必须使用list类型，即\codeinline{rust}{#[Foo(x="y",w="z")]}这种形式。
 \end{enumerate}
 只要是attr符合上述标准，则可以使用\codeinlinebg{rust}{parse_meta}函数对其进行解析，比如下面的例子：
