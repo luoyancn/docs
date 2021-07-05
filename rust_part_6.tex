@@ -491,7 +491,6 @@ fn get_generics(st: &syn::DeriveInput) -> syn::Generics {
     }
     generics_params
 }
-
 fn generate_debug_trait(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     ...
     let generics = get_generics(&st);
@@ -667,21 +666,15 @@ fn get_phantomdata_generic_type_name(filed: &syn::Field) -> syn::Result<Option<S
     if let syn::Type::Path(syn::TypePath {
         path: syn::Path { ref segments, .. },
         ..
-    }) = filed.ty
-    {
+    }) = filed.ty {
         if let Some(syn::PathSegment {
-            ref ident,
-            ref arguments,
+            ref ident, ref arguments,
         }) = segments.last()
         {
             if ident == "PhantomData" {
-                if let syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
-                    args,
-                    ..
-                }) = arguments
+                if let syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments { args, .. }) = arguments
                 {
-                    if let Some(syn::GenericArgument::Type(syn::Type::Path(ref arg_path))) =
-                        args.first()
+                    if let Some(syn::GenericArgument::Type(syn::Type::Path(ref arg_path))) = args.first()
                     {
                         if let Some(generic_ident) = arg_path.path.segments.first() {
                             return Ok(Some(generic_ident.ident.to_string()));
@@ -699,10 +692,7 @@ fn get_phantomdata_generic_type_name(filed: &syn::Field) -> syn::Result<Option<S
 被其他的数据类型所替换而已，因此，其处理函数非常类似：
 \begin{code-block}{rust}
 fn get_field_type_name(field: &syn::Field) -> syn::Result<Option<String>> {
-    if let syn::Type::Path(syn::TypePath {
-        path: syn::Path { ref segments, .. },
-        ..
-    }) = field.ty
+    if let syn::Type::Path(syn::TypePath { path: syn::Path { ref segments, .. }, .. }) = field.ty
     {
         if let Some(syn::PathSegment { ref ident, .. }) = segments.last() {
             return Ok(Some(ident.to_string()));
@@ -768,7 +758,7 @@ pub struct Custom<'a, T, U, W, X> {
 可以看到，展开的结果完全符合之前的需求和条件。
 
 \subsection{过程宏案例-深度嵌套泛型与Visitor模式}
-Trait在Rust当中使用非常广泛，也经常用于泛型嵌套当中。比如，\colorunderline{Rust当中的关联类型}，就
+Trait在Rust当中使用非常广泛，也经常用于泛型嵌套当中。比如，\colorblock{Rust当中的关联类型}，就
 经常和Trait以及泛型结合在一起：
 \begin{code-block}{rust}
 trait Contains {
@@ -809,9 +799,131 @@ pub struct Geek<T:Trait> {
 进行解析和提取，就比较麻烦，按照之前的介绍，则需要使用很多层的\codeinlinebg{rust}{if-let}
 进行解构。比较幸运的是，\codeinlinebg{rust}{syn}提供了一种\colorblock{Visit访问模式}。
 
+Visitor模式的核心原理在于定义了一个名为Visit的Trait，这个Trait包含了上百个类型的语法树
+节点各自所对应的回调函数，当其遍历语法树时，每遍历到一个节点，就会调用相关的回调函数。
+比如上面的需求，只需要筛选出\codeinlinebg{rust}{syn::TypePath}类型的节点，所以只需要
+实现这个节点所对应的回调函数即可，如果需要实现对其他类型的visit访问，则需要参考syn的
+官方文档\footnote{\url{https://docs.rs/syn/1.0.64/syn/visit/index.html}}：
+\begin{code-block}{rust}
+use syn::visit::{self, Visit};
+struct TypePathVisitor {
+    generic_type_names: Vec<String>,
+    associated_types: HashMap<String, Vec<syn::TypePath>>,
+}
+// 使用该结构体实现Visit Trait
+impl<'ast> Visit<'ast> for TypePathVisitor {
+    // 只实现对TypePath的访问回调
+    fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
+        // 该示例当中，专门针对 T::Value这种类型的节点
+        if node.path.segments.len() >= 2 {
+            let generic_type_name = node.path.segments[0].ident.to_string();
+            if self.generic_type_names.contains(&generic_type_name) {
+                self.associated_types.entry(generic_type_name).or_insert(Vec::new()).push(node.clone());
+            }
+        }
+        // 进行递归式的访问，否则，无法遍历所有满足条件的语法树节点
+        visit::visit_type_path(self, node);
+    }
+}
+\end{code-block}
+然后对其他的结构体语法树进行visit模式的访问：
+\begin{code-block}{rust}
+fn get_generic_associated_types(st: &syn::DeriveInput) -> HashMap<String, Vec<syn::TypePath>> {
+    let origin_generic_param_names: Vec<String> = st.generics.params.iter().filter_map(|f| {
+            if let syn::GenericParam::Type(ty) = f {
+                return Some(ty.ident.to_string());
+            }
+            return None;
+        })
+        .collect();
+    // 构造visit模式的访问器
+    let mut visitor = TypePathVisitor {
+        generic_type_names: origin_generic_param_names,
+        associated_types: HashMap::new(),
+    };
+    // 对语法树节点进行遍历访问
+    visitor.visit_derive_input(st);
+    return visitor.associated_types;
+}
+\end{code-block}
+针对下列的代码：
+\begin{code-block}{rust}
+trait TraitA {
+    type Value;
+}
+#[derive(CustomDebug)]
+pub struct Custom<'a, T, U: TraitA> {
+    name: &'a str,
+    other: T,
+    complex: PhantomData<U::Value>,
+}
+\end{code-block}
+Visitor访问模式得到的结果大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_syn_visitor.png}
+  \caption{Visitor模式访问语法树结构}
+  \label{fig:rust_syn_visitor}
+\end{figure}
 
+有了上述的基础，可以对原有的代码进行修改了：针对关联数据类型，就不要对泛型参数T本身再添加约束了，
+同时，关联类型的约束要放到where子句当中：
+\begin{code-block}{rust}
+fn get_generics(st: &syn::DeriveInput) -> syn::Result<syn::Generics> {
+    ...
+    let associated_types_map = get_generic_associated_types(st);
+    for param in generics_params.params.iter_mut() {
+        if let syn::GenericParam::Type(t) = param {
+            let type_name = t.ident.to_string();
+            if phantomdata_type_param_names.contains(&type_name)
+                && !field_type_name.contains(&type_name)
+            {
+                continue;
+            }
+            // 针对关联数据类型，不对泛型参数`T`本身再添加约束了，除非`T`本身也被直接使用了
+            if associated_types_map.contains_key(&type_name)
+                && !field_type_name.contains(&type_name)
+            {
+                continue;
+            }
+            t.bounds.push(parse_quote!(std::fmt::Debug));
+        }
+    }
+    // 在where字句当中，增加对关联数据类型的约束
+    generics_params.make_where_clause();
+    for (_, associated_types) in associated_types_map {
+        for associated_type in associated_types {
+            generics_params.where_clause.as_mut().unwrap().predicates
+                .push(parse_quote!(#associated_type:std::fmt::Debug));
+        }
+    }
+    Ok(generics_params)
+}
+\end{code-block}
 
+到此，针对如下的代码进行展开：
+\begin{code-block}{rust}
+trait TraitA {
+    type Value;
+}
+#[derive(CustomDebug)]
+pub struct Custom<'a, T, U: TraitA> {
+    name: &'a str,
+    #[debug = "0b{:08b}"]
+    age: u8,
+    other: T,
+    complex: PhantomData<U::Value>,
+}
+\end{code-block}
+则展开之后的结果大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_associate_debug.png}
+  \caption{包含关联数据类型的Debug展开}
+  \label{fig:rust_associate_debug}
+\end{figure}
 
 
 
 \input{rust_part_7}
+

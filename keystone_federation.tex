@@ -647,7 +647,7 @@ export SP_UNSCOPE_TOKEN=`curl -i -X GET \
     -b $SAML_COOKIE | grep X-Subject-Token | awk '{print $2}' | strings`
 \end{code-block}
 
-\colorunderline{特别需要说明的是，IdP和SP端的用户映射就是在这一个步骤当中完成的。}
+\colorblock{特别需要说明的是，IdP和SP端的用户映射就是在这一个步骤当中完成的。}
 
 \paragraph{SP端获取scope token}
 \begin{code-block}{bash}

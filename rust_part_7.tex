@@ -222,7 +222,7 @@ fn main() {
 注意，上述代码如果将内部大括号去除，则运行结束之后，m的状态还是锁定状态；但是，
 有大括号，则表示大括号内部的段是一个有效的生命周期，当该生命周期结束之后，互斥
 锁将自动释放。一旦获取了锁，就可以将返回值（在这里是num）视为一个其内部数据的
-\colorunderline{可变引用}。类型系统确保了我们在使用m中的值之前
+\colorblock{可变引用}。类型系统确保了我们在使用m中的值之前
 获取锁：Mutex<i32>并不是一个i32，所以必须获取锁才能使用这个i32值。
 
 实质上，Mutex是一个智能指针，lock调用返回一个叫做MutexGuard的智能指针。这个智能
@@ -1532,10 +1532,10 @@ trait，才可以当作Trait Object使用：
   \item Trait当中的所有方法都必须是对象安全的
 \end{itemize}
 
-而所谓的对象安全，则必须满足如下的条件\colorunderline{之一}：
+而所谓的对象安全，则必须满足如下的条件\colorblock{之一}：
 \begin{itemize}
   \item 当Trait的Self被限定为Sized时，方法受Self:Sized约束
-  \item Trait的方法签名必须\colorunderline{同时满足以下3点}
+  \item Trait的方法签名必须\colorblock{同时满足以下3点}
   \begin{enumerate}
     \item 不包含任何泛型参数（Self）
     \item 第一个参数必须为Self类型或可解引用为Self类型
@@ -1695,7 +1695,7 @@ impl CircleBuilder {
 \subsection{排序}
 Rust的整数型数组和向量（Vector）的排序是相同的，可以使用相同的方式进行，即采用
 sort以及sort\_unstable进行。其中，sort是稳定排序（即不重新排序相等的元素），
-sort\_unstable是不稳定排序，\colorunderline{但是通常情况下速度更快}，并且不会进行辅助内存的分配。
+sort\_unstable是不稳定排序，\colorblock{但是通常情况下速度更快}，并且不会进行辅助内存的分配。
 \begin{code-block}{rust}
 let mut v = vec![2, 21, 12, 32, 12, 45, 90];
 v.sort_unstable();
@@ -1735,7 +1735,7 @@ array.sort_unstable_by_key(|item| item.to_string());                            
 浮点数的排序和最值操作，参见\colorunderlineref{float_sort}
 
 除了基础数据类型可以进行排序，同样可以针对复合数据类型进行排序。在针对复合数据
-类型排序时，需要实现\colorunderline{Eq，PartialEq，Ord和PartialOrd}这几个trait：
+类型排序时，需要实现\colorblock{Eq，PartialEq，Ord和PartialOrd}这几个trait：
 \begin{code-block}{rust}
 #[derive(Eq, PartialEq, Ord, PartialOrd, Debug)]
 struct Student {

@@ -85,7 +85,7 @@ drwxr-xr-x. 3 root root         34 Aug 19 11:38 centos7.d
 
 \begin{attention}
 在制作ubuntu，redhat6，centos6的image时，FS\_TYPE可以不用设置;
-但是在制作\colorunderline{centos7，rhel7，fedora（>22）}镜像的时候，
+但是在制作\colorblock{centos7，rhel7，fedora（>22）}镜像的时候，
 如果忘记设置FS\_TYPE环境变量，则会导致格式化硬盘默认采用的是ext4格式， 而image的fstab当中，
 配置的却是xfs格式。这会导致操作系统无法启动。因此，如果忘记设置FS\_TYPE，镜像制作完毕之后，
 还需要进行相关的修改。
