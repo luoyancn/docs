@@ -1,0 +1,20 @@
+\chapter{Rust与操作系统}
+Rust为系统级编程语言，同样可以应用于嵌入式以及操作系统的编写当中。在操作系统当中，
+目前已经有一个Redox操作系统\footnote{Redox：\url{https://www.redox-os.org/}}，完全使用Rust实现。
+在这一部分，将主要聚焦于2部分：
+\begin{enumerate}
+  \item 嵌入式应用，包括编写裸机程序
+  \item 操作系统编写，包括RISC-V和X86-64以及其他架构
+\end{enumerate}
+
+由于这2部分都属于操作系统的范畴，因此，和普通的Rust程序区别比较大，特别是操作系统的
+编写，必须使用nightly分支，因此，需要首先做一些准备工作：
+\begin{code-block}{bash}
+dnf install binutils-riscv64-linux-gnu gcc-c++-riscv64-linux-gnu gcc-riscv64-linux-gnu qemu-system-riscv* python3-pyserial* -y
+cargo install bootimage
+cargo install cargo-binutils --vers ~0.2
+# 切换到nightly分支
+rustup default nightly
+rustup component add llvm-tools-preview rust-src
+rustup target add riscv64gc-unknown-none-elf riscv64gc-unknown-linux-gnu riscv64imac-unknown-none-elf
+\end{code-block}

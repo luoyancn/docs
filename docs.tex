@@ -37,14 +37,19 @@
 \usepackage{fontspec}
 % 每页的脚注重新编号
 \usepackage{perpage}
+\usepackage{chngcntr}
 \usepackage{afterpage}
 \usepackage{eso-pic}
 \usepackage{calligra}
 \usepackage{metalogo}
+% 直接使用svg图片
+\usepackage[inkscapearea=page]{svg}
 
 % 每页的脚注重新编号
 % 强制脚注和引用在相同页，需要使用footnote，不能使用footmark
 \MakePerPage{footnote}
+\counterwithout*{footnote}{chapter}
+
 \tcbuselibrary{skins}
 \usetikzlibrary{matrix,fit,chains,calc,scopes,arrows,
                 decorations.pathmorphing,backgrounds,
@@ -57,11 +62,13 @@
 % 设置minted字体
 \setmonofont{CodeNewRoman Nerd Font Mono}
 \hypersetup{%
+    % 对书签进行编号
+    bookmarksnumbered=true,
     bookmarks=true,
     % 设置文档属性的标题
     pdftitle={综合手册},
     % 设置文档属性的作者
-    pdfauthor={张家龙},
+    pdfauthor={luciferchn@gmail.com},
     pdfborder={0 0 0},
     pdfsubject={OpenStack},
     pdfkeywords={OpenStack, Develop, Federation},
@@ -283,7 +290,7 @@
 %    \centering{
 %    {\fontsize{40}{48}\selectfont 综合手册} }\\
 %    \vspace{\fill}
-%    \centering{\Large{张家龙}}\\
+%    \centering{\Large{luciferchn@gmail.com}}\\
 %    \vspace{80mm}
 %\end{titlepage}
 
@@ -303,7 +310,7 @@
       \vspace*{0.1\textheight}
       \vspace*{0.3\textheight}
       {\fontsize{12}{12}\calligra Experience of\\}
-      \fontsize{28}{28}\scshape 张家龙\\
+      \fontsize{28}{28}\scshape luciferchn@gmail.com\\
       \vspace*{0.1\textheight}
       \centering
       \begin{tikzpicture}[start chain=main going right,]
@@ -344,6 +351,8 @@
 \frontmatter
 {
   \renewcommand*\contentsname{目录}
+  % 将目录加入到书签当中
+  \addtocontents{toc}{\protect{\pdfbookmark[0]{\contentsname}{toc}}}
   \tableofcontents%
   % 不在目录页显示页眉页脚
   \thispagestyle{empty}
@@ -379,6 +388,21 @@
 %
 % Reference to \colorunderlineref{lst:main}
 
+\part{语言类}
+\include{c}
+\include{gcc}
+%\include{golang}
+\include{rust}
+\part{操作系统}
+\include{linux}
+\include{arm}
+\include{rustos}
+\include{network}
+\part{消息队列}
+\include{zmq}
+\part{存储篇}
+\include{storage}
+\include{ceph}
 \part{OpenStack}
 \include{mitaka}
 \part{Ironic篇}
@@ -392,20 +416,5 @@
 \include{kubernetes}
 \include{kubernetes_latest}
 \include{kubernetes_usage}
-\part{存储篇}
-\include{storage}
-\include{ceph}
-\part{语言类}
-\include{c}
-\include{gcc}
-\include{qt}
-\include{golang}
-\include{rust}
-\part{消息队列}
-\include{zmq}
-\part{操作系统}
-\include{linux}
-\include{arm}
-\include{network}
 
 \end{document}
