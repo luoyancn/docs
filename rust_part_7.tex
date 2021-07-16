@@ -557,9 +557,9 @@ fn main() {
 显式调用drop之后，死锁将不会存在。
 
 \subsection{异步实现-Futures}
-Rust目前的版本当中，异步/同步的支持比较完善，目前，\href{https://github.com/rust-lang/futures-rs}{Futures}
-提供了完整实现，\href{https://github.com/tokio-rs/tokio}{Tokio}也提供了
-比较完整的平台支持，\href{https://github.com/async-rs/async-std}{Async-Std}也提供了
+Rust目前的版本当中，异步/同步的支持比较完善，目前，Futures\footnote{\url{https://github.com/rust-lang/futures-rs}}
+提供了完整实现，Tokio\footnote{\url{https://github.com/tokio-rs/tokio}}也提供了
+比较完整的平台支持，Async-Std\footnote{\url{https://github.com/async-rs/async-std}}也提供了
 相关的支持。多线程的劣势主要体现在操作系统调度开销，难度较大，线程切换以及
 跨线程共享数据会产生很多的额外开销，这些就是异步并发（async/await）发挥作用的
 重要场景。
@@ -579,10 +579,12 @@ Rust目前的版本当中，异步/同步的支持比较完善，目前，\href{
 所示：
 \begin{figure}[H]
   \centering
+  % 禁止svg当中的特殊文字转换
   \includesvg[inkscapelatex=false, width=\linewidth]{rust_async}
-  \caption{同步与异步执行的区别}
+  \caption{同步与异步执行的区别\protect\footnotemark}
   \label{fig:rust_async}
 \end{figure}
+\footnotetext{同/异步：\url{https://os.phil-opp.com/async-await/async-example.svg}}
 上述例子当中，轮询阶段就相当于询问文件是否被打开，而等待阶段，则相当于等待文件的
 内容加载内存当中，唤醒，则是调用者访问文件内容。
 
@@ -616,17 +618,8 @@ use futures::future::{self, Future};
 fn async_read_file(name: &str) -> impl Future<Output = String> {
     future::ready(String::from(name))
 }
-// 带有生命周期的异步函数
-fn async_with_lifetime<'a>(x: &'a u8) -> impl Future<Output = u8> + 'a {
-    async move{*x}
-}
-
-// 等价于下面的2个函数：
-async fn read_file(name: &str) -> String {
-    String::from(name)
-}
-async fn lifetime<'a>(input: &'a u8) -> u8 {
-    *input
+fn async_with_lifetime<'a>(input: &'a u8) -> impl Future<Output = u8> + 'a {
+    future::ready(*input)
 }
 \end{code-block}
 
@@ -701,6 +694,121 @@ fn async_read_file(name: &str) -> impl Future<Output = String> {
 上述代码只是演示了一种Future可能的处理方式，但是，代码本身不可使用，原因在于在
 上述代码当中还没有处理pin（固定）。
 }
+
+通过future的组合，可以实现非常高效的代码，但是，在某些情况下，由于Rust的类型系统
+以及基于闭包的接口，会使得future的组合使用起来比较难，比如下面的代码：
+\begin{code-block}{rust}
+use futures::future::{self, Either, Future, FutureExt};
+fn main() {
+    let _ = example(100);
+}
+fn example(min_len: usize) -> impl Future<Output = String> {
+    async_read_file("foo.txt").then(move |content| {
+        if content.len() < min_len {
+            Either::Left(async_read_file("bar.txt").map(|s| content + &s))
+        } else {
+            Either::Right(future::ready(content))
+        }
+    })
+}
+fn async_read_file(name: &str) -> impl Future<Output = String> {
+    future::ready(String::from(name))
+}
+\end{code-block}
+上述代码的功能很简单，读取foo.txt文件，然后使用\codeinlinebg{rust}{then}连接第二个
+future：如果foo.txt的内容长度小于给定的最小值，则读取另一个文件bar.txt的内容，并将
+其长度追加到返回结果当中，否则，只返回foo.txt的内容。上述操作当中，必须使用\codeinlinebg{rust}{move}
+关键字，否则会存在一个生命周期的错误；另外，if/else必须返回相同的类型，但是，
+上述代码当中，if返回的是\codeinlinebg{rust}{futures::future::Map}，而else返回的是\codeinlinebg{rust}{futures::future::Ready}，
+必须使用\codeinlinebg{rust}{Either}将结果进行封装，转换成所期望的future。
+
+从上面的各种例子都可以看到，使用普通的方式实现Rust的异步编程可能会涉及到非常复杂的
+代码，于是，Rust官方使用\codeinlinebg{rust}{async/await}等关键字，来简化异步编程的实现，
+屏蔽了繁琐的实现细节。使用上述两个关键字之后，Rust的编译器会在编译过程当中进行
+自动转换，转换成Future的模式，比如：
+\begin{code-block}{rust}
+async fn foo() -> u32 {
+    0
+}
+// 编译器内部会自动转换成这种模式
+fn foo() -> impl Future<Output = u32> {
+    future::ready(0)
+}
+\end{code-block}
+
+但是，这个转换过程对于开发者而言是透明无感的，以上面代码为例，使用async/await
+进行改写之后的结果大致如下：
+\begin{code-block}{rust}
+async fn example(min_len: usize) -> String {
+    let content = async_read_file("foo.txt").await;
+    if content.len() < min_len {
+        content + &async_read_file("bar.txt").await
+    } else {
+        content
+    }
+}
+\end{code-block}
+可以看到，代码更加的简练，并且逻辑上也是非常清晰。
+
+但是，不管怎么变换，Future的内在还是一个有限状态机。\codeinlinebg{rust}{async}负责
+将对应的函数转换成有限状态机，而\codeinlinebg{rust}{await}调用代表了不同的状态。
+在上述代码当中，编译器将创建一个具有4个状态的状态机：
+\begin{figure}[H]
+  \centering
+  \includesvg[inkscapelatex=false, width=\linewidth]{async-state-machine-states}
+  \caption{异步状态机\protect\footnotemark}
+  \label{fig:async-state-machine-states}
+\end{figure}
+\footnotetext{状态机：\url{https://os.phil-opp.com/async-await/async-state-machine-states.svg}}
+\begin{enumerate}
+  \item Start/End表示函数执行的开始和结束
+  \item \colorblock{Waiting on foo.txt}状态表示该函数当前正在等待第一个async\_read\_file结果，表示一个暂停点
+  \item \colorblock{Waiting on bar.txt}状态表示函数等待第二个async\_read\_file结果，同样也是一个暂停点
+\end{enumerate}
+
+有限状态机通过调用\codeinlinebg{rust}{poll}函数实现状态的切换，从而实现Future Trait：
+\begin{figure}[H]
+  \centering
+  \begin{minipage}{\textwidth}
+  \includesvg[inkscapelatex=false, width=\linewidth]{async-state-machine-basic}
+  \caption{状态机切换\protect\footnotemark}
+  \label{fig:async-state-machine-basic}
+  \end{minipage}
+\end{figure}
+\footnotetext{状态转换：\url{https://os.phil-opp.com/async-await/async-state-machine-basic.svg}}
+
+为了从最后一个等待状态继续，状态机必须在自身内部保持对当前状态的跟踪。此外，还必须
+保存将在下一次poll调用当中需要被使用到的全部变量。幸运的是Rust编译器知道什么时候
+使用哪些变量，因此，它可以自动生成包含了所需变量的结构体，注意，是\colorblock自动生成}。
+同样以上面的代码为例，如果深入到Rust编译器内部，看到的代码可能会是下面的样子：
+\begin{code-block}{rust}
+async fn example(min_len: usize) -> String {
+    let content = async_read_file("foo.txt").await;
+    if content.len() < min_len {
+        content + &async_read_file("bar.txt").await
+    } else {
+        content
+    }
+}
+// 注意，下面的代码是编译器自动生成的，不是开发者手动编写的
+struct StartState {
+    min_len: usize,
+}
+struct WaitingOnFooTxtState {
+    min_len: usize,
+    foo_txt_future: impl Future<Output = String>,
+}
+struct WaitingOnBarTxtState {
+    content: String,
+    bar_txt_future: impl Future<Output = String>,
+}
+struct EndState {}
+\end{code-block}
+
+
+所谓的Pin，有时也被称为锚点，实际上就是一种数据固定的方式。在编程语言当中，涉及到
+一种比较特殊的数据结构——自引用结构，即结构体当中包含了对自己的一些数据的引用或者
+记录，
 
 \subsection{优秀的并发-Crossbeam}
 默认情况下，Rust标准库的多线程并发是非常安全和方便的，但是，也存在一些特殊情况，
