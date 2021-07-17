@@ -779,7 +779,7 @@ async fn example(min_len: usize) -> String {
 
 为了从最后一个等待状态继续，状态机必须在自身内部保持对当前状态的跟踪。此外，还必须
 保存将在下一次poll调用当中需要被使用到的全部变量。幸运的是Rust编译器知道什么时候
-使用哪些变量，因此，它可以自动生成包含了所需变量的结构体，注意，是\colorblock自动生成}。
+使用哪些变量，因此，它可以自动生成包含了所需变量的结构体，注意，是\colorblock{自动生成}。
 同样以上面的代码为例，如果深入到Rust编译器内部，看到的代码可能会是下面的样子：
 \begin{code-block}{rust}
 async fn example(min_len: usize) -> String {
@@ -804,6 +804,14 @@ struct WaitingOnBarTxtState {
 }
 struct EndState {}
 \end{code-block}
+
+在\colorblock{start}和\colorblock{Waiting on foo.txt}状态下，需要保存min\_len参数，
+是因为在后面需要和content的长度进行比较，\colorblock{Waiting on foo.txt}状态保存
+了另外一个foo\_txt\_future，代表了async\_read\_file的调用所返回的future，而这个
+future会被状态机继续轮询，因此需要保留；\colorblock{Waiting on bar.txt}状态包含
+内容变量，因为在bar.txt准备好后，字符串连接操作需要它。它还存储一个bar\_txt\_future，
+表示bar.txt的正在进行的加载。该结构不包含min\_len变量，因为在content.len()比较之
+后不再需要它。 在\colorblock{stop}状态下，不存储任何变量，因为该函数已经运行完成。
 
 
 所谓的Pin，有时也被称为锚点，实际上就是一种数据固定的方式。在编程语言当中，涉及到
