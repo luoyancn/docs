@@ -93,12 +93,12 @@ arm-linux-gnueabihf-pkg-config --libs gtk+-2.0
 arm-linux-gnueabihf-pkg-config --cflags gtk+-2.0
 \end{code-in-enumerate}
 如果出现下面图\colorunderlineref{fig:cross_cv}的显示，则说明交叉编译的依赖关系没有问题了，可以进行编译了。
-\begin{figure}[H]
+\par\begin{minipage}{\linewidth}
   \centering
   \includegraphics[width=\linewidth]{cross_cv.png}
-  \caption{交叉编译的类库}
+  \captionof{figure}{交叉编译的类库}
   \label{fig:cross_cv}
-\end{figure}
+\end{minipage}
 
 如果提示错误，则需要按照下面的操作进行：
 \begin{code-in-enumerate}{bash}
@@ -178,12 +178,12 @@ make install
 \end{code-in-enumerate}
 如果一切顺利，将在opencv/build\_arm/install生成我们所需要的OpenCV文件，包括头文件，
 so文件和其他的文件，大致如下图\colorunderlineref{fig:cross_finish}所示：
-\begin{figure}[H]
+\par\begin{minipage}{\linewidth}
   \centering
   \includegraphics[width=\linewidth]{cross_finish.png}
-  \caption{交叉编译的结果}
+  \captionof{figure}{交叉编译的结果}
   \label{fig:cross_finish}
-\end{figure}
+\end{minipage}
 
 然后将install下的所有文件，放到嵌入式系统的/usr/local当中对应的目录即可，注意，需要
 修改install/lib/pkgconfig/opencv.pc文件，将prefix修改，修改为如下：
@@ -202,12 +202,12 @@ ldconfig -v
 \end{code-in-enumerate}
 
 如果输出结果类似下面图\colorunderlineref{fig:cross_transplant}所示，则说明编译OpenCV移植成功，则ARM的嵌入式系统当中，可以正常使用。
-\begin{figure}[H]
+\par\begin{minipage}{\linewidth}
   \centering
   \includegraphics[width=\linewidth]{cross_transplant.png}
-  \caption{移植到嵌入式系统}
+  \captionof{figure}{移植到嵌入式系统}
   \label{fig:cross_transplant}
-\end{figure}
+\end{minipage}
 
 \1 测试功能
 

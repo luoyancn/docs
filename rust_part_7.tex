@@ -813,6 +813,113 @@ future会被状态机继续轮询，因此需要保留；\colorblock{Waiting on 
 表示bar.txt的正在进行的加载。该结构不包含min\_len变量，因为在content.len()比较之
 后不再需要它。 在\colorblock{stop}状态下，不存储任何变量，因为该函数已经运行完成。
 
+同样的，编译器也会自动生成状态机相关的代码，以上面的代码为例，Rust编译器会在内部
+生成类似如下的状态机代码：
+\begin{code-block}{rust}
+enum ExampleStateMachine {
+    Start(StartState),
+    WaitingOnFooTxt(WaitingOnFooTxtState),
+    WaitingOnBarTxt(WaitingOnBarTxtState),
+    End(EndState),
+}
+\end{code-block}
+
+使用编译器已经生成的各种状态结构体，利用enum将其进行封装成顶层的状态机，在此基础上，
+为了完成/实现状态之前的切换，Rust编译器会根据上面的example函数自动生成其Future Trait
+的实现，注意，下列代码也是Rust自动生成的，但并不代表编译器生成的代码就一定是下面
+的样子：
+\begin{code-block}{rust}
+impl Future for ExampleStateMachine {
+    type Output = String; // return type of `example`
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        loop {
+            match self { // TODO: handle pinning
+                ExampleStateMachine::Start(state) => {…}
+                ExampleStateMachine::WaitingOnFooTxt(state) => {…}
+                ExampleStateMachine::WaitingOnBarTxt(state) => {…}
+                ExampleStateMachine::End(state) => {…}
+            }
+        }
+    }
+}
+\end{code-block}
+
+状态机的Future实现关联数据类型Output为String，原因是异步函数example的返回类型是
+String；同样的，由于Future Trait的定义当中包含了poll函数，因此，编译器又不辞辛劳
+的生成或者说是实现了poll函数，在该函数体当中，使用loop-match对当前的状态进行轮询
+和切换。当然，为了简单起见，这些编译器生成的代码都没有包含pin（固定，后续会专门
+进行讲解），所有权以及生命周期等，因此，这些代码应当被视为不可运行的伪代码，而
+编译器生成的真实代码，毫无疑问是可以处理上述的所有特性和问题的。
+
+为了更进一步的理解Future Trait的内部实现机制，接下来会针对match的不同分支进行分析：
+\begin{outline}[enumerate]
+\1 Start分支
+
+Rust编译器生成的Start分支的代码可能如下：
+\begin{code-in-enumerate}{rust}
+ExampleStateMachine::Start(state) => {
+    // from body of `example`
+    let foo_txt_future = async_read_file("foo.txt");
+    // `.await` operation
+    let state = WaitingOnFooTxtState {
+        min_len: state.min_len,
+        foo_txt_future,
+    };
+    *self = ExampleStateMachine::WaitingOnFooTxt(state);
+}
+\end{code-in-enumerate}
+在example函数开始的时候，状态机实际上处于Start状态，在这种状态下，会执行example函数
+体当中的代码，直到遇到第一个await关键字，即执行\codeinlinebg{rust}{async_read_file("foo.txt")}
+这句，而为了处理该函数后面的await操作，编译器需要将状态机的状态修改为WaitingOnFooTxtState。
+由于loop-match操作，状态机会跳入到WaitingOnFooTxtState分支。
+
+\1 WaitingOnFooTxtState分支
+
+同样的，该分支的代码（编译器自动生成）的可能如下：
+\begin{code-in-enumerate}{rust}
+ExampleStateMachine::WaitingOnFooTxt(state) => {
+    match state.foo_txt_future.poll(cx) {
+        Poll::Pending => return Poll::Pending,
+        Poll::Ready(content) => {
+            // from body of `example`
+            if content.len() < state.min_len {
+                let bar_txt_future = async_read_file("bar.txt");
+                // `.await` operation
+                let state = WaitingOnBarTxtState {
+                    content,
+                    bar_txt_future,
+                };
+                *self = ExampleStateMachine::WaitingOnBarTxt(state);
+            } else {
+                *self = ExampleStateMachine::End(EndState));
+                return Poll::Ready(content);
+            }
+        }
+    }
+}
+\end{code-in-enumerate}
+注意，从该分支开始，poll函数被第一次调用，这是因为我们要获得foo\_txt\_future这个
+future的真实结果，如果该结果没有准备好，则退出循环，返回pending状态；由于本次
+循环当中，状态机实例（self）还是处于WaitingOnFooTxt状态，因此，下一次的轮询调用
+仍然会执行当前的分支，不会进行状态切换（即进入其他的分支）。当foo\_txt\_future
+准备就绪之后，结果将赋给content变量，如果content的长度满足最小长度，则状态机的
+状态将被切换成EndState，直接返回一个Ready，结束轮询；否则，将异步读取bar.txt文件，
+并再次通过await关键字将状态进行切换成为WaitingOnBarTxtState，而后续的轮询操作将进入
+WaitingOnBarTxt这个分支。该分支的执行情况与本分支的类似。
+
+\1 End分支
+
+End分支应该是最为简单的分支，编译器生成的代码可能如下：
+\begin{code-in-enumerate}{rust}
+ExampleStateMachine::End(_) => {
+    panic!("poll called after Poll::Ready was returned");
+}
+\end{code-in-enumerate}
+
+实际上，一旦状态机变成了End状态，或者返回了Ready状态，就不能也不应该再次进行轮询，
+而是直接退出循环和轮询，因此，如果是在End状态再次调用了poll函数，应当直接进行panic
+处理。
+\end{outline}
 
 所谓的Pin，有时也被称为锚点，实际上就是一种数据固定的方式。在编程语言当中，涉及到
 一种比较特殊的数据结构——自引用结构，即结构体当中包含了对自己的一些数据的引用或者
@@ -849,7 +956,7 @@ fn main() {
 
 除此之外，比如Rust的通道，只存在多生产者单消费者这一种模式，这也并不符合现实生活
 当中的多生产者多消费者的模型。为了改进Rust的并行/并发，目前大多数的开发者使用
-\href{https://github.com/crossbeam-rs/crossbeam}{Crossbeam}替代标准库的thread，
+Crossbeam\footnote{\url{https://github.com/crossbeam-rs/crossbeam}}替代标准库的thread，
 比如，上述的递归函数当中使用多线程，就可以修改为如下的模式：
 \begin{code-block}{rust}
 extern crate crossbeam;

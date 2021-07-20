@@ -24,7 +24,7 @@
 \usepackage{pgf}
 \usepackage{enumerate}
 \usepackage{outlines}
-\usepackage{enumitem}
+%\usepackage{enumitem}
 \usepackage{verbatim}
 \usepackage{attachfile2}
 % 用于处理过长url
@@ -219,12 +219,15 @@
 
 \newenvironment{code-in-enumerate}[1]
  {\VerbatimEnvironment
-  \par\parshape0 \linewidth\textwidth
+  %\parshape0 \linewidth\textwidth
   \begin{mdframed}[topline=false, bottomline=false, leftline=false,
                    rightline=false, backgroundcolor=lbcolor,
-                   userdefinedwidth=\textwidth]
+                   %userdefinedwidth=\textwidth
+                  ]
   \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
- {\end{minted}\end{mdframed}\par}
+ {\end{minted}\end{mdframed}
+%\par
+}
 %\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
 
 % 设置单行代码样式，当页面宽度不够时，bgcolor参数将影响换行操作
@@ -387,6 +390,28 @@
 % \end{sourcecode}
 %
 % Reference to \colorunderlineref{lst:main}
+
+% 大段注释
+\begin{comment}
+在itemsize/enumerate环境当中嵌入图片的具体用法：
+
+\par\begin{minipage}{\linewidth}
+\centering
+\includegraphics[width=\linewidth]{cross_finish.png}
+\captionof{figure}{交叉编译的结果\protect\footnotemark}
+\label{fig:cross_finish}
+\end{minipage}
+\footnotetext{xxxxx}
+
+在itemsize/enumerate环境当中嵌入其他环境的具体用法：
+\begin{minipage}{\linewidth}
+  \begin{attention}
+  需要注意一下，container\_of在使用的时候，第三个参数应当是结构体当中的
+  非指针变量。如果第三个参数是指针变量，则导致在使用时出现错误。
+  \end{attention}
+\end{minipage}
+
+\end{comment}
 
 \part{语言类}
 \include{c}

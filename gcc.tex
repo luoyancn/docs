@@ -286,7 +286,15 @@ __must_be_array(e); // 同样是编译提示错误
 \begin{enumerate}
   \item 针对x86-64：\_\_amd64\_\_, \_\_amd64, \_\_x86\_64\_\_, \_\_x86\_64
   \item 针对x86：\_\_i386，\_\_i386\_\_
-  \item 针对arm：\_\_arm\_\_，\_\_ARM\_ARCH\_2\_\_，\_\_ARM\_ARCH\_3\_\_，\_\_ARM\_ARCH\_3M\_\_，\_\_ARM\_ARCH\_4T\_\_，\_\_TARGET\_ARM\_4T
+  \item 针对arm：
+  \begin{itemize}
+  \item \_\_arm\_\_
+  \item \_\_ARM\_ARCH\_2\_\_
+  \item \_\_ARM\_ARCH\_3\_\_
+  \item \_\_ARM\_ARCH\_3M\_\_
+  \item \_\_ARM\_ARCH\_4T\_\_
+  \item \_\_TARGET\_ARM\_4T
+  \end{itemize}
   \item 针对arm64：\_\_aarch64\_\_
   \item 针对alpha：\_\_alpha\_\_
 \end{enumerate}
@@ -331,7 +339,7 @@ testmain : $(OBJS)
 Makefile本身也支持嵌套。假设现在有一个工程，其目录结构如图\colorunderlineref{fig:submake}所示。
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=1.5]{make.png}
+  \includegraphics[scale=1.0]{make.png}
   \caption{Makefile嵌套}
   \label{fig:submake}
 \end{figure}

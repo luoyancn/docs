@@ -1095,8 +1095,10 @@ let mut array = [
     "garuda".to_string(),
 ];
 // 可以转换成切片
-// array[..].sort_unstable_by_key(|item| item.to_string());                                                                                                                               info!("The string array is {:?}", array);
-array.sort_unstable_by_key(|item| item.to_string());                                                                                                                               info!("The string array is {:?}", array);
+// array[..].sort_unstable_by_key(|item| item.to_string());
+// info!("The string array is {:?}", array);
+array.sort_unstable_by_key(|item| item.to_string());
+info!("The string array is {:?}", array);
 \end{code-block}
 
 浮点数的排序和最值操作，参见\colorunderlineref{float_sort}

@@ -542,12 +542,12 @@ fdisk -l -u /dev/sda
 \end{code-in-enumerate}
 
 如图\colorunderlineref{fig:backup}所示，标红部分即为我们所需的max\_size:
-\begin{figure}[H]
+\par\begin{minipage}{\linewidth}
   \centering
   \includegraphics[width=\linewidth]{backup.png}
-  \caption{获取磁盘结束位置}
+  \captionof{figure}{获取磁盘结束位置}
   \label{fig:backup}
-\end{figure}
+\end{minipage}
 
 然后再通过dd命令进行磁盘备份
 \begin{code-in-enumerate}{bash}
