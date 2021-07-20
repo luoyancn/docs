@@ -1,4 +1,4 @@
-\section{并发/并行/异步}
+\section{多线程}
 Rust也同样支持常见的并行和并发操作，也同样分为进程，线程以及消息通信等等。
 
 \subsection{线程}
@@ -102,6 +102,7 @@ Rust的通道采用mpsc::channel函数实现，mpsc表示多个生产者，单�
 一个消费这些值的接收（receiving）端。通道的实现示例如下：
 \begin{code-block}{rust}
 use std::sync::mpsc;
+
 fn main() {
     let (sender, recevier) = mpsc::channel();
 }
@@ -111,15 +112,19 @@ fn main() {
 \begin{code-block}{rust}
 use std::sync::mpsc;
 use std::thread;
+
 fn main() {
     let (sender, recevier) = mpsc::channel();
+
     thread::spawn(move || {
         let val = "lucifer".to_string();
+
         match sender.send(val) {
             Ok(_) => println!("Send success"),
             Err(error) => println!("Send failed :{:?}", error),
         }
     });
+
     let res = match recevier.recv() {
         Ok(s) => s,
         Err(error) => {
@@ -127,6 +132,7 @@ fn main() {
             "".to_string()
         }
     };
+
     println!("The result of channel is {}", res);
 }
 \end{code-block}
@@ -141,6 +147,7 @@ Result当中的Error表示没有接收到任何消息，可以使用for循环进
 \begin{code-block}{rust}
 use std::sync::mpsc;
 use std::thread;
+
 fn main() {
     let (sender, recevier) = mpsc::channel();
 
@@ -153,9 +160,11 @@ fn main() {
             }
         }
     });
+
     for msg in recevier {
         println!("The msg is {}", msg);
     }
+
     match handler.join() {
         Err(error) => println!("Error{:?}", error),
         _ => (),
@@ -168,12 +177,14 @@ fn main() {
 \begin{code-block}{rust}
 use std::sync::mpsc;
 use std::thread;
+
 fn main() {
     let (sender, recevier) = mpsc::channel();
     let sender_copy = sender.clone();
 
     let handler = thread::spawn(move || {
         let vals = vec!["lucifer", "titans", "garuda"];
+
         for val in vals {
             match sender.send(val) {
                 Ok(_) => println!("Send success"),
@@ -183,6 +194,7 @@ fn main() {
     });
     let handler_copy = thread::spawn(move || {
         let vals = vec!["zhangjl", "luoyan", "zhangzz"];
+
         for val in vals {
             match sender_copy.send(val) {
                 Err(error) => println!("Send failed :{:?}", error),
@@ -459,7 +471,6 @@ fn main() {
 \begin{code-block}{rust}
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-
 fn main() {
     let spinlock = Arc::new(AtomicUsize::new(1));
     let spinlock_clone = spinlock.clone();
@@ -467,7 +478,6 @@ fn main() {
         // 将原子类型的数据设置为0
         spinlock_clone.store(0, Ordering::SeqCst);
     });
-
     // 使用spinlock的load方法读取其内部原子类型的值，如果不为0，
     // 则不停地循环测试锁的状态，直到其状态被置为0为止
     // 所谓“自旋”就是指在语义上表示这种不断循环获取锁状态的行为
@@ -487,13 +497,11 @@ Rust支持5种内存顺序，归为3大类：
 \begin{code-block}{rust}
 use std::thread;
 use std::sync::mpsc::channel;
-
 fn main() {
     let (tx, rx) = channel();
     let handler = thread::spawn(move || {
         tx.send(10).unwrap();
     });
-
     let res = rx.recv().unwrap();
     handler.join().unwrap();
 }
@@ -507,7 +515,6 @@ fn main() {
 \begin{code-block}{rust}
 use std::thread;
 use std::sync::mpsc::sync_channel;
-
 fn main() {
     // 创建缓冲区为1的同步通道
     let (tx, rx) = sync_channel(1);
@@ -515,7 +522,6 @@ fn main() {
     let handler = thread::spawn(move || {
         tx.send(2).unwrap();
     });
-
     let res1 = rx.recv().unwrap();
     info!("The result is {}", res1);
     let res2 = rx.recv().unwrap();
@@ -556,7 +562,7 @@ fn main() {
 一直没有析构，所以迭代器依旧会进行等待，但是tx也没有发送信息，从而造成死锁的状态。
 显式调用drop之后，死锁将不会存在。
 
-\subsection{异步实现-Futures}
+\section{异步实现-Futures}
 Rust目前的版本当中，异步/同步的支持比较完善，目前，Futures\footnote{\url{https://github.com/rust-lang/futures-rs}}
 提供了完整实现，Tokio\footnote{\url{https://github.com/tokio-rs/tokio}}也提供了
 比较完整的平台支持，Async-Std\footnote{\url{https://github.com/async-rs/async-std}}也提供了
@@ -564,7 +570,8 @@ Rust目前的版本当中，异步/同步的支持比较完善，目前，Future
 跨线程共享数据会产生很多的额外开销，这些就是异步并发（async/await）发挥作用的
 重要场景。
 
-所谓的Futrues，从字面上讲，就是一些将来完成的操作，也就是一些并不是当前立即结束
+\subsection{Future的基本原理与实现机制}
+所谓的Futrue，从字面上讲，就是一些将来完成的操作，也就是一些并不是当前立即结束
 的操作，以此指代Rust的异步操作。Rust的异步操作实现基于轮询机制，每个异步任务分成
 了3个阶段：
 \begin{enumerate}
@@ -722,6 +729,7 @@ future：如果foo.txt的内容长度小于给定的最小值，则读取另一�
 上述代码当中，if返回的是\codeinlinebg{rust}{futures::future::Map}，而else返回的是\codeinlinebg{rust}{futures::future::Ready}，
 必须使用\codeinlinebg{rust}{Either}将结果进行封装，转换成所期望的future。
 
+\subsection{Future的async/await模式}
 从上面的各种例子都可以看到，使用普通的方式实现Rust的异步编程可能会涉及到非常复杂的
 代码，于是，Rust官方使用\codeinlinebg{rust}{async/await}等关键字，来简化异步编程的实现，
 屏蔽了繁琐的实现细节。使用上述两个关键字之后，Rust的编译器会在编译过程当中进行
@@ -921,11 +929,63 @@ ExampleStateMachine::End(_) => {
 处理。
 \end{outline}
 
-所谓的Pin，有时也被称为锚点，实际上就是一种数据固定的方式。在编程语言当中，涉及到
-一种比较特殊的数据结构——自引用结构，即结构体当中包含了对自己的一些数据的引用或者
-记录，
+通过上述的模拟和分析大致理解编译器生成的状态机以及Future Trait的实现机制可能是
+什么样的，实际上，编译器可以使用多种不同的方式实现或者生成Futrure Trait的代码，
+目前看到的例子是基于生成器实现的。
 
-\subsection{优秀的并发-Crossbeam}
+目前还缺少异步函数本身的处理，要知道，原始的异步函数定义本身是下面的样式：
+\begin{code-block}{rust}
+async fn example(min_len: usize) -> String
+\end{code-block}
+由于完整的函数体是由状态机实现的（编译器内部/编译器视角），因此，编译器目前对原始
+的异步函数做的唯一事情就是初始化状态机并返回它。编译器自动生成的相关代码可能如下：
+\begin{code-block}{rust}
+fn example(min_len: usize) -> ExampleStateMachine {
+    ExampleStateMachine::Start(StartState {
+        min_len,
+    })
+}
+\end{code-block}
+这个函数不再包含async关键字，取而代之的，则是返回状态机类型（ExampleStateMachine），
+毫无疑问这个类型实现了Future Trait。如同上面的示例显示的一样，状态机在Start状态
+当中被构造，并且使用min\_len参数初始化相应的状态结构体，一个Future在Rust编译器当
+中是如何实现以及转换的大致过程就如同上述描述的过程。
+
+\subsection{Future的pinning（锚点/固定）}
+在之前的介绍当中已经提到了pinning，那pinning到底是什么。不过，先决条件是，需要了解
+自引用结构（Self-Referential Structs）。所谓自引用结构，就是一个结构体当中包含了一个
+字段，该字段直接引用了当前结构体当中的其他字段，或者该字段直接指向了当前结构体当中
+的某个字段。
+
+比如上面的Rust编译器实现的状态机，当其进行状态转换需要将每个暂停点的局部变量存储
+在一个结构中，就属于一种简单的自引用结构的实际应用。对于类似于example这样的小函数，
+一般不会出现问题，然而，当出现变量相互引用时，情况会变得更加的复杂，比如下面的代码：
+\begin{code-block}{rust}
+async fn pin_example() -> i32 {
+    let array = [1, 2, 3];
+    let element = &array[2];
+    async_write_file("foo.txt", element.to_string()).await;
+    *element
+}
+\end{code-block}
+
+该函数创建了一个数组，然后创建了一个对数组最后一个元素的引用（地址），将其存储
+在一个变量当中，并将该变量转换成字符串异步的写入一个文件当中，最后再返回该变量
+所引用的数据。由于该函数只使用了一个await操作，因此，Rust编译器生成的状态机只有
+3种：start，end和“wait on write”；由于该函数无参数传入，因此，start状态的结构体
+是空的，与end状态的结构体类似，但是，“wait on write”的状态结构体会存在比较大的变化：
+\begin{code-block}{rust}
+struct WaitingOnWriteState {
+    array: [1, 2, 3],
+    element: 0x1001c, // array数组最后一个元素的地址
+}
+\end{code-block}
+
+
+
+
+
+\section{优秀的并发-Crossbeam}
 默认情况下，Rust标准库的多线程并发是非常安全和方便的，但是，也存在一些特殊情况，
 会导致标准库的多线程使用起来受到诸多的限制，比如，在递归函数当中使用多线程：
 \begin{code-block}{rust}
