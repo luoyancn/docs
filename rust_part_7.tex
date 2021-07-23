@@ -893,10 +893,7 @@ ExampleStateMachine::WaitingOnFooTxt(state) => {
             if content.len() < state.min_len {
                 let bar_txt_future = async_read_file("bar.txt");
                 // `.await` operation
-                let state = WaitingOnBarTxtState {
-                    content,
-                    bar_txt_future,
-                };
+                let state = WaitingOnBarTxtState { content, bar_txt_future, };
                 *self = ExampleStateMachine::WaitingOnBarTxt(state);
             } else {
                 *self = ExampleStateMachine::End(EndState));
@@ -941,9 +938,7 @@ async fn example(min_len: usize) -> String
 的异步函数做的唯一事情就是初始化状态机并返回它。编译器自动生成的相关代码可能如下：
 \begin{code-block}{rust}
 fn example(min_len: usize) -> ExampleStateMachine {
-    ExampleStateMachine::Start(StartState {
-        min_len,
-    })
+    ExampleStateMachine::Start(StartState { min_len, })
 }
 \end{code-block}
 这个函数不再包含async关键字，取而代之的，则是返回状态机类型（ExampleStateMachine），
@@ -981,7 +976,146 @@ struct WaitingOnWriteState {
 }
 \end{code-block}
 
+因为要返回array的元素值，并且返回的元素由element所代表的地址所引用，因此编译器
+需要同时存储结构体的array和element。由于element本身代表了一个地址引用，存储的是
+一个指向被引用元素的指针（内存地址），在这里使用0x1001c作为示例内存地址。该地址
+指向数组array的最后一个元素，因此，它的实际内容取决于结构体在内存当中的位置。像
+这种具有这种指向内部的结构体被称为\colorblock{自引用结构}，这种结构体可以使用自身的一个字段
+来引用或者指向自己。
 
+一般情况下，自引用结构在使用时和普通的结构并没有太大的区别，但是它在内存排列和管理
+上，会带来一些问题，下图是上面的自引用结构体的内存示意图：
+\begin{figure}[H]
+  \centering
+  \includesvg[inkscapelatex=false, width=\linewidth]{self-referential-struct}
+  \caption{自引用结构的内存分布示意图\protect\footnotemark}
+  \label{fig:self-referential-struct}
+\end{figure}
+\footnotetext{内存分布：\url{https://os.phil-opp.com/async-await/self-referential-struct.svg}}
+如图，结构体当中的array的首地址是0x10014（每个元素4个长度），而element字段的地址
+是0x10020，但是element存储的地址是0x1001c（即array最后一个元素的地址）。一切都表现
+得很好。不过，一旦结构体在内存当中的地址发生了变化（比如将该结构体当作参数传递，
+或者赋值给其他变量），结果就不一样了：
+\begin{figure}[H]
+  \centering
+  \includesvg[inkscapelatex=false, width=\linewidth]{self-referential-struct-moved}
+  \caption{移动后的内存分布示意图\protect\footnotemark}
+  \label{fig:self-referential-struct-moved}
+\end{figure}
+\footnotetext{移动后的内存分布：\url{https://os.phil-opp.com/async-await/self-referential-struct-moved.svg}}
+字段array的首地址已经变成了0x10024，但是，element字段当中存储的地址还是0x1001c，
+这就导致使用element字段引用array的元素时，指向的地址是一个未经初始化的地址，即
+指针悬空（相当于C/C++当中常见的野指针），这会直接导致在状态机的下一次轮询的时候
+发生未定义的行为。
+
+很显然，这种行为在Rust当中是不安全的，也是编译器严格禁止的，因此需要解决这种不
+安全的行为。从现有的理论和实践当中，主要的做法有3种：
+\begin{itemize}
+  \item 移动时更新内部的指针
+
+  其思想是在结构体在内存中移动时更新内部指针，以便在移动后它仍然有效，比较类似于
+  C/C++当中对链表的删除/插入操作。但是，这种做法需要对Rust进行大量的修改，并且会
+  造成较大的性能损失，其原因就在于需要跟踪所有结构字段的类型，并检查每个移动操作
+  是否需要进行指针更新。
+
+  \item 存储偏移地址而非绝对地址
+
+  即不进行内部指针的更新，内部指针存储的不再是绝对的地址，而是从结构体首地址开始的
+  偏移量。由于整体移动结构时，结构内部的地址排列和偏移并不会发生改变，因此，无需
+  进行内部指针的更新。但是，这种实现方式要求编译器检查所有的自引用，因为引用的值
+  可能来自于用户的输入，因此，这种检查方式几乎是不可能的。
+
+  \item 禁止结构体移动
+
+  如同上面所说，只有在内存当中发生了自引用结构体的移动才会出现悬空指针，当完全
+  禁用了自引用结构上的移动操作，自然就避免了悬空指针的出现。这种方式可以在类型
+  系统上直接实现。
+\end{itemize}
+
+由于第三种方式提供了零成本的抽象，没有增加额外的运行成本，因此被Rust采用，这就是
+所谓的\colorblock{Pining（固定/锚点）}。
+
+禁止内存地址移动，或者说固定内存地址，通常可以采取的一种方式是将其放在内存的堆区（heap），
+因为堆区分配的值在大多数情况下已经有一个固定的内存地址，在调用allocate时被创建，
+直到调用deacllocate将其释放，在此之间，指针指向的堆值将保持在相同的内存地址，
+因此可以利用该特性在堆区上创建自引用数据结构：
+\begin{code-block}{rust}
+fn main() {
+    let mut heap_value = Box::new(SelfReferential {
+        self_ptr: 0 as *const _, // 使用0x00当作初始的地址
+    });
+    // *heap_value表示从Box指针当中取出真正的元素
+    // &*heap_value表示对Box当中的真正元素进行引用（取地址）操作
+    // as *const 表示将其转换成对应类型的指针
+    let ptr = &*heap_value as *const SelfReferential;
+    // 将自身的地址赋给自己的字段
+    heap_value.self_ptr = ptr;
+    println!("heap value at: {:p}", heap_value);
+    println!("internal reference: {:p}", heap_value.self_ptr);
+}
+
+struct SelfReferential {
+    self_ptr: *const Self,
+}
+\end{code-block}
+
+结构体SelfReferential包含了一个字段self\_ptr，该字段指向实例本身的地址，构成了
+一个自己对自己的引用，如果执行上述代码，可以发现，结构体实例（self）和结构体字段
+（self\_ptr）的地址实际上是一样的：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{self_ref_on_heap.png}
+  \caption{堆区实现自引用结构}
+  \label{fig:self_ref_on_heap}
+\end{figure}
+
+这是一个有效的自引用结构，并且，由于heap\_value只是一个指针，对它的移动操作（
+比如赋值给其他变量，或者作为参数传递）并不会改变结构本身的地址，所以，self\_ptr
+会一直保持有效。但是，这种“固定效果”很容易被打破或者破坏，比如将Box包裹的数据解引用
+或者直接替换：
+\begin{code-block}{rust}
+use std::mem;
+fn main() {
+    let mut heap_value = Box::new(SelfReferential {
+        self_ptr: 0 as *const _,
+    });
+    let ptr = &*heap_value as *const SelfReferential;
+    heap_value.self_ptr = ptr;
+    println!("heap value at: {:p}", heap_value);
+    println!("internal reference: {:p}", heap_value.self_ptr);
+
+    // break it
+    let stack_value = mem::replace(&mut *heap_value, SelfReferential {
+        self_ptr: 0 as *const _,
+    });
+    println!("value at: {:p}", &stack_value);
+    println!("internal reference: {:p}", stack_value.self_ptr);
+    let hp = *heap_value;
+    println!("heap value at: {:p}", &hp);
+    println!("internal reference: {:p}", &(hp.self_ptr));
+}
+struct SelfReferential {
+    self_ptr: *const Self,
+}
+\end{code-block}
+则可以观察到，对应的结构体的内存地址全部发生了变化：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{self_ref_on_heap_break.png}
+  \caption{自引用结构的内存破坏}
+  \label{fig:self_ref_on_heap_break}
+\end{figure}
+
+\warn{
+这种操作是比较危险的，利用mem::replace函数，将原本由堆分配的值替换成新的结构体实例，
+即将原始的heap\_value移动到了栈区，此时，self\_ptr变成了悬空指针，仍然指向了原始的
+堆区地址，因此，使用堆区分配的方式，并不足以保障自引用结构的安全。
+}
+
+造成上述问题的根本原因在于Box<T>允许开发者获得一个针对在堆上分配的T的\&mut T的引用，
+这使得利用诸如mem::replace/mem::swap这样的函数通过\&mut T实现对堆区数据进行修改
+成为可能，从而使得在堆区分配的值失效。为此，针对自引用结构，禁止创建\&mut T这样
+的引用是必须的。
 
 
 
