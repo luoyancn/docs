@@ -1053,7 +1053,6 @@ fn main() {
     println!("heap value at: {:p}", heap_value);
     println!("internal reference: {:p}", heap_value.self_ptr);
 }
-
 struct SelfReferential {
     self_ptr: *const Self,
 }
@@ -1076,14 +1075,11 @@ struct SelfReferential {
 \begin{code-block}{rust}
 use std::mem;
 fn main() {
-    let mut heap_value = Box::new(SelfReferential {
-        self_ptr: 0 as *const _,
-    });
+    let mut heap_value = Box::new(SelfReferential { self_ptr: 0 as *const _, });
     let ptr = &*heap_value as *const SelfReferential;
     heap_value.self_ptr = ptr;
     println!("heap value at: {:p}", heap_value);
     println!("internal reference: {:p}", heap_value.self_ptr);
-
     // break it
     let stack_value = mem::replace(&mut *heap_value, SelfReferential {
         self_ptr: 0 as *const _,
@@ -1094,9 +1090,7 @@ fn main() {
     println!("heap value at: {:p}", &hp);
     println!("internal reference: {:p}", &(hp.self_ptr));
 }
-struct SelfReferential {
-    self_ptr: *const Self,
-}
+struct SelfReferential { self_ptr: *const Self, }
 \end{code-block}
 则可以观察到，对应的结构体的内存地址全部发生了变化：
 \begin{figure}[H]
@@ -1117,6 +1111,426 @@ struct SelfReferential {
 成为可能，从而使得在堆区分配的值失效。为此，针对自引用结构，禁止创建\&mut T这样
 的引用是必须的。
 
+Rust的Pinging API通过使用Pin Wrapper类型以及Unpin这个标记型Trait来提供了一种可靠
+的解决方案。这种解决方案背后的思路是，搜集所有Pin或者需要进行固定的结构体/类型的
+特定方法——这些特定的方法可以通过获取可变的引用（\&mut）来获取被Pin Wrapper包括的
+实际类型的值——并将这些方法在Unpin Trait上进行实现；Unpin Trait是一个自动的Trait，
+除了那些需要进行显式的选择退出类型，其他所有的类型都实现了它；通过标记自引用结构是
+实现的显式选择退出Unpin，这将导致没有任何一个安全（safe）的方法可以从Pin<Box<T>>
+类型当中获取一个合法有效的可变引用（\&mut T），因此，这种方式实现的自引用结构，
+其内部可以保证内部的自引用一直有效。
+
+利用这种思路，我们可以将之前编写的自引用结构进行改写：
+\begin{code-block}{rust}
+use core::marker::PhantomPinned;
+struct SelfReferential {
+    self_ptr: *const Self,
+    _pin: PhantomPinned,
+}
+\end{code-block}
+
+通过在结构体当中插入一个类型为PhantomPinned的字段，我们实现了结构体的选择退出。
+PhantomPinned类型是一个零字节大小（不占据内存空间）的标记类型，其作用在于标记对应
+的数据类型不实现Unpin Trait。由于Auto Trait的工作机制，该类型（PhantomPinned，
+即没有实现Unpin）的标记字段足以影响整个结构体，使之不受Unpin Trait的影响。另外
+需要改动的地方，则是将上述的Box<SelfReferential>修改为Pin<Box<SelfReferential>>
+类型，实现这个改动，最简单的方式就是用Box::pin，如下：
+\begin{code-block}{rust}
+let mut heap_value = Box::pin(SelfReferential {
+    self_ptr: 0 as *const _,
+    _pin: PhantomPinned,
+});
+\end{code-block}
+由于PhantomPinned是零字节大小的类型，因此只需要使用类型名初始化对应的字段即可。
+再来看看修正之后的完整代码：
+\begin{code-block}{rust}
+use std::mem;
+use std::marker::PhantomPinned;
+fn main() {
+    let mut heap_value = Box::pin(SelfReferential {
+        self_ptr: 0 as *const _, _pin: PhantomPinned,
+    });
+    let ptr = &*heap_value as *const SelfReferential;
+    heap_value.self_ptr = ptr;
+    println!("heap value at: {:p}", heap_value);
+    println!("internal reference: {:p}", heap_value.self_ptr);
+    // break it
+    let stack_value = mem::replace(&mut *heap_value, SelfReferential {
+        self_ptr: 0 as *const _, _pin: PhantomPinned,
+    });
+    println!("value at: {:p}", &stack_value);
+    println!("internal reference: {:p}", stack_value.self_ptr);
+}
+struct SelfReferential {
+    self_ptr: *const Self,
+    _pin: PhantomPinned,
+}
+\end{code-block}
+如果对上述代码进行编译，编译器将提示下列的错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{self_ref_pinned.png}
+  \caption{Pinned的自引用结构}
+  \label{fig:self_ref_pinned}
+\end{figure}
+
+这些错误实际上都是由于Pin<Box<SelfReferential>>这种数据类型包含了PhantomPinned这种
+特殊的标记数据类型，从而使得整个类型不再实现DerefMut这个Trait，进而导致了错误的发生。
+但这实际上正是我们想要的结果：因为DerefMut Trait本身就会返回一个\&mut T的可变引用，
+现实的需求要求这种情况的发生。
+
+但是，这也带来了一个额外的负面作用：无法对结构体当中的self\_ptr进行有效的初始化。
+这是因为编译器无法区分\&mut引用的有效和无效使用。为了让初始化操作正常进行，使用不安
+全的get\_unchecked\_mut方法便成了不多的选择之一：
+\begin{code-block}{rust}
+unsafe {
+    let mut_ref = Pin::as_mut(&mut heap_value);
+    // mut_ref.get_unchecked_mut().self_ptr = ptr; 效果和下面相同
+    Pin::get_unchecked_mut(mut_ref).self_ptr = ptr;
+}
+\end{code-block}
+
+get\_unchecked\_mut函数是Pin<\&mut T>而不是Pin<Box<T>>上的函数，因此需要进行一次
+转换（as\_mut），并且该函数返回一个\&mut T，因此，可以利用其返回结果进行修改。
+到目前为止，还剩下的错误则是replace操作，但该操作试图将在堆区上分配的值移动到栈区，
+这会直接破坏存储在self\_ptr当中的自引用。使用Pin以及退出Unpin则可以防止这个移动操作，
+从而安全的使用自引用结构。不过，也应当看到，在目前的Rust版本当中，由于编译器还不能
+证明或者解决自引用的创建/初始化是安全的，因此，还需要上述的unsafe操作块。
+
+虽然上述的方式可以很好的解决我们所面临的问题，不过由于所有的操作都是在堆上进行，
+而堆区内存的分配显而易见的带来了性能损耗。所幸，Rust的Pinning API也允许创建Pin<\&mut T>
+这种在内存栈上分配的实例。和Pin<Box<T>>拥有T类型的所有权不同，Pin<\&mut T>只是
+针对T的一个临时引用，这使得在内存栈上的Pin变得更加复杂。更重要的是，一个Pin<\&mut T>
+必须保证被引用的T在整个生命周期当中都保持固定，但是，这对于基于栈内存的变量是难以
+验证的，因此，通常情况下，\colorblock{并不推荐在栈内存上使用Pinning API进行变量固定}。
+
+有了以上的了解之后，利用Pin对之前的示例进行改写：
+\begin{code-block}{rust}
+use std::mem;
+use std::marker::PhantomPinned;
+use std::pin::Pin;
+use std::future::{self,Future};
+use std::task::{Context, Poll};
+struct StringLen<F> {
+    inner_future: F,
+    _pin: PhantomPinned,
+}
+impl<F> Future for StringLen<F> where F: Future<Output = String> {
+    type Output = usize;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.as_mut().poll(cx) {
+            Poll::Ready(s) => Poll::Ready(s),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+fn string_len(string: impl Future<Output = String>)
+    -> impl Future<Output = usize>
+{
+    StringLen {
+        inner_future: string,
+        _pin: PhantomPinned,
+    }
+}
+fn file_len() -> impl Future<Output = usize> {
+    let file_content_future = async_read_file("foo.txt");
+    string_len(file_content_future)
+}
+fn async_read_file(name: &str) -> impl Future<Output = String> {
+    future::ready(String::from(name))
+}
+\end{code-block}
+虽然这只是一个对Future的简单模拟，但总算是可以编译通过了。正如在上面看到的一样，
+async/await创建的实例通常是自引用结构，通过将实例（self）封装在Pin当中，使之退出
+Unpin，可以确保对应的Future在轮询调用当中不会在内存当中发生移动，从而确保了所有
+的内部引用仍然有效。
+
+不过需要注意的是，在第一次调用轮询poll之前对future进行移动是可以的。这是因为Future
+属于懒加载的一种模式，在第一次调用轮询前什么也不会做。因此，编译器生成的状态机
+通常情况下只包含了函数参数，但是不包括内部引用。为了轮询调用poll，首先需要将Future
+封装到Pin当中，来保证其在内存当中不会发生移动。另外，由于栈区的pinning更加难以操作，
+通常情况下，使用Box::Pin配合Pin::as\_mut是一个最优选择。
+
+\subsection{执行器（Executors）与唤醒器（Wakers）}
+使用async/await，可以以完全异步的方式处理Future。不过，正如上面所介绍的，Future
+在被轮询之前什么也不做。这意味着我们必须在某些时候对它们调用轮询（即唤醒），否则
+异步代码永远也不会执行。
+
+对于单个Future，我们总是可以使用上面描述的循环手动等待每个future。然而，这种方法
+效率非常低，并且对于包含了大量Future的程序来说也不实用。这个问题最常见的解决方案
+是定义一个全局执行器，该执行器负责轮询系统中的所有后续操作，直到它们完成为止。
+
+执行器的目的在于允许Future成为一个独立的任务，然后对这些Future进行轮询，直到这些
+Future（任务）全部完成为止。因此，全局的执行器最大的优点在于：当Future返回Poll::Pending
+时，执行器可以在不同的Future之间进行切换。由于异步操作总是以并行/并发的方式执行的，
+因此CPU通常一直处于忙碌状态，提高了资源的利用率。
+
+由于Rust的标准库并没有提供Future的标准执行器，因此，执行器绝大部分是第三方的类库
+进行实现的。这些类库在实现执行器时，通常利用了现代的多核技术，一般是创建一个线程
+池来充分利用所有的CPU核。为了避免一次次轮询Future带来的开销，执行器通常和Future
+支持的唤醒器（Waker）一起工作。
+
+唤醒器的思路是，一个特殊的waker类型当作参数封装在Context类型当中传递给poll调用，
+并且这个类型由执行器创建，异步任务可以使用这个waker表示任务结束。因此执行器可以
+不再针对Poll::Pending的Future调用poll操作，而是等待相应的waker通知，比如之前的
+简单例子：
+\begin{code-block}{rust}
+async fn write_file() {
+    async_write_file("foo.txt", "Hello").await;
+}
+\end{code-block}
+函数async\_write\_file异步地将字符串“Hello”写入foo.txt文件，由于硬盘写入需要一些
+时间，因此针对Future的第一个poll调用可能会返回poll::Pending。不过，硬盘驱动程序
+可以在内部存储传递给poll调用的Waker，并在文件被写入磁盘时使用它通知执行程序（执行者，Executor）。
+通过这种方式，执行器在收到唤醒器通知之前就不需要浪费任何时间再次对Future进行poll调用。
+
+虽然Rust并没有自己提供的标准执行器和唤醒器，但是可以利用Rust提供的标准库，自己
+实现一个简单的执行器和唤醒器！在实现自己的执行器和唤醒器之前，我们需要了解一下多任务。
+在操作系统当中，并行/并发都涉及到了多任务处理。而多任务处理主要有2种方式：抢占式
+多任务以及协作式多任务。抢占式多任务依赖于操作系统在运行的任务之间强制切换，而
+协作式多任务则要求任务通过yield或者同类型的操作定期自动放弃对CPU的控制。协作方法
+的最大优点是任务可以自己保存状态，从而实现更有效的上下文切换，并使任务之间共享
+相同的调用堆栈成为可能。而Rust的Future和async/await是合作多任务模式，因此，在实
+现自己的执行器和唤醒器时，需要注意下列的需求：
+\begin{itemize}
+  \item 每一个添加到执行器当中future都是协作式任务（task，有些时候会将future直接当作task看待）
+  \item Future不是通过yield操作，而是通过返回Poll::Pending或Poll::Ready来放弃对CPU的控制权
+  \begin{itemize}
+    \item 没有任何操作可以强制future放弃CPU的控制权，除非future永远不从poll操作返回，比如在无限循环当中自旋（spinning lock）
+    \item 每一个future都可以或者可能阻塞执行器当中的其他future的执行过程，需要保证每个future都不是“恶意的”
+  \end{itemize}
+  \item Future会在内部存储所有在下一次poll调用时会被使用到的状态/状态。通过async/await，编译器会自动检测所需要的所有变量，并将其存储在生成的状态机当中
+  \begin{itemize}
+    \item 通常只保存所需要的最少变量
+    \item 由于poll操作返回时会放弃对应的堆栈区，因此可以使用相同的堆栈区去轮询其他的future
+  \end{itemize}
+\end{itemize}
+
+在接下来的示例当中将使用标准库（std）来实现一个Future的完成运行流程，包括执行器和
+唤醒器的实现。首先编写我们的异步函数：
+\begin{code-block}{rust}
+async fn async_number() -> u32 {
+    42
+}
+async fn example_task() {
+    let number = async_number().await;
+    println!("async number: {}", number);
+}
+\end{code-block}
+
+async\_number是一个异步函数，Rust编译器会将其在内部转换成状态机。由于该函数只是
+返回一个数字，所以在第一次轮询操作（poll）结束时该函数最终会直接返回一个Poll::Ready(42)。
+example\_task类似，只是该函数需要等待async\_number的返回结果。Future已经通过async/await
+生成好了（example\_task返回的），如果想要运行这个future，则需要对它调用poll操作，
+直到接收到Poll::Ready所代表的完成信号为止。因此，现在需要一个任务管理器：
+\begin{code-block}{rust}
+use std::future::Future;
+use std::pin::Pin;
+pub struct Task {
+    future: Pin<Box<dyn Future<Output = ()>>>,
+}
+\end{code-block}
+该任务（task）结构体是一个包裹类型，包裹了一个具有Pinned属性的、在堆上动态分配的动态Future
+类型，并且，这个Future类型的输出类型（即关联类型Output）为空类型。该结构体有如下特点：
+\begin{itemize}
+  \item Future的关联类型返回()，表示任务（即future）不会返回任何结果，我们的目的仅仅只是使得这个future可以正常运行
+  \item dyn关键字表示存储在Box当中的是一个Trait对象，意味着future的方法是动态分配的，这使得在Task类型当中存储不同类型的Future成为可能，也使得可以创建多个不同的任务（future）
+  \item Pin保证包裹的对象不能在内存当中移动，防止状态机产生的自引用结构失效
+\end{itemize}
+
+接下来实现Task结构体的初始化（new）方法以及poll方法，由于需要使用Task结构体轮询
+存储在内存当中的future，因此，poll方法是必需的：
+\begin{code-block}{rust}
+impl Task {
+    pub fn new(future: impl Future<Output = ()> + 'static) -> Task {
+        Task {
+            future: Box::pin(future),
+        }
+    }
+    fn poll(&mut self, context: &mut Context) -> Poll<()> {
+        self.future.as_mut().poll(context)
+    }
+}
+\end{code-block}
+new方法接收一个关联类型为()的任意Future，并且通过Box::pin将其在内存当中固定，然后
+封装在Task结构体当中进行返回。需要注意，这里需要一个static的生命周期，因为返回的
+Task可以在任意时间存在，所以，Future也需要在任意时间内有效。
+
+由于Future Trait的poll方法定义为\codeinline{rust}{fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>;}，
+因此，首先需要通过as\_mut方法将self.future从\codeinlinebg{rust}{Pin<Box<T>>}（Box::pin的返回）转换成
+Pin<\&mut T>，然后对转换之后的future调用poll函数。由于Task::poll方法应该只由稍后
+创建的执行器调用，因此需要将该函数设置为私有模式。
+
+接下来构造一个简单的执行器：
+\begin{code-block}{rust}
+pub struct SimpleExecutor {
+    task_queue: VecDeque<Task>,
+}
+
+impl SimpleExecutor {
+    pub fn new() -> SimpleExecutor {
+        SimpleExecutor {
+            task_queue: VecDeque::new(),
+        }
+    }
+    pub fn spawn(&mut self, task: Task) {
+        self.task_queue.push_back(task)
+    }
+}
+\end{code-block}
+该执行器包含了一个双端队列，通过spawn方法在队列尾部插入新的任务，从队列头部弹出下一个
+任务进行执行。
+
+为了调用Future的poll方法，接下来需要创建一个Context类型的对象，这个对象封装了一个
+唤醒器（Waker）来监听Future的完成状态。为此，首先创建一个RawWaker实例，它定义了
+不同Waker方法的实现，然后使用Waker::from\_raw函数将其转换为Waker。
+\begin{code-block}{rust}
+fn dummy_waker() -> Waker {
+    unsafe { Waker::from_raw(dummy_raw_waker()) }
+}
+
+fn dummy_raw_waker() -> RawWaker {
+    fn no_op(_: *const ()) {}
+    fn clone(_: *const ()) -> RawWaker {
+        dummy_raw_waker()
+    }
+    let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
+    RawWaker::new(0 as *const (), vtable)
+}
+\end{code-block}
+
+RawWaker类型需要显式地定义一个函数虚表（vtable），这个虚表当中需要包含RawWaker被
+复制（clone），唤醒（woken）以及销毁（dropped）时应该被调用的函数。这几个函数的
+形式应当如下：
+\begin{code-block}{rust}
+clone: unsafe fn(*const ()) -> RawWaker,
+wake: unsafe fn(*const ()),
+wake_by_ref: unsafe fn(*const ()),
+drop: unsafe fn(*const ()),
+\end{code-block}
+这个虚表的布局是由RawWakerVTable类型定义的，每个函数都接收一个*const()参数，它
+基本上是一个类型擦除（不关心）的\&self指针，指向某个结构体，例如分配在堆上。使用*const()
+指针而不是正确的引用的原因是RawWaker类型应该是非泛型的，但仍然应该支持任意类型。
+
+一般情况下，RawWaker是为包装在Box或Arc类型中的某些在堆区分配的结构所创建的。
+对于这类类型，可以使用Box::into\_raw之类的方法将Box<T>转换成*const T指针，而这种
+类型的指针可以被转换为一个匿名*const()指针，并传递给RawWaker::new方法。由于每个
+虚表函数都接收相同的*const()作为实参，因此函数可以安全地将指针强制转换回Box<T>
+或者是一个\&T来操作它。但是这样的操作会涉及到指针的强制转换，因此整个
+过程实际上是非常危险的，非常容易导致错误的行为。\colorblock{除非必要，不建议手动
+创建RawWaker}。
+
+在上述的代码当中，首先定义了2个内部函数no\_op和clone。这2个函数都接收一个*const()指针
+作为参数，不同的是，no\_op不做任何处理和操作，而clone函数通过调用dummy\_raw\_waker
+返回一个新的RawWaker。接下来使用这两个函数来创建一个最小的RawWakerVTable：clone函数
+用于clone操作，no\_op函数用于所有其他操作。
+
+虚表创建成功之后，再使用RawWaker::new函数来创建RawWaker。由于虚表函数并没有使用第一个
+参数，因此，在创建RawWaker时，第一个参数使用了空指针作为代替（0 as *const()）。
+
+有了唤醒器，我们就可以在执行器上实现一个run方法来调用这个唤醒器。最简单的运行方法
+就是在循环中反复轮询所有排队的任务，直到全部完成。注意，这并不是很有效，因为它没
+有利用Waker类型的通知机制，不过这并不影响它的正常运行，如下代码所示：
+\begin{code-block}{rust}
+impl SimpleExecutor {
+    pub fn run(&mut self) {
+        while let Some(mut task) = self.task_queue.pop_front() {
+            let waker = dummy_waker();
+            let mut context = Context::from_waker(&waker);
+            match task.poll(&mut context) {
+                Poll::Ready(()) => {} // task done
+                Poll::Pending => self.task_queue.push_back(task),
+            }
+        }
+    }
+}
+\end{code-block}
+该函数使用while-loop来处理task\_queue中的所有任务。对于每个任务，它首先通过
+由dummy\_waker函数返回的Waker实例来创建一个Context类型的实例，然后对每个任务
+调用poll进行轮询，如果poll方法返回poll::Ready，则任务结束，接着下一个任务；
+如果任务仍然是Poll::Pending，我们将它再次添加到队列的后面，以便在后续循环迭代中
+再次轮询它，直到该任务执行完毕。
+
+接下来看一下完整的代码：
+\begin{code-block}{rust}
+use std::collections::VecDeque;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll,Waker, RawWaker,RawWakerVTable};
+
+pub struct Task {
+    future: Pin<Box<dyn Future<Output = ()>>>,
+}
+
+impl Task {
+    pub fn new(future: impl Future<Output = ()> + 'static) -> Task {
+        Task {
+            future: Box::pin(future),
+        }
+    }
+    fn poll(&mut self, context: &mut Context) -> Poll<()> {
+        self.future.as_mut().poll(context)
+    }
+}
+
+pub struct SimpleExecutor {
+    task_queue: VecDeque<Task>,
+}
+
+impl SimpleExecutor {
+    pub fn new() -> SimpleExecutor {
+        SimpleExecutor {
+            task_queue: VecDeque::new(),
+        }
+    }
+
+    pub fn spawn(&mut self, task: Task) {
+        self.task_queue.push_back(task)
+    }
+
+    pub fn run(&mut self) {
+        while let Some(mut task) = self.task_queue.pop_front() {
+            let waker = dummy_waker();
+            let mut context = Context::from_waker(&waker);
+            match task.poll(&mut context) {
+                Poll::Ready(()) => {} // task done
+                Poll::Pending => self.task_queue.push_back(task),
+            }
+        }
+    }
+}
+
+fn dummy_waker() -> Waker {
+    unsafe { Waker::from_raw(dummy_raw_waker()) }
+}
+
+fn dummy_raw_waker() -> RawWaker {
+    fn no_op(_: *const ()) {}
+    fn clone(_: *const ()) -> RawWaker {
+        dummy_raw_waker()
+    }
+
+    let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
+    RawWaker::new(0 as *const (), vtable)
+}
+
+async fn async_number() -> u32 {
+    42
+}
+
+async fn example_task() {
+    let number = async_number().await;
+    println!("async number: {}", number);
+}
+
+fn main() {
+    let mut executor = SimpleExecutor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.run();
+}
+\end{code-block}
+
+到此为止，Future的整体运行机制以及执行器的实现思路已经明白无误的剖析在了面前。
 
 
 \section{优秀的并发-Crossbeam}
