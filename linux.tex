@@ -589,6 +589,34 @@ kpartx -dv /dev/loop0
 losetup -d /dev/loop0
 \end{code-in-enumerate}
 
+\1 将awk的结果赋值给变量
+\begin{code-in-enumerate}{bash}
+ echo $id |awk -F '_' '{print $NF}'| awk -F '.' '{print $1}' | awk -F '-' '{print $1, $2}'|while read first second;do echo $first $second;done
+\end{code-in-enumerate}
+
+\1 图片的切割与合并以及转换
+
+Linux下使用ImageMagick进行操作，因此需要先进行安装，再进行操作
+\begin{code-in-enumerate}{bash}
+dnf install ImageMagick -y
+
+# 图片格式转换，将jpg转换成png
+convert a.jpg a.png
+# 批量转换成png
+mogrify -format png *.jpg
+
+# 保持高度不变，宽度折半的方式进行图片的切割，生成0.png和1.png
+convert -crop 50%x100% +repage 1.jpg %d.png
+# 高度不变，但是每次按照宽度的20%进行分割，生成0-4.png
+convert -crop 20%x100% +repage %d.png
+
+# 按照水平方向进行图片合并
+convert +append 1.jpg 2.jpg dst.jpg
+
+# 按照垂直方向进行图片合并
+convert -append 1.jpg 2.jpg dst.jpg
+\end{code-in-enumerate}
+
 \end{outline}
 
 \section{gdb在线调试运行程序}

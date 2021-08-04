@@ -1598,7 +1598,7 @@ trait SomeTrait {
     fn sub(&self) -> i32;
     fn mul(&self) -> i32;
 }
-// 结构体的内存布局和对齐方式采用C语言的模式进行
+// 结构体的内存布局和对齐方式采用兼容C语言的模式进行
 #[repr(C)]
 struct FatPointer<'a> {
     // 使用data指向Trait的数据段
@@ -1654,6 +1654,80 @@ fn main() {
 \footnote{TraitObject：\url{https://doc.rust-lang.org/std/raw/struct.TraitObject.html}}。
 虽然Rust的源代码实现有些区别，但Trait的实现方式，其工作机制和模式，可以通过上述
 的代码全部展现出来。
+
+\subsubsection{Future的基本使用方式}
+虽然对Future的原理和实现方式有了大致的了解，但是Future的使用方式，还没有进行介绍。
+Future基本分为2大类：async/await修饰的普通函数，以及实现Future Trait的结构体。这
+2种的类型的使用方式类似，唯一有区别的是，结构体需要实现Future Trait的相关方法，
+如下的代码所示：
+\begin{code-block}{rust}
+use std::task::{Context,Poll};
+use std::pin::Pin;
+use futures::future::Future;
+use futures::executor::block_on;
+
+pub struct Number {
+    number: u8,
+    polled: bool,
+}
+
+impl Number {
+    pub fn new(number: u8) -> Self {
+       Self {
+            number: number,
+            polled: false,
+       }
+    }
+}
+
+// 结构体实现Future Trait
+impl Future for Number {
+    type Output = u8;
+    fn poll(
+       self: Pin<&mut Self>,
+       cx: &mut Context<'_>,
+    ) -> Poll<Self::Output> {
+        let mut this = self.get_mut();
+        if this.polled {
+            Poll::Ready(this.number)
+        } else {
+            // 调用唤醒器，否则调用poll时会直接进入死循环
+            cx.waker().wake_by_ref();
+            this.polled = true;
+            Poll::Pending
+        }
+    }
+}
+
+async fn get_num() -> u8 {
+    18
+}
+
+async fn outer() -> u8 {
+    get_num().await
+}
+
+fn main(){
+    let num = Number::new(98);
+    // 将num对象当作一个future使用
+    let res = block_on(num);
+    println!("{}", res);
+    // 同上
+    let num = async { Number::new(100).await };
+    let res = block_on(num);
+    println!("{}", res);
+    // 将异步函数当作future使用，2种不同的使用方式
+    //let num = async {get_num().await};
+    let num = get_num();
+    let res = block_on(num);
+    println!("{}", res);
+    // 将异步函数当作future使用，2种不同的使用方式
+    //let res = async {outer().await};
+    let res = outer();
+    let res = block_on(res);
+    println!("{}", res);
+}
+\end{code-block}
 
 \section{优秀的并发-Crossbeam}
 默认情况下，Rust标准库的多线程并发是非常安全和方便的，但是，也存在一些特殊情况，
