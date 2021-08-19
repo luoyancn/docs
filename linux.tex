@@ -594,6 +594,13 @@ losetup -d /dev/loop0
  echo $id |awk -F '_' '{print $NF}'| awk -F '.' '{print $1}' | awk -F '-' '{print $1, $2}'|while read first second;do echo $first $second;done
 \end{code-in-enumerate}
 
+\1 shell下的数值计算
+\begin{code-in-enumerate}{bash}
+# 注意数值计算表达式中间必须有空格存在
+expr 1 + 1
+expr $id + 1
+\end{code-in-enumerate}
+
 \1 图片的切割与合并以及转换
 
 Linux下使用ImageMagick进行操作，因此需要先进行安装，再进行操作
@@ -617,93 +624,69 @@ convert +append 1.jpg 2.jpg dst.jpg
 convert -append 1.jpg 2.jpg dst.jpg
 \end{code-in-enumerate}
 
-\end{outline}
+\1 gdb在线调试运行程序
 
-\section{gdb在线调试运行程序}
-\begin{code-block}{bash}
+\begin{code-in-enumerate}{bash}
 strace -p <pid>
 yum install gdb python-debuginfo
 gdb python 19427 # python的进程号
 #或者gdb attach 19427
-\end{code-block}
+\end{code-in-enumerate}
 
 进入gdb环境之后，直接使用gdb的命令即可进行调试。常用的命令如下
-\begin{code-block}{bash}
+\begin{code-in-enumerate}{bash}
 info thread # 查看当前进程的信息
 bt          # 查看当前堆栈信息
 py-list     # 查看当前的python代码
 py-bt       # 查看当前的python调用堆栈
-\end{code-block}
+\end{code-in-enumerate}
 
-\section{在线升级操作系统}
-\begin{code-block}{bash}
+\1 在线升级操作系统
+
+\begin{code-in-enumerate}{bash}
 dnf upgrade --refresh
 dnf install dnf-plugin-system-upgrade
 dnf system-upgrade download --releasever=27
 dnf system-upgrade reboot
-\end{code-block}
+\end{code-in-enumerate}
 
-\section{动态修改虚拟机vnc端口}
-\begin{code-block}{bash}
+\1 动态修改虚拟机vnc端口
+
+\begin{code-in-enumerate}{bash}
 socat READLINE UNIX-CONNECT:/var/lib/awstack/saas.monitor
 # 进入qemu控制台
 # 修改vnc端口，监听到0.0.0.0:5940
 change vnc 0.0.0.0:40
 iptables -I INPUT -p tcp --dport 5940 -j ACCEPT
-\end{code-block}
+\end{code-in-enumerate}
 
-\section{Centos7进入单用户模式}
+\1 Centos7进入单用户模式
+
 启动虚拟机，进入引导页面之后，输入e，然后进行对应的修改
-\begin{code-block}{bash}
+\begin{code-in-enumerate}{bash}
 # 删除linux16行以下内容
 ro rhgb quiet
 # 追加以下内容到linux16行末尾
 rw init=/bin/bash
 # 输入ctrl+x，即可进入单用户模式，进行用户信息的修改
-\end{code-block}
+\end{code-in-enumerate}
 
-\section{修改grub启动顺序}
-\begin{code-block}{bash}
+\1 修改grub启动顺序
+
+\begin{code-in-enumerate}{bash}
+# 仅适用于Reahat/CentOS/Fedora，不适于Ubuntu
 # 0表示grub2.cfg当中，menuentry标题的顺序
 awk -F\' '$1=="menuentry " {print $2}' /etc/grub2.cfg
 grub2-set-default 0
-\end{code-block}
 
-\section{设置socket5代理}
-Socket5代理一般需要shadowsocks的支持。首先设置socket5代理，并且将socket5转换为
-http代理
-\begin{code-block}{bash}
-dnf install python-shadowsocks polipo -y
-cat >/opt/server.json<<EOF
-{
-    "server":"107.191.52.9",
-    "server_port":8964,
-    "local_address": "127.0.0.1",
-    "local_port":1080,
-    "password":"laozhang",
-    "method":"aes-256-cfb"
-}
-EOF
-sslocal -c /root/server.json
+# 或者使用明确的内核信息
+grub2-set-default 'CentOS Linux (3.10.0-514.26.2.el7.x86_64) 7 (Core)'
 
-cat > /etc/polipo/config<<EOF
-logSyslog = true
-daemonise = true
-pidFile = /var/run/polipo/polipo.pid
-logFile = /var/log/polipo/polipo.log
-proxyAddress = "0.0.0.0"
-allowedClients = "0.0.0.0/0"
-socksParentProxy = "localhost:1080"
-socksProxyType = socks5
-EOF
+# 查看当前的默认启动内核
+grub2-editenv list
+\end{code-in-enumerate}
 
-systemctl enable polipo
-systemctl start polipo
-\end{code-block}
-
-和polipo相同，shadowsocks也可以作为daemon运行。具体可以参考
-\newline\textattachfile{shadowsocks.service}{\textcolor{blue}{shadowsocks.service}}
-通过以上的方式，就可以将socket5的代理转换为http代理。
+\end{outline}
 
 \input{awk}
 \input{kernel}

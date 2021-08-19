@@ -562,10 +562,11 @@ fn main() {
 一直没有析构，所以迭代器依旧会进行等待，但是tx也没有发送信息，从而造成死锁的状态。
 显式调用drop之后，死锁将不会存在。
 
-\section{异步实现-Futures}
-Rust目前的版本当中，异步/同步的支持比较完善，目前，Futures\footnote{\url{https://github.com/rust-lang/futures-rs}}
-提供了完整实现，Tokio\footnote{\url{https://github.com/tokio-rs/tokio}}也提供了
-比较完整的平台支持，Async-Std\footnote{\url{https://github.com/async-rs/async-std}}也提供了
+\section{异步编程（Future）的基本原理}
+Rust目前的版本当中，异步/同步的支持比较完善，通常需要使用Future进行实现，
+其中futures\footnote{\url{https://github.com/rust-lang/futures-rs}}提供了一个比较基本的异步编程实现，
+Tokio\footnote{\url{https://github.com/tokio-rs/tokio}}也提供了比较完整的平台支持，
+Async-Std\footnote{\url{https://github.com/async-rs/async-std}}也提供了
 相关的支持。多线程的劣势主要体现在操作系统调度开销，难度较大，线程切换以及
 跨线程共享数据会产生很多的额外开销，这些就是异步并发（async/await）发挥作用的
 重要场景。
@@ -1546,7 +1547,11 @@ Future，Waker以及相关的Task，在标准库（std）当中存在，在核�
 操作不仅可以用于普通的Rust开发，也同样可以用于没有std模式的嵌入式开发，甚至是操作
 系统开发。除此之外，其他常用的异步开发框架，比如futures，async-std等，其内部定义
 的Future，Waker以及Task等Trait，和Rust std都是完全相同的。这些类库当中的相关Trait
-完全等价，使用时无需进行转换。
+完全等价，使用时无需进行转换。不过，确切的说，除了core当中的Future定义，
+Future的定义只有2类：一种是std当中的，而另外一种则是future-rs提供的futures::future::Future，
+其中future-rs当中的是最原始的定义，而为了给Rust提供异步支持，才将future-rs当中的
+相关定义移入到了std当中，也就是说，std当中的Future实际上是future-rs的最小子集。
+而同样的，async-std、tokio等类库当中的Future实现，实际上也是future-rs的重新导出。
 }
 \subsection{Future补遗}
 \subsubsection{胖指针与虚表}
@@ -1728,6 +1733,202 @@ fn main(){
     println!("{}", res);
 }
 \end{code-block}
+
+\section{异步编程的实现方案-async-std}
+Async-std是一种Future执行器的实现方案。其基本的使用于futures类似，都是使用block\_on
+设置异步任务的阻塞运行。相比于futures，async-std提供了一些扩展功能，比如异步的
+计时器等。
+
+常见的使用方式都是相同的：
+\begin{code-block}{rust}
+use async_std::task::block_on;
+pub async fn async_hello() {
+    info!("This is the async hello");
+}
+
+fn main() {
+    let _ = block_on(async_hello());
+}
+
+\end{code-block}
+
+不过，async-std也还提供了一种简便的方式，这种方式不再要求使用block\_on进行显式的
+阻塞执行，但是，使用这种方式，要求启用async-std的特性
+\footnote{关于async-std的特性说明：\url{https://docs.rs/async-std/1.9.0/async_std/\#features}}：
+\begin{code-block}{toml}
+[dependencies]
+async-std = {version = "1.9.0", features = ["attributes"]}
+\end{code-block}
+只用启用了上述的特性，才可以如下进行使用：
+\begin{code-block}{rust}
+pub async fn async_hello() {
+    info!("This is the async hello");
+}
+
+#[async_std::main]
+async fn main() {
+    async_hello().await;
+}
+\end{code-block}
+上述方式相当于将main函数也当作一个异步函数，而该函数的执行，则是由async-std这个
+运行时自己进行相关任务的调度。同样的，如果是在测试函数或者测试用例当中，也可以使用
+这种方式：
+\begin{code-block}{rust}
+pub async fn async_hello() {
+    info!("This is the async hello");
+}
+
+// 注意，同样需要启用attributes属性，并且，main需要修改为test
+#[async_std::test]
+async fn test_units() {
+    async_hello().await;
+}
+\end{code-block}
+
+如果是多个异步函数的执行，同样可以使用block\_on或者直接的await方式进行操作，但是，
+需要注意的是，如果不加控制，不同的异步操作，默认情况下是串行执行的，比如下面的代码：
+\begin{code-block}{rust}
+use std::time::Duration;
+use async_std;
+pub async fn connect_db_fake() -> String {
+    async_std::task::sleep(Duration::from_secs(1)).await;
+    info!("This is the async connect_db_fake function");
+    "connect_db_fake".to_owned()
+}
+
+pub async fn open_file_fake() -> String {
+    async_std::task::sleep(Duration::from_secs(2)).await;
+    info!("This is the async open_file_fake function");
+    "open_file".to_owned()
+}
+
+fn main() {
+    let db_fake = async_std::task::block_on(connect_db_fake());
+    let file_fake = async_std::task::block_on(open_file_fake());
+    ...
+}
+\end{code-block}
+上述代码当中db\_fake和file\_fake并没有什么直接的关系，二者是完全可以并行执行的，
+但是，实际的执行结果是，两行代码总计耗时3秒左右，并没有并行起来。如果想让这些
+并没有关联关系的操作完全并行起来，则需要使用futures-rs提供的功能：
+\begin{code-block}{toml}
+[dependencies]
+futures = "0.3.15"
+async-std = {version = "1.9.0", features = ["attributes"]}
+\end{code-block}
+并行的代码修改如下：
+\begin{code-block}{rust}
+use futures;
+fn main() {
+    let now = time::Instant::now();
+    let (fake_db, fake_file) =
+        block_on(futures::future::join(connect_db_fake(), open_file_fake()));
+    let elapsed = now.elapsed();
+    assert_eq!("open_file", fake_file);
+    assert_eq!("connect_db_fake", fake_db);
+    println!("All of async function used {:#?} ", elapsed);
+    assert!(elapsed > Duration::from_secs(1));
+    assert!(elapsed < Duration::from_secs(3));
+}
+\end{code-block}
+并行之后的代码，总体的执行时间取决于耗时最长的任务。当然，如果需要并行多个任务，
+可以使用join2，join3，join4和join5等函数。针对常见的函数式编程，比如map-reduce
+操作，则可以使用join\_all等方法：
+\begin{code-block}{rust}
+use futures::future::join_all;
+use std::time::{self, Duration};
+use std::sync::{Arc, Mutex};
+use async_std;
+pub async fn get_cities() -> Vec<String> {
+    let cities = vec![
+        "shanghai".to_owned(),
+        "beijing".to_owned(),
+        "chongqing".to_owned(),
+    ];
+    let city_vec = Arc::new(Mutex::new(vec![]));
+    let _ = join_all(
+        cities
+            .into_iter()
+            .map(|city| build_city(city_vec.clone(), city)),
+    )
+    .await;
+    return city_vec.lock().unwrap().clone();
+}
+
+async fn build_city(city_vec: Arc<Mutex<Vec<String>>>, city: String) {
+    async_std::task::sleep(Duration::from_secs(1)).await;
+    city_vec
+        .lock()
+        .unwrap()
+        .push(format!("Super City {}", city))
+}
+
+fn main() {
+    let now = time::Instant::now();
+    let res = block_on(get_cities());
+    assert_eq!(
+        vec![
+            "Super City shanghai".to_owned(),
+            "Super City beijing".to_owned(),
+            "Super City chongqing".to_owned()
+        ],
+        res
+    );
+    let used = now.elapsed();
+    assert!(used < Duration::from_secs(2));
+}
+\end{code-block}
+注意，join\_all也是并行执行的，其耗费的时间同样取决于耗时最长的任务。
+
+需要注意的是，async-std通常是并行运行，但是这个“并行”的基础是通过共享一个执行
+线程实现的。这就意味着阻塞一个操作系统（std）线程的操作，比如std::thread::sleep
+将停止所有共享该线程的任务的执行，无法和async-std的并行模型很好的配合。
+因此，下列代码在执行过程当中，实际上是串行阻塞式的运行的：
+\begin{code-block}{rust}
+task::block_on(async {
+    // this is std::fs, which blocks
+    std::fs::read_to_string("test_file");
+})
+\end{code-block}
+
+针对文件系统的异步io，async-std提供了与std::fs兼容的async\_std::fs进行异步化：
+\begin{code-block}{rust}
+use async_std::fs::File;
+use async_std::{io::{self, prelude::WriteExt}};
+pub async fn async_file_opts() -> io::Result<()> {
+    let mut file = File::create("a.txt").await?;
+    Ok(file.write_all(b"hello world").await?)
+}
+\end{code-block}
+
+而针对Rust常用的多线程通信方案channel，异步编程同样提供了对应的异步方案：
+\begin{code-block}{rust}
+use async_std::channel::{unbounded, RecvError, TryRecvError};
+async fn test_async_channel() {
+    let (sender, recver) = unbounded(); // 创建无缓冲的channel，如果是有缓冲
+                                        // let (sender, recver) = bounded(2);
+    assert_eq!(sender.send(1).await, Ok(()));
+    assert_eq!(recver.recv().await, Ok(1));
+    assert_eq!(recver.try_recv(), Err(TryRecvError::Empty));
+    drop(sender);
+    assert_eq!(recver.try_recv(), Err(TryRecvError::Closed));
+    assert_eq!(recver.recv().await, Err(RecvError));
+}
+\end{code-block}
+这些channel的使用方式和标准库当中的channel基本类似，唯一的区别可能就是他们是异步
+方式。
+
+\note{
+在async-std以及其他的异步执行器出来之前，使用最多的是future-rs。Future-rs提供了
+Rust异步编程的所有完整实现，包括贡献了async/await关键字。不过，由于其他的异步执行器
+发展比较快，生态比较完善，因此，相比较而言，future-rs使用并不是特别多。尤其是，
+针对执行器，迭代器以及channel等的实现上，async-std以及tokio等都非常灵活和完善，
+并且和future-rs的使用方式相兼容，因此，直接使用future-rs当作异步执行器并不是特别
+常见，而是使用future-rs的其他功能。
+}
+
+\section{异步编程的实现方案-tokio}
+\section{异步编程的实现方案-mio}
 
 \section{优秀的并发-Crossbeam}
 默认情况下，Rust标准库的多线程并发是非常安全和方便的，但是，也存在一些特殊情况，
