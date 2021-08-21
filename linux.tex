@@ -110,6 +110,36 @@ pygmentize -L lexers
   \label{fig:latex_color_codes}
 \end{figure}
 
+而有的时候，需要在latex当中使用图片，常见的图片直接进行include即可，但是，latex的
+tikz提供了一些其他的简笔画，可以直接使用，使用方式如下：
+\begin{code-block}{latex}
+\tikz[scale = 5]\node[scale = 3, rotate = 30]{\bcinfo};
+\end{code-block}
+
+常见的简笔画如下：
+
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcattention}]{\bcattention};
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcbook}]{\bcbook};
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcinfo}]{\bcinfo};
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcneige}]{\bcneige};
+
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcplume}]{\bcplume};
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcquestion}]{\bcquestion};
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcsmbh}]{\bcsmbh};
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcsmmh}]{\bcsmmh};
+
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bclampe}]{\bclampe};
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcstop}]{\bcstop};
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bctakecare}]{\bctakecare};
+\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcrecyclage}]{\bcrecyclage};
+
+%\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcbombe}]{\bcbombe};
+%\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcinterdit}]{\bcinterdit};
+%\tikz[scale = 5]\node[scale = 3,label=below:\mintinline{latex}{\bcrosevents}]{\bcrosevents};
+
+其他的简笔画可查看\url{texmf-dist/doc/latex/comprehensive/source/symbols.tex}
+当中的内容。
+
 \section{OpenStack社区的git设置}
 由于各种原因，如果使用ssh的方式，社区的gerrit是无法正常连接的。但是，社区的gerrit
 提供了https的连接方式，可以使用这种方式绕开相关的限制。首先，需要登录review.openstack.org，

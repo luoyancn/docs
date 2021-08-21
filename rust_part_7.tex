@@ -698,10 +698,10 @@ fn async_read_file(name: &str) -> impl Future<Output = String> {
     future::ready(String::from(name))
 }
 \end{code-block}
-\important{
+\begin{attention}
 上述代码只是演示了一种Future可能的处理方式，但是，代码本身不可使用，原因在于在
 上述代码当中还没有处理pin（固定）。
-}
+\end{attention}
 
 通过future的组合，可以实现非常高效的代码，但是，在某些情况下，由于Rust的类型系统
 以及基于闭包的接口，会使得future的组合使用起来比较难，比如下面的代码：
@@ -1101,11 +1101,11 @@ struct SelfReferential { self_ptr: *const Self, }
   \label{fig:self_ref_on_heap_break}
 \end{figure}
 
-\warn{
+\begin{warn}
 这种操作是比较危险的，利用mem::replace函数，将原本由堆分配的值替换成新的结构体实例，
 即将原始的heap\_value移动到了栈区，此时，self\_ptr变成了悬空指针，仍然指向了原始的
 堆区地址，因此，使用堆区分配的方式，并不足以保障自引用结构的安全。
-}
+\end{warn}
 
 造成上述问题的根本原因在于Box<T>允许开发者获得一个针对在堆上分配的T的\&mut T的引用，
 这使得利用诸如mem::replace/mem::swap这样的函数通过\&mut T实现对堆区数据进行修改
@@ -1458,11 +1458,9 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll,Waker, RawWaker,RawWakerVTable};
-
 pub struct Task {
     future: Pin<Box<dyn Future<Output = ()>>>,
 }
-
 impl Task {
     pub fn new(future: impl Future<Output = ()> + 'static) -> Task {
         Task {
@@ -1473,22 +1471,18 @@ impl Task {
         self.future.as_mut().poll(context)
     }
 }
-
 pub struct SimpleExecutor {
     task_queue: VecDeque<Task>,
 }
-
 impl SimpleExecutor {
     pub fn new() -> SimpleExecutor {
         SimpleExecutor {
             task_queue: VecDeque::new(),
         }
     }
-
     pub fn spawn(&mut self, task: Task) {
         self.task_queue.push_back(task)
     }
-
     pub fn run(&mut self) {
         while let Some(mut task) = self.task_queue.pop_front() {
             let waker = dummy_waker();
@@ -1500,30 +1494,24 @@ impl SimpleExecutor {
         }
     }
 }
-
 fn dummy_waker() -> Waker {
     unsafe { Waker::from_raw(dummy_raw_waker()) }
 }
-
 fn dummy_raw_waker() -> RawWaker {
     fn no_op(_: *const ()) {}
     fn clone(_: *const ()) -> RawWaker {
         dummy_raw_waker()
     }
-
     let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
     RawWaker::new(0 as *const (), vtable)
 }
-
 async fn async_number() -> u32 {
     42
 }
-
 async fn example_task() {
     let number = async_number().await;
     println!("async number: {}", number);
 }
-
 fn main() {
     let mut executor = SimpleExecutor::new();
     executor.spawn(Task::new(example_task()));
@@ -1541,7 +1529,7 @@ fn main() {
 \end{itemize}
 但是，\colorblock{并不包含异步任务的执行}。
 
-\note{
+\begin{note}
 Future，Waker以及相关的Task，在标准库（std）当中存在，在核心库（core）当中也存在，
 并且，std和core当中的定义和实现是一模一样的，因此，async/await以及Future等异步
 操作不仅可以用于普通的Rust开发，也同样可以用于没有std模式的嵌入式开发，甚至是操作
@@ -1552,7 +1540,7 @@ Future的定义只有2类：一种是std当中的，而另外一种则是future-
 其中future-rs当中的是最原始的定义，而为了给Rust提供异步支持，才将future-rs当中的
 相关定义移入到了std当中，也就是说，std当中的Future实际上是future-rs的最小子集。
 而同样的，async-std、tokio等类库当中的Future实现，实际上也是future-rs的重新导出。
-}
+\end{note}
 \subsection{Future补遗}
 \subsubsection{胖指针与虚表}
 Rust当中也存在指针，但是存在一些特殊的指针，比如下面的代码：
@@ -1880,10 +1868,37 @@ fn main() {
 \end{code-block}
 注意，join\_all也是并行执行的，其耗费的时间同样取决于耗时最长的任务。
 
-需要注意的是，async-std通常是并行运行，但是这个“并行”的基础是通过共享一个执行
-线程实现的。这就意味着阻塞一个操作系统（std）线程的操作，比如std::thread::sleep
-将停止所有共享该线程的任务的执行，无法和async-std的并行模型很好的配合。
-因此，下列代码在执行过程当中，实际上是串行阻塞式的运行的：
+而如果只是需要并行任务当中的某一个或者某几个完成，则需要使用select操作：
+\begin{code-block}{rust}
+pub async fn fake_select_two() -> u8 {
+    let future1 = async {
+        // 该future一直是pending状态，永远不会返回
+        future::pending::<()>().await;
+        1
+    };
+    let future2 = async { future::ready(2).await };
+    // 针对select操作，所有的future都必须使用pin_mut
+    pin_mut!(future1);
+    pin_mut!(future2);
+    match future::select(future1, future2).await {
+        // select返回（future的Output，另一个future）
+        Either::Left((value1, _ignore_future)) => value1,
+        Either::Right((value2, _ignore_future)) => value2,
+    }
+}
+\end{code-block}
+
+\begin{attention}
+Join，join\_all以及join系列的函数和join!这个宏，以及select函数和select!宏，都
+包含在futures-rs这个类库当中（tokio当中也有），但是，这些函数以及宏定义，是兼容
+目前所有的异步类库的。因此，可以在async-std以及tokio当中使用。
+\end{attention}
+
+需要注意的是，异步任务（包括async-std、futures以及tokio等）通常是并行运行，但是
+这个“并行”的基础是\colorblock{通过共享一个执行线程实现的}。这就意味着阻塞一个操作系统（std）
+线程的操作，比如std::thread::sleep将停止所有共享该线程的任务的执行，无法和
+async-std的并行模型很好的配合。因此，下列代码在执行过程当中，实际上是串行阻塞式
+的运行的：
 \begin{code-block}{rust}
 task::block_on(async {
     // this is std::fs, which blocks
@@ -1918,14 +1933,14 @@ async fn test_async_channel() {
 这些channel的使用方式和标准库当中的channel基本类似，唯一的区别可能就是他们是异步
 方式。
 
-\note{
+\begin{note}
 在async-std以及其他的异步执行器出来之前，使用最多的是future-rs。Future-rs提供了
 Rust异步编程的所有完整实现，包括贡献了async/await关键字。不过，由于其他的异步执行器
 发展比较快，生态比较完善，因此，相比较而言，future-rs使用并不是特别多。尤其是，
 针对执行器，迭代器以及channel等的实现上，async-std以及tokio等都非常灵活和完善，
 并且和future-rs的使用方式相兼容，因此，直接使用future-rs当作异步执行器并不是特别
 常见，而是使用future-rs的其他功能。
-}
+\end{note}
 
 \section{异步编程的实现方案-tokio}
 \section{异步编程的实现方案-mio}

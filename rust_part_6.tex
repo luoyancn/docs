@@ -563,7 +563,9 @@ pub struct GeekKindergarten<T, U> {
 Trait限定的。面对这类本身已经实现了Debug的泛型结构体，有一种应对办法，即在生成Trait限定时，
 不是针对每一个泛型参数去限制，而是对结构体中每一个字段的类型来添加限制，简而言之，
 限定条件应该修改为\codeinlinebg{rust}{Foo<U>: Debug, PhantomData<T>: Debug}。
-\important{但是这种方式的副作用非常大，因此，在实际的生产环境当中，几乎无人使用。}
+\begin{critical}
+但是这种方式的副作用非常大，因此，在实际的生产环境当中，几乎无人使用。
+\end{critical}
 
 由于\codeinlinebg{rust}{PhantomData}在Rust当中使用非常频繁，通常的做法是：判断是否
 包含\codeinlinebg{rust}{PhantomData}类型的字段，如果有，则查看被其包裹的泛型参数
@@ -578,14 +580,15 @@ struct GeekKindergarten<T, U, V, W> {
     bar: Baz<W>,
 }
 \end{code-block}
-\note{
+
+\begin{note}
 \begin{enumerate}
   \item 泛型参数\codeinlinebg{rust}{T}没有出现在\codeinlinebg{rust}{PhantomData}的类型当中，因此，需要添加Debug Trait限定
   \item 泛型参数\codeinlinebg{rust}{U}出现在了\codeinlinebg{rust}{PhantomData}当中，但是，由于其同时作为了结构体的其他字段，因此，仍然需要添加Debug限定
   \item \codeinlinebg{rust}{V}只出现在了\codeinlinebg{rust}{PhantomData}当中，无需添加Debug限定
   \item \codeinlinebg{rust}{W}虽然被其他的类型包裹，但是并没有出现在\codeinlinebg{rust}{PhantomData}，因此，同样需要增加Debug限定
 \end{enumerate}
-}
+\end{note}
 
 根据这些提示，需要首先针对\codeinlinebg{rust}{PhantomData}进行处理，即将其包裹的
 数据类型提取出来，在处理之前，首先看看包含了\codeinlinebg{rust}{PhantomData}的
@@ -785,9 +788,7 @@ impl Contains for Container {
 
 假设有下面的代码：
 \begin{code-block}{rust}
-pub trait Trait {
-    type Value;
-}
+pub trait Trait { type Value; }
 pub struct Geek<T:Trait> {
     blog: T::Value,
     ideawand: PhantomData<T::Value>,
@@ -834,8 +835,7 @@ fn get_generic_associated_types(st: &syn::DeriveInput) -> HashMap<String, Vec<sy
                 return Some(ty.ident.to_string());
             }
             return None;
-        })
-        .collect();
+        }).collect();
     // 构造visit模式的访问器
     let mut visitor = TypePathVisitor {
         generic_type_names: origin_generic_param_names,
@@ -848,9 +848,7 @@ fn get_generic_associated_types(st: &syn::DeriveInput) -> HashMap<String, Vec<sy
 \end{code-block}
 针对下列的代码：
 \begin{code-block}{rust}
-trait TraitA {
-    type Value;
-}
+trait TraitA { type Value; }
 #[derive(CustomDebug)]
 pub struct Custom<'a, T, U: TraitA> {
     name: &'a str,
@@ -877,15 +875,11 @@ fn get_generics(st: &syn::DeriveInput) -> syn::Result<syn::Generics> {
             let type_name = t.ident.to_string();
             if phantomdata_type_param_names.contains(&type_name)
                 && !field_type_name.contains(&type_name)
-            {
-                continue;
-            }
+            { continue; }
             // 针对关联数据类型，不对泛型参数`T`本身再添加约束了，除非`T`本身也被直接使用了
             if associated_types_map.contains_key(&type_name)
                 && !field_type_name.contains(&type_name)
-            {
-                continue;
-            }
+            { continue; }
             t.bounds.push(parse_quote!(std::fmt::Debug));
         }
     }
@@ -903,9 +897,7 @@ fn get_generics(st: &syn::DeriveInput) -> syn::Result<syn::Generics> {
 
 到此，针对如下的代码进行展开：
 \begin{code-block}{rust}
-trait TraitA {
-    type Value;
-}
+trait TraitA { type Value; }
 #[derive(CustomDebug)]
 pub struct Custom<'a, T, U: TraitA> {
     name: &'a str,

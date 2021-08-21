@@ -241,12 +241,12 @@
 % 另一种删除由于错误代码所引起的红色边框，影响范围较大，可用于minted，inputminted，mintedline等
 %\renewcommand{\fcolorbox}[4][]{#4}
 
-% 设置警示表格
-\newenvironment{warning}
-  {\par\begin{mdframed}[linewidth=2pt,linecolor=black]%
-    \begin{list}{}{\leftmargin=1cm
-                   \labelwidth=\leftmargin}\item[\color{red} \Large\ding{43}]}
-  {\end{list}\end{mdframed}\par}
+%% 设置警示表格
+%\newenvironment{warning}
+%  {\par\begin{mdframed}[linewidth=2pt,linecolor=black]%
+%    \begin{list}{}{\leftmargin=1cm
+%                   \labelwidth=\leftmargin}\item[\color{red} \Large\ding{43}]}
+%  {\end{list}\end{mdframed}\par}
 
 % 设置另外一种警示框模式
 \newenvironment{attention}
@@ -271,21 +271,89 @@
 \end{tikzpicture}
 \par\medskip}
 
+\newenvironment{note}
+{\par\parshape0 \linewidth\textwidth
+\par\medskip\noindent
+\begin{tikzpicture}
+  \node[inner sep = 0pt] (box) \bgroup
+  \begin{minipage}[t]{.99\textwidth}
+    \begin{minipage}{.3\textwidth}
+    \centering
+    \tikz[scale = 5]\node[scale = 3]{\bcplume};
+    \end{minipage}%
+    \begin{minipage}{.65\textwidth}
+    \surroundwithmdframed{}}
+    {\end{minipage}\hfill
+  \end{minipage}
+  \egroup;
+  \draw[black,line width=3pt]
+    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
+  \draw[black,line width=3pt]
+    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
+\end{tikzpicture}
+\par\medskip}
+
+\newenvironment{warn}
+{\par\parshape0 \linewidth\textwidth
+\par\medskip\noindent
+\begin{tikzpicture}
+  \node[inner sep = 0pt] (box) \bgroup
+  \begin{minipage}[t]{.99\textwidth}
+    \begin{minipage}{.3\textwidth}
+    \centering
+    \tikz[scale = 5]\node[scale = 3, rotate = -14]{\bcattention};
+    \end{minipage}%
+    \begin{minipage}{.65\textwidth}
+    \surroundwithmdframed{}}
+    {\end{minipage}\hfill
+  \end{minipage}
+  \egroup;
+  \draw[orange,line width=3pt]
+    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
+  \draw[orange,line width=3pt]
+    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
+\end{tikzpicture}
+\par\medskip}
+
+\newenvironment{critical}
+{\par\parshape0 \linewidth\textwidth
+\par\medskip\noindent
+\begin{tikzpicture}
+  \node[inner sep = 0pt] (box) \bgroup
+  \begin{minipage}[t]{.99\textwidth}
+    \begin{minipage}{.3\textwidth}
+    \centering
+    \tikz[scale = 5]\node[scale = 3]{\bcstop};
+    \end{minipage}%
+    \begin{minipage}{.65\textwidth}
+    \surroundwithmdframed{}}
+    {\end{minipage}\hfill
+  \end{minipage}
+  \egroup;
+  \draw[red,line width=3pt]
+    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
+  \draw[red,line width=3pt]
+    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
+\end{tikzpicture}
+\par\medskip}
+
 % 设置着色提示框
-\tcbset{textmarker/.style={%
-        enhanced,
-        parbox=false,boxrule=0mm,boxsep=0mm,arc=0mm,
-        outer arc=0mm,left=3mm,right=3mm,top=7pt,bottom=7pt,
-        toptitle=1mm,bottomtitle=1mm}}
-\newtcolorbox{hintBox}{textmarker,borderline west={6pt}{0pt}{yellow},colback=yellow!10!white}
-\newtcolorbox{importantBox}{textmarker,borderline west={6pt}{0pt}{red},colback=red!10!white}
-\newtcolorbox{noteBox}{textmarker,borderline west={6pt}{0pt}{green},colback=green!10!white}
-% 普通的着色提示框
-\newcommand{\note}[1]{\begin{noteBox} \textbf{Note:} #1 \end{noteBox}}
-% 普通的着色警示框
-\newcommand{\warn}[1]{\begin{hintBox} \textbf{Warning:} #1 \end{hintBox}}
-% 普通的着色严重框
-\newcommand{\important}[1]{\begin{importantBox} \textbf{Important:} #1 \end{importantBox}}
+%\begin{comment}
+%\tcbset{textmarker/.style={%
+%        enhanced,
+%        parbox=false,boxrule=0mm,boxsep=0mm,arc=0mm,
+%        outer arc=0mm,left=3mm,right=3mm,top=7pt,bottom=7pt,
+%        toptitle=1mm,bottomtitle=1mm}}
+%\newtcolorbox{hintBox}{textmarker,borderline west={6pt}{0pt}{yellow},colback=yellow!10!white}
+%\newtcolorbox{importantBox}{textmarker,borderline west={6pt}{0pt}{red},colback=red!10!white}
+%\newtcolorbox{noteBox}{textmarker,borderline west={6pt}{0pt}{green},colback=green!10!white}
+%% 普通的着色提示框
+%\newcommand{\note}[1]{\begin{noteBox} \textbf{Note:} #1 \end{noteBox}}
+%% 普通的着色警示框
+%\newcommand{\warn}[1]{\begin{hintBox} \textbf{Warning:} #1 \end{hintBox}}
+%% 普通的着色严重框
+%\newcommand{\important}[1]{\begin{importantBox} \textbf{Important:} #1 \end{importantBox}}
+%\end{comment}
 
 % 设置目录层级，默认只到subsection，设置4可以到subsubsection
 \setcounter{tocdepth}{4}
