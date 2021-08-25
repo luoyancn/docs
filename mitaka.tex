@@ -5,12 +5,12 @@
 \begin{outline}[enumerate]
 
 \1 关闭selinux
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 修改操作系统连接数
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cat>>/etc/security/limits.conf<<EOF
 *               soft    nproc           65535
 *               hard    nproc           65535
@@ -24,10 +24,10 @@ cat>>/etc/security/limits.d/20-nproc.conf<<EOF
 *          soft    nproc     65535
 root       soft    nproc     unlimited
 EOF
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 修改内核参数
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 网络节点
 cat /etc/sysctl.conf
 net.ipv4.ip_forward=1
@@ -40,10 +40,10 @@ net.ipv4.conf.all.rp_filter=0
 net.ipv4.conf.default.rp_filter=0
 net.bridge.bridge-nf-call-iptables=1
 net.bridge.bridge-nf-call-ip6tables=1
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 修改网卡配置
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 yum erase NetworkManager* firewalld -y
 systemctl enable network
 yum install openvswitch
@@ -115,7 +115,7 @@ NETMASK=255.255.255.0
 EOF
 
 reboot
-\end{code-in-enumerate}
+\end{code-block}
 
 \end{outline}
 
@@ -124,13 +124,13 @@ reboot
 \begin{outline}[enumerate]
 
 \1 安装ceph软件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 yum install https://download.ceph.com/rpm-jewel/el7/noarch/ceph-release-1-1.el7.noarch.rpm -y
 yum install ceph -y
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 controller初始配置
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cat >/etc/ceph/ceph.conf<<EOF
 [global]
 fsid = a7f64266-0894-4f1e-a635-d0aeaca0e993
@@ -186,10 +186,10 @@ monmaptool --create --add controller 10.2.2.4 --add compute1 10.2.2.5 --add comp
     --fsid a7f64266-0894-4f1e-a635-d0aeaca0e993 /etc/ceph/monmap
 scp -r /etc/ceph/* root@compute1:/etc/ceph
 scp -r /etc/ceph/* root@compute2:/etc/ceph
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 ceph初始化
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 export HOSTNAME=`hostname`
 ceph-mon --mkfs -i $HOSTNAME --monmap /etc/ceph/monmap --keyring /etc/ceph/ceph.mon.keyring
 touch /var/lib/ceph/mon/ceph-$HOSTNAME/done
@@ -208,10 +208,10 @@ ceph-disk activate /dev/vdb1
 # compute2
 ceph-disk prepare /dev/vdb
 ceph-disk activate /dev/vdb1
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 ceph配置openstack资源池
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 ceph osd pool create images 3 3
 ceph osd pool create volumes 3 3
 
@@ -231,7 +231,7 @@ scp /etc/ceph/ceph.client.glance.keyring root@compute1:/etc/ceph
 
 scp /etc/ceph/ceph.client.awcloud.keyring root@compute2:/etc/ceph
 scp /etc/ceph/ceph.client.glance.keyring root@compute2:/etc/ceph
-\end{code-in-enumerate}
+\end{code-block}
 
 \end{outline}
 
@@ -423,7 +423,7 @@ cinder create 1 --image-id $image_id
 \begin{outline}[enumerate]
 
 \1 通用安装-所有节点
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 yum install openstack-neutron python-neutron openstack-neutron-ml2 \
     openstack-neutron-openvswitch ebtables net-tools openstack-utils  -y
 # 修改neutron.conf配置项
@@ -502,10 +502,10 @@ openstack-config --set /etc/neutron/dhcp_agent.ini DEFAULT dnsmasq_config_file /
 
 # 创建文件链接
 ln -s /etc/neutron/plugins/ml2/ml2_conf.ini /etc/neutron/plugin.ini
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 网络节点-即controller的安装配置
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 设置数据库
 mysql
 CREATE DATABASE neutron;
@@ -537,10 +537,10 @@ chown -R neutron:neutron /etc/neutron /var/lib/neutron /var/log/neutron
 #启动服务
 for id in neutron-{server,openvswitch-agent,dhcp-agent,metadata-agent,l3-agent};\
     do systemctl enable $id;systemctl start $id;done
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 计算节点的配置
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 修改l3_agent.ini
 openstack-config --set /etc/neutron/l3_agent.ini DEFAULT agent_mode dvr
 
@@ -550,7 +550,7 @@ chown -R neutron:neutron /etc/neutron /var/lib/neutron /var/log/neutron
 # 启动服务
 for id in neutron-{openvswitch,metadata,l3}-agent;do systemctl enable $id;\
     systemctl start $id;done
-\end{code-in-enumerate}
+\end{code-block}
 
 \end{outline}
 
@@ -558,7 +558,7 @@ for id in neutron-{openvswitch,metadata,l3}-agent;do systemctl enable $id;\
 \begin{outline}[enumerate]
 
 \1 通用安装-所有节点
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 yum install openstack-nova python-nova openstack-utils -y
 export my_ip=`ifconfig br-ex | grep inet -w | awk '{print $2}'`
 export my_block_storage_ip=`ifconfig eth1 | grep inet -w | awk '{print $2}'`
@@ -637,10 +637,10 @@ openstack-config --set /etc/nova/nova.conf cache expiration_time 600
 # 如果是在虚拟机环境当中，则还需添加如下的设置
 openstack-config --set /etc/nova/nova.conf libvirt virt_type qemu
 openstack-config --set /etc/nova/nova.conf libvirt cpu_mode none
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 controller节点安装配置
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 export my_ip=`ifconfig br-ex | grep inet -w | awk '{print $2}'`
 openstack-config --set /etc/nova/nova.conf vnc novncproxy_base_url http://$my_ip:6080/vnc_auto.html
 
@@ -680,10 +680,10 @@ chown -R nova:nova /etc/nova /var/lib/nova /var/log/nova
 # 设置开机自启动并启动服务
 for id in openstack-nova-{conductor,api,scheduler,consoleauth,novncproxy};\
     do systemctl enable $id;systemctl start $id;done
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 计算节点安装配置
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 openstack-config --set /etc/nova/nova.conf vnc novncproxy_base_url \
     http://<controller的br-ex上的ip地址>:6080/vnc_auto.html
 systemctl enable libvirtd
@@ -705,6 +705,6 @@ virsh secret-set-value --secret $secret_id --base64 $(cat client.awcloud.key)
 chown -R nova:nova /etc/nova /var/lib/nova /var/log/nova
 for id in openstack-nova-{conductor,scheduler,compute};do systemctl enable $id;\
     systemctl start $id;done
-\end{code-in-enumerate}
+\end{code-block}
 
 \end{outline}

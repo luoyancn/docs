@@ -649,7 +649,8 @@ macro_rules! inc {
 \begin{code-block}{rust}
 #[macro_export]
 macro_rules! hashmap {
-    /* hashmap宏的内部规则，相当于如下的一个外部宏，不管接收多少参数，一律返回
+    /*
+     hashmap宏的内部规则，相当于如下的一个外部宏，不管接收多少参数，一律返回
        一个空元组()
        macro_rules! unit {
        ($($input:tt),*) => { () };
@@ -657,31 +658,44 @@ macro_rules! hashmap {
        使用方式
        let res = unit!(), unit!("lucifer"), unit!("garuda", "titans")
     */
+
     (@unit $($x:tt)*) => (());
-    /* hashmap宏的内部规则, 等价于如下的一个宏，作用是返回接收到的元素的个数
+
+    /*
+     hashmap宏的内部规则, 等价于如下的一个宏，作用是返回接收到的元素的个数
        macro_rules! count {
            // <[()]>::len()可以用于求取数组/切片的长度，使用方式如下：
            // let lenth = <[&str]>::len(&["string", "string"])
-           // let lenth = <[String]>::len(&["string".to_string(), "string".to_string()])
-           // let lenth = <[()]>::len(&[(), ()]) // 性能更好，因为()不占据任何内存空间
+           // let lenth = <[String]>::len(&["string".to_string(),
+           //       "string".to_string()])
+           // 性能更好，因为()不占据任何内存空间
+           // let lenth = <[()]>::len(&[(), ()])
            ($($key:expr),*) => (<[()]>::len(&[$(unit! ($key)),*]));
        }
        使用方式
        let res = count!(), count!("lucifer"), count!("lucifer", "titans")
        @符号表示一个宏定义当中的内部规则，如果需要在宏当中使用宏的内部规则，
        则使用方式是 宏名!(@内部规则名 其他变量)，对应到这个hashmap宏，则使用方式
-       如下： hashmap!(@unit $key), hashmap!(@count $($rest),*)
+       如下：
+       hashmap!(@unit $key), hashmap!(@count $($rest),*)
     */
+
     (@count $($rest:expr), *) => (<[()]>::len(&[$(hashmap!(@unit $rest)),*]));
-    /* $($key:expr => $value:expr),* 表达式本身可以匹配hashmap!()，hashmap!("1"=>2)
+
+    /*
+     $($key:expr => $value:expr),* 表达式
+     本身可以匹配hashmap!()，hashmap!("1"=>2)
      但是，无法匹配类似hashmap!["2"=>3,]这种末尾包含,符号的模式
      $(,)* 则是用于匹配后续结尾是否带有,符号
      即hashmap!["2"=>3,]和hashmap!["2"=>3]都可以支持
     */
     ($($key:expr => $value:expr),* $(,)*) => {{
+
         let _cap = hashmap!(@count $($key),*);
         let mut _map = ::std::collections::HashMap::with_capacity(_cap);
+
         $( _map.insert($key, $value); )*
+
         _map
     }}
 }
@@ -703,22 +717,27 @@ macro_rules! crit( ($($args:tt)+) => {
     $crate::slog_scope_crit![$($args)+];
     std::process::exit(-1);
 };);
+
 #[macro_export]
 macro_rules! error( ($($args:tt)+) => {
     $crate::slog_scope_error![$($args)+]
 };);
+
 #[macro_export]
 macro_rules! warn( ($($args:tt)+) => {
     $crate::slog_scope_warn![$($args)+]
 };);
+
 #[macro_export]
 macro_rules! info( ($($args:tt)+) => {
     $crate::slog_scope_info![$($args)+]
 };);
+
 #[macro_export]
 macro_rules! debug( ($($args:tt)+) => {
     $crate::slog_scope_debug![$($args)+]
 };);
+
 #[macro_export]
 macro_rules! trace( ($($args:tt)+) => {
     $crate::slog_scope_trace![$($args)+]
@@ -759,9 +778,14 @@ pub fn test_proc_macro(attr: TokenStream, item: TokenStream) -> TokenStream {
 调用的时候，需要在其他的crate当中引入这个crate：
 \begin{code-block}{rust}
 use procmacros::test_proc_macro;
-fn main() { }
+
+fn main() {
+}
+
 #[test_proc_macro("lucifer")]
-fn hello() { info!("hello"); }
+fn hello() {
+    info!("hello");
+}
 \end{code-block}
 
 默认情况下，代码需要经过编译，才能判断是否存在问题，不过，rust提供了1种简便的思路
@@ -824,14 +848,17 @@ use proc_macro::TokenStream;
 use proc_macro2;
 use quote::quote;
 use syn::{self, parse_macro_input, spanned::Spanned, AttributeArgs, Item};
+
 // 标记该过程宏为属性模式
 #[proc_macro_attribute]
 pub fn test_proc_macro_ast(attr: TokenStream, item: TokenStream) -> TokenStream {
     // 将属性转换成语法数进行输出，即#[test_proc_macro(!&)@)(*&$9)]这部分代码
     eprintln!("{:#?}", parse_macro_input!(attr as AttributeArgs));
+
     // 将真正的代码转换成语法树输出，即被#[...]所修饰的代码
     let body_ast = parse_macro_input!(item as Item);
     eprintln!("{:#?}", body_ast);
+
     // 将语法树转换成TokenStream返回给编译器
     // quote返回的并不是TokenStream，而是proc_macro2::TokenStream类型，必须转换
     // #body_ast并不是Rust的合法语法，而是quote的自定义语法格式

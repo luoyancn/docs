@@ -19,7 +19,7 @@
 %\usepackage{tabularx}
 \usepackage{ltablex}
 \usepackage[tikz]{bclogo,rotating}
-\usepackage{mdframed}
+%\usepackage{mdframed}
 \usepackage{tikz}
 \usepackage{pgf}
 \usepackage{enumerate}
@@ -50,7 +50,7 @@
 \MakePerPage{footnote}
 \counterwithout*{footnote}{chapter}
 
-\tcbuselibrary{skins}
+\tcbuselibrary{skins,fitting,minted}
 \usetikzlibrary{matrix,fit,chains,calc,scopes,arrows,
                 decorations.pathmorphing,backgrounds,
                 positioning,petri,automata}
@@ -58,7 +58,7 @@
 \definecolor{yellow1}{rgb}{1,0.8,0.2}
 \DeclareGraphicsRule{.mps}{eps}{.mps}{}
 \definecolor{lbcolor}{rgb}{0.9,0.9,0.9}
-\usemintedstyle{tango}
+% \usemintedstyle{tango}
 % 设置minted字体
 \setmonofont{CodeNewRoman Nerd Font Mono}
 \hypersetup{%
@@ -209,37 +209,28 @@
 % 设置代码段格式。只使用minted，会出现代码过长无法显示，也会出现代码无法分页的情况
 % 配合mdframed则不会出现这些问题
 % breaklines表示自动换行
-\newenvironment{code-block}[1]
- {\VerbatimEnvironment
-  \begin{mdframed}[topline=false, bottomline=false, leftline=false,
-                   rightline=false, backgroundcolor=lbcolor,
-                   userdefinedwidth=\textwidth]
-  \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
- {\end{minted}\end{mdframed}}
+%\newenvironment{code-block}[1]
+% {\VerbatimEnvironment
+%  \begin{mdframed}[topline=false, bottomline=false, leftline=false,
+%                   rightline=false, backgroundcolor=lbcolor,
+%                   userdefinedwidth=\textwidth]
+%  \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
+% {\end{minted}\end{mdframed}}
 
-\newenvironment{code-in-enumerate}[1]
- {\VerbatimEnvironment
-  %\parshape0 \linewidth\textwidth
-  \begin{mdframed}[topline=false, bottomline=false, leftline=false,
-                   rightline=false, backgroundcolor=lbcolor,
-                   %userdefinedwidth=\textwidth
-                  ]
-  \begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
- {\end{minted}\end{mdframed}
-%\par
-}
-%\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
+% 删除minted代码块当中错误代码所引起的红色边框
+%\AtBeginEnvironment{minted}{\dontdofcolorbox}
+%\def\dontdofcolorbox{\renewcommand\fcolorbox[4][]{##4}}
+% 另一种删除由于错误代码所引起的红色边框，影响范围较大，可用于minted，inputminted，mintedline等
+\renewcommand{\fcolorbox}[4][]{#4}
+
+\newtcblisting{code-block}[1]
+{colback=gray!20!white,colframe=gray!35!white,listing only,breakable,listing engine=minted,
+ minted language={#1},minted options={fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,}}
 
 % 设置单行代码样式，当页面宽度不够时，bgcolor参数将影响换行操作
 \newcommand{\codeinlinebg}[1]{\mintinline[bgcolor=lbcolor,]{#1}}
 % 无bgcolor，将不影响单行代码的换行操作
 \newcommand{\codeinline}[1]{\mintinline[breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{#1}}
-
-% 删除minted代码块当中错误代码所引起的红色边框
-\AtBeginEnvironment{minted}{\dontdofcolorbox}
-\def\dontdofcolorbox{\renewcommand\fcolorbox[4][]{##4}}
-% 另一种删除由于错误代码所引起的红色边框，影响范围较大，可用于minted，inputminted，mintedline等
-%\renewcommand{\fcolorbox}[4][]{#4}
 
 %% 设置警示表格
 %\newenvironment{warning}
@@ -249,93 +240,169 @@
 %  {\end{list}\end{mdframed}\par}
 
 % 设置另外一种警示框模式
-\newenvironment{attention}
-{\par\parshape0 \linewidth\textwidth
-\par\medskip\noindent
-\begin{tikzpicture}
-  \node[inner sep = 0pt] (box) \bgroup
-  \begin{minipage}[t]{.99\textwidth}
-    \begin{minipage}{.3\textwidth}
-    \centering
-    \tikz[scale = 5]\node[scale = 3, rotate = 30]{\bclampe};
-    \end{minipage}%
-    \begin{minipage}{.65\textwidth}
-    \surroundwithmdframed{}}
-    {\end{minipage}\hfill
-  \end{minipage}
-  \egroup;
-  \draw[black,line width=3pt]
-    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
-  \draw[black,line width=3pt]
-    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
-\end{tikzpicture}
-\par\medskip}
+%\newenvironment{attention}
+%{\par\parshape0 \linewidth\textwidth
+%\par\medskip\noindent
+%\begin{tikzpicture}
+%  \node[inner sep = 0pt] (box) \bgroup
+%  \begin{minipage}[t]{.99\textwidth}
+%    \begin{minipage}{.3\textwidth}
+%    \centering
+%    \tikz[scale = 5]\node[scale = 3, rotate = 30]{\bclampe};
+%    \end{minipage}%
+%    \begin{minipage}{.65\textwidth}
+%    \surroundwithmdframed{}}
+%    {\end{minipage}\hfill
+%  \end{minipage}
+%  \egroup;
+%  \draw[black,line width=3pt]
+%    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
+%  \draw[black,line width=3pt]
+%    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
+%\end{tikzpicture}
+%\par\medskip}
+
+%\newenvironment{note}
+%{\par\parshape0 \linewidth\textwidth
+%\par\medskip\noindent
+%\begin{tikzpicture}
+%  \node[inner sep = 0pt] (box) \bgroup
+%  \begin{minipage}[t]{.99\textwidth}
+%    \begin{minipage}{.3\textwidth}
+%    \centering
+%    \tikz[scale = 5]\node[scale = 3]{\bcplume};
+%    \end{minipage}%
+%    \begin{minipage}{.65\textwidth}
+%    \surroundwithmdframed{}}
+%    {\end{minipage}\hfill
+%  \end{minipage}
+%  \egroup;
+%  \draw[black,line width=3pt]
+%    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
+%  \draw[black,line width=3pt]
+%    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
+%\end{tikzpicture}
+%\par\medskip}
+
+%\newenvironment{warn}
+%{\par\parshape0 \linewidth\textwidth
+%\par\medskip\noindent
+%\begin{tikzpicture}
+%  \node[inner sep = 0pt] (box) \bgroup
+%  \begin{minipage}[t]{.99\textwidth}
+%    \begin{minipage}{.3\textwidth}
+%    \centering
+%    \tikz[scale = 5]\node[scale = 3, rotate = -14]{\bcattention};
+%    \end{minipage}%
+%    \begin{minipage}{.65\textwidth}
+%    \surroundwithmdframed{}}
+%    {\end{minipage}\hfill
+%  \end{minipage}
+%  \egroup;
+%  \draw[orange,line width=3pt]
+%    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
+%  \draw[orange,line width=3pt]
+%    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
+%\end{tikzpicture}
+%\par\medskip}
+%
+%\newenvironment{critical}
+%{\par\parshape0 \linewidth\textwidth
+%\par\medskip\noindent
+%\begin{tikzpicture}
+%  \node[inner sep = 0pt] (box) \bgroup
+%  \begin{minipage}[t]{.99\textwidth}
+%    \begin{minipage}{.3\textwidth}
+%    \centering
+%    \tikz[scale = 5]\node[scale = 3]{\bcstop};
+%    \end{minipage}%
+%    \begin{minipage}{.65\textwidth}
+%    \surroundwithmdframed{}}
+%    {\end{minipage}\hfill
+%  \end{minipage}
+%  \egroup;
+%  \draw[red,line width=3pt]
+%    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
+%  \draw[red,line width=3pt]
+%    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
+%\end{tikzpicture}
+%\par\medskip}
+
+%\newenvironment{_inner_note_}
+%{\begin{wrapfigure}{l}{0.25\textwidth}
+%\begin{tikzpicture}
+%\centering
+%\node[scale = 3]{\bcplume};
+%\end{tikzpicture}
+%\end{wrapfigure}
+%\noindent\surroundwithmdframed{}}
+%
+%\newenvironment{note}
+%  {\begin{tcolorbox}[colframe=blue!10!green,colback=green!10!white]\par\parshape0 \linewidth\textwidth \par\medskip\noindent\begin{_inner_note_}}
+%  {\end{_inner_note_}\end{tcolorbox}\par\medskip}
+%
+%\newenvironment{_inner_attention_}
+%{\begin{wrapfigure}{l}{0.25\textwidth}
+%\begin{tikzpicture}
+%\centering
+%\node[scale = 3]{\bclampe};
+%\end{tikzpicture}
+%\end{wrapfigure}
+%\noindent\surroundwithmdframed{}}
+%
+%\newenvironment{attention}
+%  {\begin{tcolorbox}[colframe=blue!10!green,colback=green!10!white]\par\parshape0 \linewidth\textwidth \par\medskip\noindent\begin{_inner_attention_}}
+%  {\end{_inner_attention_}\end{tcolorbox}\par\medskip}
+%
+%\newenvironment{_inner_warning_}
+%{\begin{wrapfigure}{l}{0.25\textwidth}
+%\begin{tikzpicture}
+%\centering
+%\node[scale = 3]{\bcattention};
+%\end{tikzpicture}
+%\end{wrapfigure}
+%\noindent\surroundwithmdframed{}}
+%
+%\newenvironment{warn}
+%  {\begin{tcolorbox}[colframe=blue!10!green,colback=green!10!white]\par\parshape0 \linewidth\textwidth \par\medskip\noindent\begin{_inner_warning_}}
+%  {\end{_inner_warning_}\end{tcolorbox}\par\medskip}
+%
+%\newenvironment{_inner_critical_}
+%{\begin{wrapfigure}{l}{0.25\textwidth}
+%\begin{tikzpicture}
+%\centering
+%\node[scale = 3]{\bcstop};
+%\end{tikzpicture}
+%\end{wrapfigure}
+%\noindent\surroundwithmdframed{}}
+%
+%\newenvironment{critical}
+%  {\begin{tcolorbox}[colframe=blue!10!green,colback=green!10!white]\par\parshape0 \linewidth\textwidth \par\medskip\noindent\begin{_inner_critical_}}
+%  {\end{_inner_critical_}\end{tcolorbox}\par\medskip}
 
 \newenvironment{note}
-{\par\parshape0 \linewidth\textwidth
-\par\medskip\noindent
-\begin{tikzpicture}
-  \node[inner sep = 0pt] (box) \bgroup
-  \begin{minipage}[t]{.99\textwidth}
-    \begin{minipage}{.3\textwidth}
-    \centering
-    \tikz[scale = 5]\node[scale = 3]{\bcplume};
-    \end{minipage}%
-    \begin{minipage}{.65\textwidth}
-    \surroundwithmdframed{}}
-    {\end{minipage}\hfill
-  \end{minipage}
-  \egroup;
-  \draw[black,line width=3pt]
-    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
-  \draw[black,line width=3pt]
-    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
-\end{tikzpicture}
-\par\medskip}
+ {\begin{tcolorbox}[beamer,colframe=black!40!green,colback=green!20!white,lower separated=false,sidebyside gap=5mm, sidebyside,lefthand width=1.5cm,segmentation engine=empty]
+   {\tikz[scale = 2]\node[scale = 2]{\bcplume};}
+   \tcblower}
+ {\end{tcolorbox}}
+
+\newenvironment{attention}
+ {\begin{tcolorbox}[beamer,colframe=black!40!green,colback=green!20!white,lower separated=false,sidebyside gap=5mm, sidebyside,lefthand width=1.5cm,segmentation engine=empty]
+   {\tikz[scale = 2]\node[scale = 2]{\bclampe};}
+   \tcblower}
+ {\end{tcolorbox}}
 
 \newenvironment{warn}
-{\par\parshape0 \linewidth\textwidth
-\par\medskip\noindent
-\begin{tikzpicture}
-  \node[inner sep = 0pt] (box) \bgroup
-  \begin{minipage}[t]{.99\textwidth}
-    \begin{minipage}{.3\textwidth}
-    \centering
-    \tikz[scale = 5]\node[scale = 3, rotate = -14]{\bcattention};
-    \end{minipage}%
-    \begin{minipage}{.65\textwidth}
-    \surroundwithmdframed{}}
-    {\end{minipage}\hfill
-  \end{minipage}
-  \egroup;
-  \draw[orange,line width=3pt]
-    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
-  \draw[orange,line width=3pt]
-    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
-\end{tikzpicture}
-\par\medskip}
+ {\begin{tcolorbox}[beamer,colframe=orange!50!black,colback=orange!40!white,lower separated=false,sidebyside gap=5mm, sidebyside,lefthand width=1.5cm,segmentation engine=empty]
+   {\tikz[scale = 2]\node[scale = 2]{\bcattention};}
+   \tcblower}
+ {\end{tcolorbox}}
 
 \newenvironment{critical}
-{\par\parshape0 \linewidth\textwidth
-\par\medskip\noindent
-\begin{tikzpicture}
-  \node[inner sep = 0pt] (box) \bgroup
-  \begin{minipage}[t]{.99\textwidth}
-    \begin{minipage}{.3\textwidth}
-    \centering
-    \tikz[scale = 5]\node[scale = 3]{\bcstop};
-    \end{minipage}%
-    \begin{minipage}{.65\textwidth}
-    \surroundwithmdframed{}}
-    {\end{minipage}\hfill
-  \end{minipage}
-  \egroup;
-  \draw[red,line width=3pt]
-    ( $ (box.north east) + (-5pt,3pt) $ ) -- ( $ (box.north east) + (0,3pt) $ ) -- ( $ (box.south east) + (0,-3pt) $ ) -- + (-5pt,0);
-  \draw[red,line width=3pt]
-    ( $ (box.north west) + (5pt,3pt) $ ) -- ( $ (box.north west) + (0,3pt) $ ) -- ( $ (box.south west) + (0,-3pt) $ ) -- + (5pt,0);
-\end{tikzpicture}
-\par\medskip}
+ {\begin{tcolorbox}[beamer,colframe=red!40!green,colback=red!20!white,lower separated=false,sidebyside gap=5mm, sidebyside,lefthand width=1.5cm,segmentation engine=empty]
+   {\tikz[scale = 2]\node[scale = 2]{\bcstop};}
+   \tcblower}
+ {\end{tcolorbox}}
 
 % 设置着色提示框
 %\begin{comment}

@@ -865,7 +865,7 @@ String；同样的，由于Future Trait的定义当中包含了poll函数，因�
 \1 Start分支
 
 Rust编译器生成的Start分支的代码可能如下：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 ExampleStateMachine::Start(state) => {
     // from body of `example`
     let foo_txt_future = async_read_file("foo.txt");
@@ -876,7 +876,7 @@ ExampleStateMachine::Start(state) => {
     };
     *self = ExampleStateMachine::WaitingOnFooTxt(state);
 }
-\end{code-in-enumerate}
+\end{code-block}
 在example函数开始的时候，状态机实际上处于Start状态，在这种状态下，会执行example函数
 体当中的代码，直到遇到第一个await关键字，即执行\codeinlinebg{rust}{async_read_file("foo.txt")}
 这句，而为了处理该函数后面的await操作，编译器需要将状态机的状态修改为WaitingOnFooTxtState。
@@ -885,7 +885,7 @@ ExampleStateMachine::Start(state) => {
 \1 WaitingOnFooTxtState分支
 
 同样的，该分支的代码（编译器自动生成）的可能如下：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 ExampleStateMachine::WaitingOnFooTxt(state) => {
     match state.foo_txt_future.poll(cx) {
         Poll::Pending => return Poll::Pending,
@@ -903,7 +903,7 @@ ExampleStateMachine::WaitingOnFooTxt(state) => {
         }
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 注意，从该分支开始，poll函数被第一次调用，这是因为我们要获得foo\_txt\_future这个
 future的真实结果，如果该结果没有准备好，则退出循环，返回pending状态；由于本次
 循环当中，状态机实例（self）还是处于WaitingOnFooTxt状态，因此，下一次的轮询调用
@@ -916,11 +916,11 @@ WaitingOnBarTxt这个分支。该分支的执行情况与本分支的类似。
 \1 End分支
 
 End分支应该是最为简单的分支，编译器生成的代码可能如下：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 ExampleStateMachine::End(_) => {
     panic!("poll called after Poll::Ready was returned");
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 实际上，一旦状态机变成了End状态，或者返回了Ready状态，就不能也不应该再次进行轮询，
 而是直接退出循环和轮询，因此，如果是在End状态再次调用了poll函数，应当直接进行panic
@@ -1043,12 +1043,15 @@ struct WaitingOnWriteState {
 \begin{code-block}{rust}
 fn main() {
     let mut heap_value = Box::new(SelfReferential {
-        self_ptr: 0 as *const _, // 使用0x00当作初始的地址
+        // 使用0x00当作初始的地址
+        self_ptr: 0 as *const _,
     });
+
     // *heap_value表示从Box指针当中取出真正的元素
     // &*heap_value表示对Box当中的真正元素进行引用（取地址）操作
     // as *const 表示将其转换成对应类型的指针
     let ptr = &*heap_value as *const SelfReferential;
+
     // 将自身的地址赋给自己的字段
     heap_value.self_ptr = ptr;
     println!("heap value at: {:p}", heap_value);
@@ -1075,16 +1078,21 @@ struct SelfReferential {
 或者直接替换：
 \begin{code-block}{rust}
 use std::mem;
+
 fn main() {
-    let mut heap_value = Box::new(SelfReferential { self_ptr: 0 as *const _, });
+    let mut heap_value = Box::new(SelfReferential {
+        self_ptr: 0 as *const _,
+    });
     let ptr = &*heap_value as *const SelfReferential;
     heap_value.self_ptr = ptr;
     println!("heap value at: {:p}", heap_value);
     println!("internal reference: {:p}", heap_value.self_ptr);
+
     // break it
     let stack_value = mem::replace(&mut *heap_value, SelfReferential {
         self_ptr: 0 as *const _,
     });
+
     println!("value at: {:p}", &stack_value);
     println!("internal reference: {:p}", stack_value.self_ptr);
     let hp = *heap_value;
@@ -1147,9 +1155,11 @@ let mut heap_value = Box::pin(SelfReferential {
 \begin{code-block}{rust}
 use std::mem;
 use std::marker::PhantomPinned;
+
 fn main() {
     let mut heap_value = Box::pin(SelfReferential {
-        self_ptr: 0 as *const _, _pin: PhantomPinned,
+        self_ptr: 0 as *const _,
+        _pin: PhantomPinned,
     });
     let ptr = &*heap_value as *const SelfReferential;
     heap_value.self_ptr = ptr;
@@ -1157,7 +1167,8 @@ fn main() {
     println!("internal reference: {:p}", heap_value.self_ptr);
     // break it
     let stack_value = mem::replace(&mut *heap_value, SelfReferential {
-        self_ptr: 0 as *const _, _pin: PhantomPinned,
+        self_ptr: 0 as *const _,
+        _pin: PhantomPinned,
     });
     println!("value at: {:p}", &stack_value);
     println!("internal reference: {:p}", stack_value.self_ptr);
@@ -1463,22 +1474,16 @@ pub struct Task {
 }
 impl Task {
     pub fn new(future: impl Future<Output = ()> + 'static) -> Task {
-        Task {
-            future: Box::pin(future),
-        }
+        Task { future: Box::pin(future), }
     }
     fn poll(&mut self, context: &mut Context) -> Poll<()> {
         self.future.as_mut().poll(context)
     }
 }
-pub struct SimpleExecutor {
-    task_queue: VecDeque<Task>,
-}
+pub struct SimpleExecutor { task_queue: VecDeque<Task>, }
 impl SimpleExecutor {
     pub fn new() -> SimpleExecutor {
-        SimpleExecutor {
-            task_queue: VecDeque::new(),
-        }
+        SimpleExecutor { task_queue: VecDeque::new(), }
     }
     pub fn spawn(&mut self, task: Task) {
         self.task_queue.push_back(task)
@@ -1499,15 +1504,11 @@ fn dummy_waker() -> Waker {
 }
 fn dummy_raw_waker() -> RawWaker {
     fn no_op(_: *const ()) {}
-    fn clone(_: *const ()) -> RawWaker {
-        dummy_raw_waker()
-    }
+    fn clone(_: *const ()) -> RawWaker { dummy_raw_waker() }
     let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
     RawWaker::new(0 as *const (), vtable)
 }
-async fn async_number() -> u32 {
-    42
-}
+async fn async_number() -> u32 { 42 }
 async fn example_task() {
     let number = async_number().await;
     println!("async number: {}", number);

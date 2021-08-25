@@ -92,10 +92,10 @@ vi /usr/lib/python2.7/site-packages/sphinx/writers/latex.py +192
 \begin{code-block}{bash}
 vi /usr/share/texlive/texmf-dist/web2c/texmf.cnf
 OSFONTDIR = /usr/share/fonts
-vi /usr/share/texmf-dist/tex/latex/ctex/fontset/ctex-xecjk-winfonts.def
-:%s/\[SIMKAI.TTF\]/KaiTi/g
-:%s/\[SIMFANG.TTF\]/FangSong/g
 \end{code-block}
+%vi /usr/share/texmf-dist/tex/latex/ctex/fontset/ctex-xecjk-winfonts.def
+%:%s/\[SIMKAI.TTF\]/KaiTi/g
+%:%s/\[SIMFANG.TTF\]/FangSong/g
 
 有的时候，需要使用代码高亮，而常用的代码高亮包则是minted。查看minted支持的
 代码种类，则可以使用下列的代码进行：
@@ -408,100 +408,100 @@ cat /sys/module/kvm_intel/parameters/nested
 \section{常用命令}
 \begin{outline}[enumerate]
 \1 递归比较文件夹
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 diff -ruNa nova-2.2/ nova-2.3 > update
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 查看rpm的changelog
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 rpm -q openstack-nova-compute --changelog
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 挂载iso
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 mount -o loop cloudbase-init.iso /mnt/
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 apt设置代理
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 apt-get -o Acquire::http::proxy="http://127.0.0.1:8000/" update
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 取消自动挂载u盘
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 echo 'ACTION=="add|change", SUBSYSTEM=="block", ENV{UDISKS_IGNORE}="1"' > /etc/udev/rules.d/10-udisks.rules
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 禁止usb存储
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 echo 'install usb-storage /bin/true' > /etc/modprobe.d/block_usb.conf
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 解压ramdisk文件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 mkdir tmp
 mv ramdisk tmp
 cd tmp
 zcat /boot/initrd-2.6.18-164.6.1.el5.img | cpio -idmv
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 xargs的for循环
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 neutron agent-list | grep xxx | awk '{print $2}' | xargs -I {} neutron agent-show {}
 nova list | grep cirros | awk '{print $2}'| xargs -I {} nova reset-state {} --active
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 解压rpm文件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 rpm2cpio mysql-community-common-5.6.28-2.el7.x86_64.rpm | cpio -idmv
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 解压xz文件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 xz -k -d xxx.xz
 tar -Jxf a.tar.xz
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 创建xz文件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 tar -Jcf linux-3.12.tar.xz linux-3.12/
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 解压bz2文件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 tar -jxvf test.tar.bz2
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 创建bz2文件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 tar -jcvf test.tar.bz2 a.txt
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 连接windows远程桌面
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 xfreerdp /u:Administrator /p:'123456' /v:192.168.1.1  /h:1000 /w:1920
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 端口转发
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 将远程主机的端口映射到本地，将远程的8888端口映射到本地的8000端口
 # 工具可以使用windows10 自带的wsl
 ssh -L8000:0.0.0.0:8888 root@10.1.4.24
 
 # wsl 设置默认用户为root
 C:\Users\zhangjl\AppData\Local\Microsoft\WindowsApps\fedoraremix.exe config --default-user root
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 通过qemu-guest-agent执行命令
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 获取agent支持的命令列表
 virsh qemu-agent-command 25 '{"execute":"guest-info"}' --pretty
 # 获取monitor支持的命令列表
 virsh qemu-monitor-command 25 '{"execute":"query-commands"}' --pretty
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 通过扩充虚拟磁盘大小
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 使用qemu扩充文件大小，为磁盘增加200GB空间
 qemu-img resize /opt/qemu-kvm/ironic-vm.qcow2 +200G
 # 备份原始文件
@@ -525,10 +525,10 @@ virsh attach-disk --domain kubernetes1  /home/zhangjl/gfs1 --target vdd --target
 # 挂载qcow2的磁盘
 virsh attach-disk --domain kubernetes1  /home/zhangjl/gfs1 --target vdd --targetbus virtio  \
     --sourcetype file --live --config --cache none --driver qemu --subdriver qcow2
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 直接修改rbd存储内容
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 #首先对rbd进行映射
 rbd map liberty-pool/be3eab24-81f0-48f0-bf6d-1387da64184b_disk
 # 通常会得到一个输出，类似于：/dev/rbd0
@@ -557,19 +557,19 @@ umount /mnt
 
 # 取消rbd映射
 rbd unmap /dev/rbd0
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 清理linux内存
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 echo 1 > /proc/sys/vm/drop_caches
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 使用dd备份磁盘
 
 首先需要通过fdisk获得磁盘的结束标志，得到最大的磁盘地址max\_size
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 fdisk -l -u /dev/sda
-\end{code-in-enumerate}
+\end{code-block}
 
 如图\colorunderlineref{fig:backup}所示，标红部分即为我们所需的max\_size:
 \par\begin{minipage}{\linewidth}
@@ -580,12 +580,12 @@ fdisk -l -u /dev/sda
 \end{minipage}
 
 然后再通过dd命令进行磁盘备份
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 dd if=/dev/sda of=backup.img bs=512 count=[fdisk所获得的max_size]+1
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 使用tar进行操作系统的备份和恢复
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 对操作系统进行备份
 tar cvpzf /var/local/backup.tgz --exclude=/proc --exclude=/lost+found \
     --exclude=/var/local/backup.tgz --exclude=/tmp --exclude=/var/log \
@@ -594,18 +594,18 @@ tar cvpzf /var/local/backup.tgz --exclude=/proc --exclude=/lost+found \
 
 # 对操作系统进行还原
 tar xvpfz /var/local/backup.tgz -C /
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 解压squashfs文件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 unsquashfs xxx.squashfs
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 读取和修改镜像文件
 
 除了使用virt-filesystem和guestmount之外，还可以通过loop设备，对镜像文件进行修改，
 并且效率更高
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 建立loop设备
 losetup -f --show centos.img #输出可能是/dev/loop0，或者/dev/loop1等
 # 读取镜像文件的分区表，并建立映射
@@ -617,24 +617,24 @@ umount /mnt
 kpartx -dv /dev/loop0
 # 删除loop设备映射
 losetup -d /dev/loop0
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 将awk的结果赋值给变量
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
  echo $id |awk -F '_' '{print $NF}'| awk -F '.' '{print $1}' | awk -F '-' '{print $1, $2}'|while read first second;do echo $first $second;done
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 shell下的数值计算
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 注意数值计算表达式中间必须有空格存在
 expr 1 + 1
 expr $id + 1
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 图片的切割与合并以及转换
 
 Linux下使用ImageMagick进行操作，因此需要先进行安装，再进行操作
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 dnf install ImageMagick -y
 
 # 图片格式转换，将jpg转换成png
@@ -652,58 +652,58 @@ convert +append 1.jpg 2.jpg dst.jpg
 
 # 按照垂直方向进行图片合并
 convert -append 1.jpg 2.jpg dst.jpg
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 gdb在线调试运行程序
 
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 strace -p <pid>
 yum install gdb python-debuginfo
 gdb python 19427 # python的进程号
 #或者gdb attach 19427
-\end{code-in-enumerate}
+\end{code-block}
 
 进入gdb环境之后，直接使用gdb的命令即可进行调试。常用的命令如下
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 info thread # 查看当前进程的信息
 bt          # 查看当前堆栈信息
 py-list     # 查看当前的python代码
 py-bt       # 查看当前的python调用堆栈
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 在线升级操作系统
 
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 dnf upgrade --refresh
 dnf install dnf-plugin-system-upgrade
 dnf system-upgrade download --releasever=27
 dnf system-upgrade reboot
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 动态修改虚拟机vnc端口
 
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 socat READLINE UNIX-CONNECT:/var/lib/awstack/saas.monitor
 # 进入qemu控制台
 # 修改vnc端口，监听到0.0.0.0:5940
 change vnc 0.0.0.0:40
 iptables -I INPUT -p tcp --dport 5940 -j ACCEPT
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 Centos7进入单用户模式
 
 启动虚拟机，进入引导页面之后，输入e，然后进行对应的修改
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 删除linux16行以下内容
 ro rhgb quiet
 # 追加以下内容到linux16行末尾
 rw init=/bin/bash
 # 输入ctrl+x，即可进入单用户模式，进行用户信息的修改
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 修改grub启动顺序
 
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 仅适用于Reahat/CentOS/Fedora，不适于Ubuntu
 # 0表示grub2.cfg当中，menuentry标题的顺序
 awk -F\' '$1=="menuentry " {print $2}' /etc/grub2.cfg
@@ -714,7 +714,7 @@ grub2-set-default 'CentOS Linux (3.10.0-514.26.2.el7.x86_64) 7 (Core)'
 
 # 查看当前的默认启动内核
 grub2-editenv list
-\end{code-in-enumerate}
+\end{code-block}
 
 \end{outline}
 

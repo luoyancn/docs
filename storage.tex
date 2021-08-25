@@ -27,54 +27,54 @@ PV，VG和LV的关系如图 \colorunderlineref{fig:lvm}所示
 \subsection{扩容的基本步骤}
 \begin{outline}[enumerate]
   \1 创建pv
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 pvcreate /dev/vdb
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 查看pv
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 pvscan
 pvs
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 查看并选择需要扩容的vg
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 vgscan
 vgs
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 扩容vg
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 vgextend rhel /dev/vdb
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 确认vg扩容成功
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 vgs
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 查看lvm
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 lvs
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 扩容lvm
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 lvextend -l +100%FREE /dev/rhel/root
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 扩容文件系统
 
       Lvm扩容之后，必须需要文件系统识别才行，因此，如果扩容lvm，则一般要进行文件系统的扩容。
       针对extx类型的文件系统
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 resize2fs -p /dev/rhel/root
-\end{code-in-enumerate}
+\end{code-block}
 
       针对xfs类型的文件系统
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 xfs_growfs /dev/rhel/root
-\end{code-in-enumerate}
+\end{code-block}
 
 \end{outline}
 完整的操作如图 \colorunderlineref{fig:extendlvm}所示

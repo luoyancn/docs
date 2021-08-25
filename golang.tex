@@ -327,20 +327,20 @@ golang的坑.
   Ioutil的ReadAll方法，在某些情况下，会导致程序被卡住，多见于在http请求时候，读取
   返回的body。一般发生在windows环境上，linux环境较少出现。解决的方法比较另类：设置
   http的keepalive参数为false即可。
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 transport := &http.Transport{DisableKeepAlives: true}
 client := &http.Client{Transport: transport}
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 中文的使用
 
   Golang当中，中文字符占用3个字节
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 fmt.Printf("%d\n", len("hello 北京")) // 得到的结果是12
-\end{code-in-enumerate}
+\end{code-block}
 
   对包含中文字符的字符串进行遍历时，需要转换为rune类型的切片，否则会出现乱码
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 zh := "hello 北京"
 for i := 0; i < len(zh); i++ {
     fmt.Printf("%c ", zh[i]) // 中文输出为乱码
@@ -350,26 +350,26 @@ rune_ := []rune(zh)
 for i := 0; i < len(rune_); i++ {
     fmt.Printf("%c ", rune_[i]) // 正常输出为中文
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 string与byte的相互转换
 
   Golang当中，byte实际上就是数字，可以使用\%d输出数值，也可以使用\%c输出为字符类型，
   从底层说，golang当中的string实质就是byte数组，因此二者可以相互转换。比如byte数组
   转换为string
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 b := []byte{'a', 'b', 'c', 'd'}
 str := string(b)
-\end{code-in-enumerate}
+\end{code-block}
 
   Golang的string转换为byte
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 _b := []byte(str)
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 timer,ticker与time.After的使用
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 ticker := time.NewTicker(time.Second * 1)
 timer := time.NewTimer(time.Second * 10)
 timeout_5 := time.After(time.Second * 5)
@@ -389,26 +389,26 @@ for {
             break for_select
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 数组和切片的区别
 
   Golang当中，数组是数值类型，切片是引用类型。数组和切片的定义类似，但是数组在定义时
   需要指明长度，而切片定义则无需，如下
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 arrays_int := [5]int{1,2,3,4,5} // arrays
 arrays_int_copy := [...]int{1,2,3,4,5} //arrays, 自动推导模式
 slice_int := []int{1,2,3,4,5} // slice
 slice_copy := arrays_int[:] // slice
-\end{code-in-enumerate}
+\end{code-block}
 
   数组名并非数组的首地址，而需要对其进行取地址操作，才可获得数组的首地址，但是，切片的名称
   就表示切片的首地址
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 fmt.Printf("%p\n", &arrays_int)
 // fmt.Printf("%p\n", arrays_int) 输出错误，类似%!p([10]int=[1 2 3 4 5 6 7 8 9 10])
 fmt.Printf("%p\n", slice_int)
-\end{code-in-enumerate}
+\end{code-block}
 
   对切片的数据修改，将影响切片原始引用数据的修改，也会影响对原始引用数据的其他切片的修改；
   但是，对数组的修改，只会影响到原始数组的数据，并不会影响到从原始数组扩展出来的新数组的
@@ -421,7 +421,7 @@ fmt.Printf("%p\n", slice_int)
   \label{fig:slice}
 \end{figure}
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 arrays_int := [10]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 brrays := arrays_int
 brrays[8] = 188
@@ -432,25 +432,25 @@ slice_copy := arrays_int[:]
 
 slice_int[7] = 200
 fmt.Printf("%v, %v, %v\n", slice_int, slice_copy, arrays_int) //所有数据全部被修改
-\end{code-in-enumerate}
+\end{code-block}
 
   另外，和python不太一样的是，golang的切片从任何形式上来说，都是连续的。
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 arrays_int := [10]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 slice_1 := arrays_int[3:] // 表示从数组的第3位开始往后的所有元素
 slice_2 := arrays_int[:7] // 表示数组的第7位开始向前的所有元素
 slice_int = arrays_int[1:3:9] // 表示从数组的前9个元素进行筛选，选取这9个元素当中的
                               // 第1到3个元素，与python的不一样！
-\end{code-in-enumerate}
+\end{code-block}
 
   Golang的map也支持切片，但是，和数组的切片不太一样，map的切片如下：
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 var map_slice []map[string]string
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 设计模式一：工厂模式
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 // object.go
 package object
 type student struct {
@@ -472,11 +472,11 @@ func NewStudent() *student {
 import object
 stu := factory.NewStudent()
 stu.SetName("zhangjl")
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 类型断言
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 usb.Start()
 if p, ok := usb.(*phone); ok { // 判断usb这个接口变量是否是phone这个类型的指针，并将其赋值为p
                                // 实质上就是将接口赋值给具体类型
@@ -492,7 +492,7 @@ case *camera:
 case *gumdan:
     fmt.Printf("It`s a gumdan\n")
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 channel的for-range操作
 
@@ -500,7 +500,7 @@ case *gumdan:
   channel被关闭了。如果没有被关闭，在进行for-range操作的时候，会出现死锁的问题。除此之外，
   进行for-range操作时，还有一些问题需要注意，见下方代码
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 for range out_chan {
     fmt.Printf("%v\n", <-out_chan) // 无法输出out_chan当中的所有数据
                                    // 原因在于range out_chan已经从通道当中取出了一个数据
@@ -511,11 +511,11 @@ for val := range in_chan {
     fmt.Printf("%v\n", val)       // 如果需要使用通道当中的所有结果，则必须在进行
                                   // for-range操作的时候，将通道的数据赋予另外的变量进行接收
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 协程版本的质数求解（筛子算法）
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 func generate(end int, input chan<- int) {
     for i := 2; i < end; i++ {
         input <- i
@@ -551,11 +551,11 @@ for_loop:
     }
     return output
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 反射的基本要点
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 
 // 针对普通的数据类型，其操作基本如下
 func ChangeValue(in interface{}, val_in interface{}) {
@@ -631,11 +631,11 @@ func ChangeStruct(struct_ptr interface{}) {
         fmt.Printf("%v\n", val_pointer.Method(0).Call(nil)[0])
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 使用反射构造新的结构体实例
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 func CreatInstance(struct_ptr interface{}) interface{} {
     struct_type := reflect.TypeOf(struct_ptr)
     strcut_struct := struct_type.Elem()
@@ -656,11 +656,11 @@ obj_ := CreatInstance(obj)
 if ins, ok := obj_.(factory.Obj); ok {
     fmt.Printf("%T, %s, %d\n", ins, ins.Name, ins.Age)
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 select的基本使用与timer的重设
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 // 使用过期时间的机制
 intchan := make(chan struct{})
 timer := time.NewTimer(3 * time.Second)
@@ -707,14 +707,14 @@ for {
         return
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 
   \1 for-select的使用误区
 
   For-Select是Golang并发编程当中常用的一种结构，通常与定时器ticker结合，来实现部分功能的跳转和修改。
   但是，如果使用不当，则会导致严重的CPU和内存泄漏。
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 ticker := time.NewTicker(time.Second * 10)
 for {
     select {
@@ -723,7 +723,7 @@ for {
     default:
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 注意，上述代码是有问题的代码，由于select结构处于for循环当中，因此，只要ticker没有返回结果，
 for循环就会执行select结构当中的default分支，这样的后果就是default分支占用了99\%以上的CPU时间，使得
@@ -731,7 +731,7 @@ cpu的使用率居高不下。因此，在for-select结构当中，尤其是使�
 不能随意添加default分支。上述代码应该修改为如下的形式，修改之后，大量的cpu时间则被释放，不会出现
 CPU占用居高不下的情况。
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 ticker := time.NewTicker(time.Second * 10)
 for {
     select {
@@ -739,7 +739,7 @@ for {
         fmt.Printf("xxxxxx\n")
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 
 \end{outline}
@@ -867,7 +867,7 @@ func main() {
 
   \1 普通的tcp/ip服务器
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 func Listen(protocal, ip string, port int) {
     listener, err := net.Listen(protocal, fmt.Sprintf("%s:%d", ip, port))
     if nil != err {
@@ -908,11 +908,11 @@ func readhandler(conn net.Conn) {
         conn.RemoteAddr().String(), string(tmp[:n]))
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 普通的tcp/ip客户端
 
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 func Connect(protocal, ip string, port int) {
     conn, err := net.Dial(protocal, fmt.Sprintf("%s:%d", ip, port))
     if nil != err {
@@ -941,10 +941,10 @@ func Connect(protocal, ip string, port int) {
         conn.Write([]byte(content))
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 Redis连接池
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 import (
     "github.com/gomodule/redigo/redis"
 )
@@ -972,7 +972,7 @@ func init() {
         }
     })
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 Grpc实现服务器到客户端的通信
 
@@ -982,7 +982,7 @@ func init() {
   Grpc的部分修改，达到这个目的。下面的例子当中，我们通过一个模拟来实现这个功能：客户端启动之后，
   向服务器发送一个订阅的请求，服务器根据这个订阅的请求，定时的向客户端发送消息。而这个定时的发送
   功能，可以根据需要，在服务端接收到其他请求之后，再进行发送。
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 // protoc 描述文件
 syntax = "proto3";
 package messages;
@@ -999,10 +999,10 @@ message Notification {
     string server = 2;
     string msg = 3;
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   服务器端的代码如下：
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 type Streamer struct {
     name      string
     substream map[string]messages.RegisterSrv_SubscribeServer
@@ -1078,10 +1078,10 @@ func main() {
         panic(err)
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   客户端的代码如下：
-\begin{code-in-enumerate}{go}
+\begin{code-block}{go}
 func subscribe(client messages.RegisterSrvClient, name string) {
     stream, err := client.Subscribe(context.Background())
     if nil != err {
@@ -1125,7 +1125,7 @@ func main() {
     name := fmt.Sprintf("%s:%d", "Client", rand.Intn(50))
     subscribe(client, name)
 }
-\end{code-in-enumerate}
+\end{code-block}
 
   整体的运行结果如下图所示\colorunderlineref{fig:grpc}。
 \begin{figure}[H]

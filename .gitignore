@@ -7,3 +7,4 @@ _minted-*
 *.out
 *.toc
 *.atfi
+*.listing

@@ -89,14 +89,12 @@ drwxr-xr-x. 3 root root         34 Aug 19 11:38 centos7.d
 如果忘记设置FS\_TYPE环境变量，则会导致格式化硬盘默认采用的是ext4格式， 而image的fstab当中，
 配置的却是xfs格式。这会导致操作系统无法启动。因此，如果忘记设置FS\_TYPE，镜像制作完毕之后，
 还需要进行相关的修改。
-\begin{mdframed}[topline=false, bottomline=false, leftline=false, rightline=false, backgroundcolor=lbcolor]
-\begin{minted}[fontsize=\tiny,linenos=false,breaklines=true]{bash}
+\begin{code-block}{bash}
 export FS=`virt-filesystems -a centos7.raw`
 guestmount -a centos7.raw -m $FS /mnt
 sed -i 's/xfs/ext4/g' /mnt/etc/fstab
 guestumount /mnt
-\end{minted}
-\end{mdframed}
+\end{code-block}
 \end{attention}
 
 将操作系统镜像上传到glance

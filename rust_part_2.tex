@@ -97,7 +97,7 @@ println!("{}", i.part);
 
 使用这种模式，通常情况下，不需要对函数添加生命周期，和普通函数相同。不过，也可以
 使用添加生命周期的完整形式：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 fn init_struct(source: &str) -> ImportantExcerpt {
     return ImportantExcerpt { part: source };
 }
@@ -111,7 +111,7 @@ fn init_struct(source: &str) -> ImportantExcerpt {
 
 // 调用函数
 let b = init_struct("luoyan");
-\end{code-in-enumerate}
+\end{code-block}
 由于上述代码当中，结构体的变量的有效生命周期和外部引用的相同，因此，可以简化生命
 周期的使用。
 
@@ -119,7 +119,7 @@ let b = init_struct("luoyan");
 
 在这种方式下，由于局部引用变量的作用域有限，返回函数之后就不存在了，因此，必须使用
 显式的生命周期，而显式的生命周期使用同样有2种形式：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 fn init_struct<'a>() -> ImportantExcerpt<'a> {
     return ImportantExcerpt { part: "luoyan"};
 }
@@ -128,13 +128,13 @@ fn init_struct<'a>() -> ImportantExcerpt<'a> {
 // fn init_struct() -> ImportantExcerpt<'static> {
 //     return ImportantExcerpt { part: "luoyan"};
 // }
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 实现Trait
 
 包含有引用数据类型的结构体，也可以实现各种标准库的Trait。在实现Trait的时候，也
 必须使用生命周期：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 // 可替换成下面的代码
 // impl<'a> fmt::Display for ImportantExcerpt<'a> {
 // static可以替换为_
@@ -143,13 +143,13 @@ impl fmt::Display for ImportantExcerpt<'static> {
         write!(f, "{}", self.part)
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 添加结构体方法
 
 结构体存在引用数据类型，同样要求结构体的方法在实现时需要进行额外的处理，添加生命
 周期的使用，同样的，结构体的方法可以使用命名生命周期，也可以使用固定生命周期：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 // 使用命名生命周期的结构体方法声明
 impl<'a> ImportantExcerpt<'a> {
     fn show(&self) {
@@ -179,7 +179,7 @@ impl ImportantExcerpt<'static> {
         return self.part;
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 \end{outline}
 
@@ -308,18 +308,18 @@ cargo test add
 \begin{outline}[enumerate]
 \1 创建一个lib，并编写代码
 
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cargo new --lib shared
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 在shared的src同级目录下，创建集成测试用例目录：
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 文件夹名称固定为tests
 mkdir tests
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 在tests下创建集成测试用例
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 echo > tests/units.rs<<EOF
 // 导入的lib名称必须是当前crate的名称
 use shared;
@@ -329,7 +329,7 @@ fn it_adds_two() {
     assert_eq!(4, adder::add_two(2));
 }
 EOF
-\end{code-in-enumerate}
+\end{code-block}
 然后执行测试即可。
 \end{outline}
 
@@ -762,24 +762,18 @@ Deref Trait允许重载解引用操作符（*），将智能指针当作常规�
 \begin{code-block}{rust}
 let x = 5;
 let y = &x;
-
 // 正确，引用被转换成原始数据类型
 let r = y + 9;
 println!("{}, {}", y, r );
-
 // 提示错误，代码无法进行编译和运行
 println!("{}", y == 5);
-
 // 提示错误，代码无法进行编译和运行
 if y > 2 {
-    ...
 }
 // 提示错误，代码无法进行编译和运行
 assert_eq!(5, y);
-
 // 正确，通过解引用，将引用变更为对应的类型
 assert_eq!(5, y);
-
 let mut yy = &x;
 // 错误，无法编译
 yy = yy + 10;
@@ -810,7 +804,6 @@ assert_eq!(5, *y);
 类似Box的智能指针：
 \begin{code-block}{rust}
 struct Pointer<T>(T);
-
 impl<T> Pointer<T> {
     fn new(x: T) -> Pointer<T> {
         Pointer(x)
@@ -833,7 +826,6 @@ impl<T> Deref for Pointer<T> {
 // 代码可以正常的运行
 let p = Pointer::new(5);
 assert_eq!(5, *p);
-
 let s = Pointer::new("lucifer");
 assert_eq!("lucifer", *s);
 \end{code-block}
@@ -845,7 +837,6 @@ assert_eq!("lucifer", *s);
 fn hello(name: &str) {
     println!("Hello, {}!", name);
 }
-
 fn main() {
     let m = Pointer::new(String::from("Rust"));
     hello(&m);
@@ -890,13 +881,11 @@ Drop trait比较类似于C++的析构函数，用于指定对应的对象在离�
 struct SmartPointer {
     data: String,
 }
-
 impl Drop for SmartPointer {
     fn drop(&mut self) {
         println!("Drop the smart pointer {}", self.data);
     }
 }
-
 fn main() {
     let p = SmartPointer::new("zhangjl");
 }
@@ -927,12 +916,10 @@ use std::rc::Rc;
 struct User {
     name: String,
 }
-
 fn main() {
     let u = User {
         name: "zhangjl".to_string(),
     };
-
     let u_ref = Rc::new(u);
     println!("{}", u_ref.as_ref().name);
     let u_ref2 = Rc::clone(&u_ref);
@@ -960,7 +947,6 @@ fn main() {
     let mut a = 24;
     add(&mut a);
     println!("{}", a);
-
     let mut b = &mut a;
     // 错误
     println!("{}, {}", b, a);
@@ -989,13 +975,11 @@ let y = &mut x;
 pub trait Messager {
     fn send(&self, msg: &str);
 }
-
 pub struct LimitTracker<'a, T: Messager> {
     messager: &'a T,
     value: usize,
     max: usize,
 }
-
 impl<'a, T> LimitTracker<'a, T>
 where
     T: Messager,
@@ -1020,7 +1004,6 @@ where
 struct MockMessager {
     sent_messages: Vec<String>,
 }
-
 impl MockMessager {
     fn new() -> MockMessager {
         MockMessager {
@@ -1028,7 +1011,6 @@ impl MockMessager {
         }
     }
 }
-
 impl Messager for MockMessager {
     fn send(&self, message: &str) {
         self.sent_messages.push(String::from(message));
@@ -1060,7 +1042,6 @@ fn main() {
 struct MockMessager {
     sent_messages: RefCell<Vec<String>>,
 }
-
 impl MockMessager {
     fn new() -> MockMessager {
         MockMessager {
@@ -1068,13 +1049,11 @@ impl MockMessager {
         }
     }
 }
-
 impl Messager for MockMessager {
     fn send(&self, message: &str) {
         self.sent_messages.borrow_mut().push(String::from(message));
     }
 }
-
 fn main() {
     let mock_messenger = MockMessager::new();
     let mut limit_tracker = LimitTracker::new(&mock_messenger, 100);
@@ -1097,15 +1076,12 @@ Ref<T>类型的智能指针，borrow\_mut方法返回RefMut类型的智能指针
 \begin{code-block}{rust}
 use std::cell::RefCell;
 use std::rc::Rc;
-
 #[derive(Debug)]
 enum List {
     Cons(Rc<RefCell<i32>>, Rc<List>),
     Nil,
 }
-
 use crate::List::{Cons, Nil};
-
 fn main() {
     let value = Rc::new(RefCell::new(5));
     let a = Rc::new(Cons(Rc::clone(&value), Rc::new(Nil)));
@@ -1133,13 +1109,11 @@ Rust的内存安全性保证使其难以意外地制造永远也不会被清理�
 use crate::List::{Cons, Nil};
 use std::cell::RefCell;
 use std::rc::Rc;
-
 #[derive(Debug)]
 enum List {
     Cons(i32, RefCell<Rc<List>>),
     Nil,
 }
-
 impl List {
     fn tail(&self) -> Option<&RefCell<Rc<List>>> {
         match self {
@@ -1155,23 +1129,17 @@ impl List {
 \begin{code-block}{rust}
 fn main() {
     let a = Rc::new(Cons(5, RefCell::new(Rc::new(Nil))));
-
     println!("a initial rc count = {}", Rc::strong_count(&a));
     println!("a next item = {:?}", a.tail());
-
     let b = Rc::new(Cons(10, RefCell::new(Rc::clone(&a))));
-
     println!("a rc count after b creation = {}", Rc::strong_count(&a));
     println!("b initial rc count = {}", Rc::strong_count(&b));
     println!("b next item = {:?}", b.tail());
-
     if let Some(link) = a.tail() {
         *link.borrow_mut() = Rc::clone(&b);
     }
-
     println!("b rc count after changing a = {}", Rc::strong_count(&b));
     println!("a rc count after changing a = {}", Rc::strong_count(&a));
-
     println!("a next item = {:?}", a.tail());
 }
 \end{code-block}

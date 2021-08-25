@@ -5,19 +5,19 @@ Match是Rust常用的语法糖，其用法不局限于之前所讲的范围。�
 \1 多种匹配模式
 
 在match表达式当中，可以用|匹配多个模式，表示或运算：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 let x = 1;
 match x {
     1 | 2 => println!("one or two"),
     3 => println!("three"),
     _ => println!("anything"),
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 使用..=匹配范围
 
 ..=语法允许匹配一个数值范围内的任意数据，常用于数值和字符：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 let x = 5;
 match x {
     1..=5 => println!("one through five"),
@@ -30,12 +30,12 @@ match y {
     'k'..='z' => println!("late ASCII letter"),
     _ => println!("something else"),
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 解构结构体
 
 Let模式可以将结构体当中的字段/元素进行解构，单独或者批量赋予其他元素：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 struct Point {
     x: i32,
     y: i32,
@@ -50,12 +50,12 @@ fn main() {
     assert_eq!(7, b);
     // let Point {x, y} = p; 将p的x字段的值赋予变量x，y字段的值赋予变量y
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 解构枚举类型
 
 Match本身就是应枚举而生的，因此天然的可以使用它对枚举进行解构：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 enum Message {
     Quit,
     Move { x: i32, y: i32 },
@@ -77,10 +77,10 @@ fn main() {
         }
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 同样的，如果枚举当中嵌套了枚举，仍然可以使用match进行解构：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 enum Color {
     Rgb(i32, i32, i32),
     Hsv(i32, i32, i32),
@@ -106,20 +106,20 @@ fn main() {
         _ => (),
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 解构复合数据
 
 用复杂的方式来混合、匹配和嵌套解构模式，解析出我们感兴趣的数据：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 let ((feet, inches), Point {x, y}) = ((3, 10), Point { x: 3, y: -10 });
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 忽略不需要的元素
 
 在Rust的当中，默认可以使用\_对不必要的变量进行忽略，通常用在match的最后分支，但是，
 实际上也可以用去其他任意的模式，甚至是函数参数：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 // 需要传入2个参数，但是忽略第一个参数
 fn foo(_: i32, y: i32) {
     println!("This code only uses the y parameter: {}", y);
@@ -127,11 +127,11 @@ fn foo(_: i32, y: i32) {
 fn main() {
     foo(3, 4);
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 除了使用\_进行忽略之外，还可以使用..语法糖进行忽略，但是针对结构体和元组存在区别：
 结构体当中，忽略的是没有被列出的字段；而元组忽略的则是范围：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 struct Point {
     x: i32,
     y: i32,
@@ -151,23 +151,23 @@ fn main() {
         }
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 同样的，忽略操作也可以用于闭包当中：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 let player_scores = [("Jack", 20), ("Jane", 23), ("Jill", 18), ("John", 19)];
 // 对player_scores进行迭代，忽略其中第二个元素，_可以被替换为_score
 let players: Vec<_> = player_scores.iter().map(|&(player, _)| player).collect();
 // 输出的结果当中将只会有字符串数据
 println!("{:?}", players);
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 @绑定
 
 运算符@允许我们在创建一个存放值的变量的同时测试其值是否匹配模式，比如测试字段是
 否位于指定范围内，同时也希望能将其值绑定到另外的变量中以便此分支相关联的代码可以
 使用它：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 enum Message {
     Hello { id: i32 },
 }
@@ -184,7 +184,7 @@ match msg {
         println!("Found some other id: {}", id)
     },
 }
-\end{code-in-enumerate}
+\end{code-block}
 \end{outline}
 
 \section{高级特征}
@@ -969,7 +969,7 @@ fn main() {
 Target\_os宏为Rust内置，如果想自定义编译条件或者属性，则需要如下进行操作：
 \begin{outline}[enumerate]
 \1 修改代码
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 #[cfg(feature = "debugs")]
 fn debugs_print() {
     println!("This is the debugs_print");
@@ -981,23 +981,23 @@ fn main() {
     }
     println!("Are you sure?");
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 修改cargo工程设置
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 echo >> Cargo.toml <<EOF
 [features]
 debugs = []
 EOF
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 使用自定义的debugs宏进行编译
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cargo build --features debugs
 
 # 如果是多项目的管理方式，则需要变更为如下的方式：
 # cargo build --bin adclosures --manifest-path adclosures/Cargo.toml --features debugs
-\end{code-in-enumerate}
+\end{code-block}
 
 \end{outline}
 

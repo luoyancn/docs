@@ -247,26 +247,26 @@ void destroy_tree(tree *root){
 \begin{outline}[enumerate]
 
 \1 使用typeof创建范型宏
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 #define MIN(x, y) ({                \
     typeof(x) _min1 = (x);          \
     typeof(y) _min2 = (y);          \
     (void) (&_min1 == &_min2);      \
     _min1 < _min2 ? _min1 : _min2; })
-\end{code-in-enumerate}
+\end{code-block}
 但是，如果在编译的时候，使用了-std和-ansi参数，则上面的宏会失效。需要对他做部分的修改。
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 #define MIN(x, y) ({                    \
     __typeof__(x) _min1 = (x);          \
     __typeof__(y) _min2 = (y);          \
     (void) (&_min1 == &_min2);          \
     _min1 < _min2 ? _min1 : _min2; })
-\end{code-in-enumerate}
+\end{code-block}
 另外，使用-std和-ansi参数的时候，typeof需要替换为\_\_typeof\_\_, asm需要替换为
 \_\_asm\_\_，inline也需要替换为\_\_inline\_\_。
 
 \1 定义通用的错误处理
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 #define errout(...) fprintf(stderr, "File %s Function %s Line %d ", \
         __FILE__, __FUNCTION__, __LINE__);                          \
         fprintf(stderr, ##__VA_ARGS__)
@@ -276,10 +276,10 @@ int main(int argc, char * argv[])
     errout("swap_object function\n");
     return 0;
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 使用\#\#连接不同的标识符
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 #define appendidentify(first, last) first##last
 int main(int argc, char * argv[])
 {
@@ -290,10 +290,10 @@ int main(int argc, char * argv[])
     // 实际上相当与 printf("%s\n", firstlast);
     return 0;
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 将变量名称转换为字符串
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 #define NAME_TO_STRING(name) (#name)
 int main(int argc, char * argv[])
 {
@@ -302,10 +302,10 @@ int main(int argc, char * argv[])
     printf("%s\n", NAME_TO_STRING(firstlast));
     return 0;
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 使用宏定义修改函数入口
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 #ifdef CONFIG_SDL
 int qemu_main(int argc, char **argv, char **envp);
 
@@ -323,21 +323,21 @@ int main(int argc, char **argv, char **envp)
     printf("main with envp\n");
     return 0;
 }
-\end{code-in-enumerate}
+\end{code-block}
 由于main方法可以接收多个参数，因此上述代码是正确合法的。现在简单的分析一下。
 分析的手法是直接使用gcc -E参数来观察预处理的结果。
 
 不添加CONFIG\_SDL宏，其结果是：
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 gcc -E test.c
 int main(int argc, char **argv, char **envp)
 {
     printf("main with envp\n");
     return 0;
 }
-\end{code-in-enumerate}
+\end{code-block}
 添加CONFIG\_SDL宏，其结果是：
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 gcc -E -D CONFIG_SDL test.c
 int qemu_main(int argc, char **argv, char **envp);
 int main(int argc, char **argv)
@@ -351,14 +351,14 @@ int qemu_main(int argc, char **argv, char **envp)
     printf("main with envp\n");
     return 0;
 }
-\end{code-in-enumerate}
+\end{code-block}
 从代码中可以看到，实际上，整个处理过程中通过undefine main和define main qemu\_main
 这2条语句，就直接修改了整个操作的入口。实际上，这个代码的核心，就是将函数名当作
 了一个宏定义，通过简单的名称替换，达到更改程序入口的目的。以上代码的用法，在qemu的
 源码vl.c代码当中。
 
 \1 获取结构体的数据偏移量
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 typedef struct user user;
 struct user{
@@ -376,7 +376,7 @@ int main(int argc, char * argv[])
     printf("%ld\n",offsetof(user, next));
     return 0;
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 在((TYPE *)0)->MEMBER)这个其实就是提取type类型中的member成员，那么\&((TYPE *)0)->MEMBER)
 得到member成员的地址，再强制转换成size\_t类型（unsigned int）。
@@ -389,13 +389,13 @@ member成员在TYPE数据类型中的偏移量。这个宏定义的效果和c库
 获取age这种位成员的地址偏移量的。另外，所有对这种位成员进行取地址的操作，都是非法的。
 
 \1 根据偏移量获取数据地址
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 #define container_of(ptr, type, member) ({                           \
         const typeof( ((type *)0)->member ) *__mptr = (ptr);         \
         (type *)( (char *)__mptr - offsetof(type,member) );})
 #define list_entry(ptr, type, member)                                \
         container_of(ptr, type, member)
-\end{code-in-enumerate}
+\end{code-block}
 
 const typeof(((type *)0)->member) *\_\_mptr = (ptr);首先将0转化成type类型的指针变量
 （这个指针变量的地址为0x0），然后再引用member成员（对应就是((type *)0)->member )）。
@@ -409,7 +409,7 @@ const typeof(((type *)0)->member) *\_\_mptr = (ptr);首先将0转化成type类�
 替换为void*指针，可能会更加通用。有了这个指针，那么就可以随意引用其内的成员了。关于container\_of
 的第二行，其效果类似如下。通过这个测试代码，可以发现pos的值和zhangjl的地址的值是
 一模一样的，因此，可以通过pos指针访问student zhangjl当中的所有数据。
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 int main(int argc, char * argv[])
 {
         LIST_HEAD(first);
@@ -424,10 +424,10 @@ int main(int argc, char * argv[])
         printf("%x\n", pos);
         return 0;
 }
-\end{code-in-enumerate}
+\end{code-block}
 
 具体使用可以参见下方完整代码。
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 typedef struct list_head list_head;
 struct list_head {
         list_head *next, *prev;
@@ -490,7 +490,7 @@ int main(int argc, char * argv[])
 
         return 0;
 }
-\end{code-in-enumerate}
+\end{code-block}
 \begin{minipage}{\linewidth}
   \begin{attention}
   需要注意一下，container\_of在使用的时候，第三个参数应当是结构体当中的
@@ -501,10 +501,10 @@ int main(int argc, char * argv[])
 \1 发现编译时的错误
 
 Linux 内核当中存在2个非常特殊的宏定义，如下：
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 #define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
 #define BUILD_BUG_ON_ZERO(e) (sizeof(struct { int:-!!(e); }))
-\end{code-in-enumerate}
+\end{code-block}
 
 下面对于上述的宏定义，进行简单的讲解:
 \begin{enumerate}

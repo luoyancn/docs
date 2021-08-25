@@ -93,21 +93,14 @@ cargo build --release --target=x86_64-unknown-linux-musl
 针对ARM V7和ARM X64的编译过程稍微复杂一些，其操作如下：
 \begin{enumerate}
   \item 创建配置文件：进入rust工程的根目录
-\begin{mdframed}[topline=false, bottomline=false, leftline=false,
-    rightline=false, backgroundcolor=lbcolor]
-\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,
-    breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}
+\begin{code-block}{bash}
 # 如果是针对全局的rust项目，则应该将.cargo目录放在/.cargo下
 mkdir .cargo
 touch .cargo/config
-\end{minted}
-\end{mdframed}
+\end{code-block}
 
   \item 修改配置文件，设置交叉编译工具
-\begin{mdframed}[topline=false, bottomline=false, leftline=false,
-    rightline=false, backgroundcolor=lbcolor]
-\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,
-    breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}
+\begin{code-block}{bash}
 cat >.cargo/config<<EOF
 [target.armv7-unknown-linux-gnueabihf]
 linker = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc"
@@ -126,14 +119,10 @@ linker = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu/bin/aarch64-lin
 ar = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-ar"
 
 EOF
-\end{minted}
-\end{mdframed}
+\end{code-block}
 
   \item 进行交叉编译：
-\begin{mdframed}[topline=false, bottomline=false, leftline=false,
-    rightline=false, backgroundcolor=lbcolor]
-\begin{minted}[fontsize=\scriptsize,linenos=false,breaklines=true,
-    breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,]{bash}
+\begin{code-block}{bash}
 # 针对ARM V7(32位)，实际上本身就是静态编译
 cargo build --release --target=armv7-unknown-linux-gnueabihf
 # 针对ARM V7(32位)- 显式静态编译
@@ -142,8 +131,7 @@ cargo build --release --target=armv7-unknown-linux-musleabihf
 cargo build --release --target=aarch64-unknown-linux-gnu
 # 针对ARM X64 - 显式静态编译
 cargo build --release --target=aarch64-unknown-linux-musl
-\end{minted}
-\end{mdframed}
+\end{code-block}
 
 \end{enumerate}
 
@@ -156,7 +144,6 @@ Rust的if/else可以用在普通的判断场景，但判断条件必须是bool�
 使用其他类型作为判断的依据，所以，下列的代码是错误的：
 \begin{code-block}{rust}
 let a = 10;
-
 // error, a is not a boolean type
 if a {
     ...
@@ -186,9 +173,7 @@ loop {
 关键字只是用于中断当前运行的循环，但是Rust当中，break可以后接表达式，将退出
 的信息返回给调用者，如下：
 \begin{code-block}{rust}
-
 let mut counter = 0;
-
 loop {
     println!("loop");
     if counter > 10 {
@@ -196,9 +181,7 @@ loop {
     }
     counter += 1;
 }
-
 counter = 0;
-
 let result = loop {
     counter += 1;
     if 10 == counter {
@@ -212,7 +195,6 @@ let result = loop {
 相比较而言，Rust的while是最简单的，其示例如下：
 \begin{code-block}{rust}
 let mut number = 3;
-
 while number != 0 {
     println!("{}!", number);
     number = number - 1;
@@ -222,21 +204,17 @@ while number != 0 {
 具体的示例如下：
 \begin{code-block}{rust}
 let array = [1, 2, 3, 4, 5];
-
 // 引用权
 for element in &array {
     println!("The value is {ele}", ele = element);
 }
-
 for element in array.iter() {
     println!("The value is {ele}", ele = element);
 }
-
 // 取值范围为[1..10)，rev表示反序输出
 for ele in (1..10).rev() {
     println!("The element is {ele}", ele = ele);
 }
-
 // 取值范围为[1..10]
 for ele in (1..=10).rev() {
     println!("The element is {ele}", ele = ele);
@@ -250,7 +228,6 @@ Rust当中没有垃圾回收机制，因此，不存在“万恶的GC时间”�
 \begin{code-block}{rust}
 let a = String::from("hello");
 let b = a; // a对象被转移给b，相当于a所代指的内存内容被转移给了b变量，a被清空
-
 // a对象在此之后无法使用，已经被回收
 // 如果还需要让a可以被继续使用，则上述操作应当变更为如下
 /*
@@ -263,7 +240,6 @@ let b = a.clone();
 \begin{code-block}{rust}
 let a = String::from("hello");
 let b = &a;
-
 // a对象还可以继续使用
 \end{code-block}
 
@@ -275,12 +251,10 @@ let b = &a;
 fn main() {
     let my_string = String::from("hello world");
     let my_string_literal = "hello world";
-
     let copy_1 = first_word(&my_string[..]);
     let copy_2 = first_word(&my_string_literal);
     let copy_3 = first_word(my_string_literal);
 }
-
 fn first_word(s: &str) -> &str {
     return &s[..];
 }
@@ -309,7 +283,6 @@ fn show_array(array: [u32; 5]) {
 for item in array.iter() {
     println!("{}", item);
 }
-
 for item in &array {
     println!("{}", item);
 }
@@ -321,7 +294,6 @@ fn show_array(array: &[u32; 5]) {
     for item in array.iter() {
         println!("{}", item);
     }
-
     for item in array {
         println!("{}", item);
     }
@@ -374,7 +346,6 @@ let s3 = s1 + &s2; // 注意 s1 被移动了，不能继续使用
 let s1 = String::from("tic");
 let s2 = String::from("tac");
 let s3 = String::from("toe");
-
 let s = format!("{}-{}-{}", s1, s2, s3);
 \end{code-block}
 
@@ -385,7 +356,6 @@ let s = format!("{}-{}-{}", s1, s2, s3);
 for c in "helllo".chars() {
     ...
 }
-
 // 按照字节进行处理
 for b in "hello".bytes() {
     ... // 如果进行输出，则输出的都是223，123等类似的数字数据
@@ -397,15 +367,11 @@ Map（映射）是Rust的另外一种容器数据类型，和Python的字典很�
 用的map主要是HashMap和BTreeMap。构建map数据可以使用new，也可以使用collect方法：
 \begin{code-block}{rust}
 use std::collections::HashMap;
-
 let mut scores = HashMap::new();
-
 scores.insert(String::from("Blue"), 10);
 scores.insert(String::from("Yellow"), 50);
-
 let teams  = vec![String::from("Blue"), String::from("Yellow")];
 let initial_scores = vec![10, 50];
-
 // 将其他的类型组合成map
 // HashMap<_, _> 类型注解是必要的，因为可能 collect 很多不同的数据结构，
 // 而除非显式指定否则 Rust 无从得知你需要的类型。但是对于键和值的类型参数来说，
@@ -418,7 +384,6 @@ String，都会获得相关的所有权，如下：
 \begin{code-block}{rust}
 let field_name = String::from("Favorite color");
 let field_value = String::from("Blue");
-
 let mut map = HashMap::new();
 map.insert(field_name, field_value);
 // 在此之后，field_name和field_value无法再被访问和使用。
@@ -480,7 +445,6 @@ let user = User {
 常是类似于元组的形式，如下：
 \begin{code-block}{rust}
 struct Color(u8, u8, u8);
-
 fn show_color(color: &Color) {
     println!(
         "The RGB value is R:{}, G:{}, B:{}",
@@ -548,7 +512,6 @@ enum Coin {
     Dime,
     Quarter,
 }
-
 fn value_in_cents(coin: Coin) -> u8 {
     match coin {
         Coin::Penny => 1,
@@ -563,12 +526,10 @@ fn value_in_cents(coin: Coin) -> u8 {
 可以拥有自己的方法，关联方法以及特殊的格式化输出方法等等。
 \begin{code-block}{rust}
 use std::fmt;
-
 enum IPADDR {
     V4(u8, u8, u8, u8),
     V6(String),
 }
-
 impl IPADDR {
     fn show(&self) {
         match self {
@@ -577,7 +538,6 @@ impl IPADDR {
             IPADDR::V6(v6) => println!("The V6 addr is ipv6 addr {}", v6),
         }
     }
-
     fn format(&self) -> String {
         match self {
             IPADDR::V4(a, b, c, d) => {
@@ -588,7 +548,6 @@ impl IPADDR {
         }
     }
 }
-
 impl fmt::Display for IPADDR {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -603,7 +562,6 @@ impl fmt::Display for IPADDR {
 \begin{code-block}{rust}
 let addr = IPADDR::V4(127, 0, 0, 1);
 let addr_v6 = IPADDR::V6(String::from("fe80::708f:7183:c02b:1758"));
-
 addr.show();
 addr_v6.show();
 println!("{}", addr);
@@ -618,14 +576,14 @@ enum Message {
     Write(String), // 类元组结构体
     ChangeColor(i32, i32, i32), // 类元组结构体
 }
-
 impl Message {
     fn call(&self) {
         match self {
             Message::Quit => println!("Received the quit signal, exiting..."),
             Message::Move { x, y } => println!("Move a to {}, {}", x, y),
             Message::Write(_str) => println!("Write message {}", _str),
-            Message::ChangeColor(a, b, c) => println!("Change the color to {}, {}, {}", a, b, c),
+            Message::ChangeColor(a, b, c) =>
+                println!("Change the color to {}, {}, {}", a, b, c),
         }
     }
 }
@@ -634,13 +592,10 @@ impl Message {
 \begin{code-block}{rust}
 let mut msg = Message::Quit;
 msg.call();
-
 msg = Message::Move { x: 100, y: 200 };
 msg.call();
-
 msg = Message::Write(String::from("zhangjl"));
 msg.call();
-
 msg = Message::ChangeColor(255, 0, 0);
 msg.call();
 \end{code-block}
@@ -694,7 +649,6 @@ match some_u8_value {
 if let Some(3) = some_u8_value {
     println!("three");
 }
-
 let mut count = 0;
 if let Coin::Quarter(state) = coin {
     println!("State quarter from {:?}!", state);
@@ -728,7 +682,7 @@ Mod管理模式和Python/Golang的路径管理类似，直接从当前工程的s
 查找，直到最终找到。首先看一个Rust工程结构, 如下图\colorunderlineref{fig:rust_mod}所示。
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.6]{rust_mod.png}
+  \includegraphics[width=\linewidth]{rust_mod.png}
   \caption{Mod管理模式}
   \label{fig:rust_mod}
 \end{figure}
@@ -751,7 +705,6 @@ pub fn logging() {
 如下：
 \begin{code-block}{rust}
 mod logging;
-
 use logging as log; // 模块别名
 \end{code-block}
 在使用模块的时候，一定注意，mod关键字必须放在use之前。而common和logging属于
@@ -773,7 +726,6 @@ mod logging;
 \begin{code-block}{rust}
 // common.rs
 use crate::logging;
-...
 \end{code-block}
 
 如果强行需要在common.rs文件当中，以相对路径的方式使用logging，则必须将logging.rs
@@ -783,12 +735,11 @@ use crate::logging;
 
 在上述的代码当中，有一个比较奇怪的现象：同时存在common和common.rs。这是Rust
 管理的一种模式。默认情况下，Rust的模块有2种模式：文件形式和文件夹形式。
-
 文件夹形式实际上就是将一个文件夹作为Rust的模块进行使用。通常情况下，文件夹
 模式的模块形式如下：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.4]{rust_mod_directory.png}
+  \includegraphics[width=\linewidth]{rust_mod_directory.png}
   \caption{文件夹模块}
   \label{fig:rust_mod_directory}
 \end{figure}
@@ -814,14 +765,13 @@ drvier.rs属于同级目录，如果需要在nova.rs当中使用driver.rs所提�
 \begin{code-block}{rust}
 // nova.rs
 use crate::compute::driver;
-...
 \end{code-block}
 
 同名文件和文件夹的模式，则是另外一种模块的管理方法。这种管理方式，其文件组织
 形式如下：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.3]{rust_mod_file.png}
+  \includegraphics[scale=0.6]{rust_mod_file.png}
   \caption{同名文件形式}
   \label{fig:rust_mod_file}
 \end{figure}
@@ -830,9 +780,7 @@ use crate::compute::driver;
 \begin{code-block}{rust}
 // common.rs
 pub mod calc; // 将calc.rs当中的内容进行导出
-
 use crate::logging;
-
 fn common() {
     logging::logging();
 }
@@ -842,82 +790,64 @@ fn common() {
 \begin{code-block}{rust}
 // common.rs
 pub mod calc;
-
 use crate::logging;
-
 fn common() {
     logging::logging();
 }
-
 // common/calc.rs
 pub fn add() {
     println!("This is the add function");
 }
-
 // compute/driver.rs
 pub fn call() {
     println!("This is the driver::call function");
 }
-
 // compute/nova.rs
 use crate::compute::driver;
 use crate::logging;
 use crate::utils::tools;
-
 pub fn nova() {
     println!("This is the nova function");
 }
-
 pub fn use_parent() {
     println!("Use the logging function in child mod");
     logging::logging();
 }
-
 pub fn use_other() {
     println!("Use the logging function in child mod");
     tools::execute();
 }
-
 pub fn deive() {
     driver::call();
 }
-
 // compute/mod.rs
 pub mod driver;
 pub mod nova;
-
 // logging.rs
 pub fn logging() {
     println!("This is the logging function");
 }
-
 // utils/tools.rs
 use crate::logging as log;
-
 pub fn execute() {
     println!("This is the execute function");
     log::logging();
 }
-
 pub mod tools;
-
 // main.rs
 mod common;
 mod compute;
 mod logging;
 mod utils;
-
 use common as com;
 use compute::nova;
 use logging as log;
 use utils::tools;
-
 fn main() {
     log::logging();
     nova::nova();
     nova::use_other();
     nova::use_parent();
-
     tools::execute();
     com::calc::add();
 }
@@ -939,7 +869,6 @@ regex = "0.1.41"
 然后，在自己的代码当中添加如下的语句：
 \begin{code-block}{rust}
 use regex::Regex;
-
 fn main() {
     let re = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
     println!("Did our date match? {}", re.is_match("2014-01-01"));
@@ -979,7 +908,7 @@ crate，任意多个二进制crate。
 包含多个二进制crate的Rust项目大致如下：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.5]{rust_more_bin.png}
+  \includegraphics[width=\linewidth]{rust_more_bin.png}
   \caption{多个二进制}
   \label{fig:rust_more_bin}
 \end{figure}
@@ -1021,7 +950,6 @@ pub enum VERSION {
     V4,
     V6,
 }
-
 // lib.rs
 pub mod constants;
 \end{code-block}
@@ -1047,7 +975,6 @@ use second::status;
 \begin{code-block}{rust}
 extern crate first;
 extern crate second;
-
 use first::constants;
 use second::status;
 \end{code-block}
@@ -1064,8 +991,6 @@ first = { path = "../first", version = "0.1.0" }
 \begin{code-block}{rust}
 extern crate first;
 use first;
-
-...
 \end{code-block}
 
 相比于mod模式，crate模式更加清晰一些。
@@ -1078,19 +1003,19 @@ use first;
 
 \begin{outline}[enumerate]
 \1 创建工作目录
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 mkdir works
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 创建需要的crate
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cargo new first --bin
 cargo new second --bin
 cargo new shared --lib
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 创建工作管理的Cargo.toml文件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cat >Cargo.toml<<EOF
 [workspace]
 members = [
@@ -1099,24 +1024,24 @@ members = [
     "shared",
 ]
 EOF
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 编译所有的crate
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cargo build
 # 或者
 # cargo build --workspace
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 编译指定的bin crate
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cargo build --bin first
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 编译指定的包
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cargo build --package first
-\end{code-in-enumerate}
+\end{code-block}
 \end{outline}
 
 到目前为止，first和second为2个bin类型的crate，可以直接编译运行，而shared则是
@@ -1132,8 +1057,6 @@ shared = { path = "../shared" , version = "0.1.0"}
 \begin{code-block}{rust}
 extern crate shared;
 use shared::utils;
-
-...
 \end{code-block}
 随后按照之前的方式进行编译和使用即可。
 
@@ -1142,7 +1065,7 @@ use shared::utils;
 有这样一个小的工程，名称为minigrep：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.4]{rust_lib_mod.png}
+  \includegraphics[width=\linewidth]{rust_lib_mod.png}
   \caption{Lib模式的小项目}
   \label{fig:rust_lib_mod}
 \end{figure}
@@ -1152,14 +1075,8 @@ use shared::utils;
 pub mod common;
 pub mod logging;
 pub mod utils;
-
-pub struct Config {
-    ...
-}
-
-pub fn xxx {
-   ...
-}
+pub struct Config { }
+pub fn xxx { }
 \end{code-block}
 即，相当于使用lib.rs将除main.rs之外的所有文件夹和文件进行暴露，则在main.rs当中，
 就可以不再使用crate的方式进行模块的查找和搜索，而是直接使用minigrep当作顶层路径：
@@ -1167,7 +1084,6 @@ pub fn xxx {
 use minigrep::logging;
 use minigrep::utils::tools;
 use minigrep::Config;
-...
 \end{code-block}
 
 但是需要注意，如果在common和utils当中，需要使用比如logging或者common或者utils，则
@@ -1181,7 +1097,7 @@ use minigrep::Config;
 \1 提升命名空间
 
 有的时候，Rust的代码层级非常深，比如下面：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 pub mod english {
     pub mod greetings {
         pub fn hello() {
@@ -1192,13 +1108,13 @@ pub mod english {
         }
     }
 }
-\end{code-in-enumerate}
+\end{code-block}
 如果我们需要使用hello这个方法，则可能的方式多半如下：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 english::greetings::hello();
-\end{code-in-enumerate}
+\end{code-block}
 如果想将hello方法的访问缩短路径，则需要对代码进行改动：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 // lib.rs
 pub mod english {
     pub mod greetings {
@@ -1215,12 +1131,12 @@ pub mod english {
 
 // 将hello提升到lib::hello
 pub use english::greetings::hello;
-\end{code-in-enumerate}
+\end{code-block}
 经过上述修改之后，使用的时候，可以按照下面的方式进行使用：
-\begin{code-in-enumerate}{rust}
+\begin{code-block}{rust}
 lib::chinese::hello(); // 对应pub use self::greetings::hello
 lib::hello(); // 对应 pub use english::greetings::hello;
-\end{code-in-enumerate}
+\end{code-block}
 
 \end{outline}
 
@@ -1236,10 +1152,8 @@ struct Rectangle {
     width: u32,
     height: u32,
 }
-
 fn main() {
     let rect1 = Rectangle { width: 30, height: 50 };
-
     println!("rect1 is {:?}", rect1);
 }
 \end{code-block}
@@ -1249,14 +1163,12 @@ fn main() {
 需要实现一个Display方法，即可直接使用print语句进行输出。其示例如下：
 \begin{code-block}{rust}
 use std::fmt;
-
 struct User {
     username: String,
     age: u8,
     email: String,
     activate: bool,
 }
-
 impl fmt::Display for User {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -1266,9 +1178,6 @@ impl fmt::Display for User {
         )
     }
 }
-
-...
-
 fn main() {
     let new_user = User::create();
     println!("User: {}", new_user);
@@ -1292,10 +1201,8 @@ println!(
     age = 100,
     counter = counter
 );
-
 // 根据位置进行输出
 println!("{0}, {1}", "zhangjl", 18);
-
 // 设置数据的显示宽度为6，向右对齐，不足的部分显示为空
 // 同理，<则表示向左对齐
 println!("{number:>width$}", number = 100, width = 6);
@@ -1324,7 +1231,6 @@ panic = "abort"
 如果需要展开所有的堆栈信息，则可如下进行操作：
 \begin{code-block}{bash}
 RUST_BACKTRACE=1 cargo run
-
 // 全展开
 RUST_BACKTRACE=full cargo run
 \end{code-block}

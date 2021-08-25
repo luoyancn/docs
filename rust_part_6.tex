@@ -665,21 +665,28 @@ Field {
 \end{code-block}
 因此，提取\codeinlinebg{rust}{PhantomData}字段的包裹数据类型操作大致如下：
 \begin{code-block}{rust}
-fn get_phantomdata_generic_type_name(filed: &syn::Field) -> syn::Result<Option<String>> {
+fn get_phantomdata_generic_type_name(
+    filed: &syn::Field,
+) -> syn::Result<Option<String>> {
     if let syn::Type::Path(syn::TypePath {
         path: syn::Path { ref segments, .. },
         ..
     }) = filed.ty {
         if let Some(syn::PathSegment {
-            ref ident, ref arguments,
+            ref ident,
+            ref arguments,
         }) = segments.last()
         {
             if ident == "PhantomData" {
-                if let syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments { args, .. }) = arguments
+                if let syn::PathArguments::AngleBracketed(
+                    syn::AngleBracketedGenericArguments {
+                        args, .. }) = arguments
                 {
-                    if let Some(syn::GenericArgument::Type(syn::Type::Path(ref arg_path))) = args.first()
+                    if let Some(syn::GenericArgument::Type(
+                        syn::Type::Path(ref arg_path))) = args.first()
                     {
-                        if let Some(generic_ident) = arg_path.path.segments.first() {
+                        if let Some(generic_ident) =
+                                arg_path.path.segments.first() {
                             return Ok(Some(generic_ident.ident.to_string()));
                         }
                     }
@@ -694,10 +701,18 @@ fn get_phantomdata_generic_type_name(filed: &syn::Field) -> syn::Result<Option<S
 只需要将其中的Baz类型提取出来。这种字段的语法树结构和上面的类似，只是\codeinlinebg{rust}{PhantomData}
 被其他的数据类型所替换而已，因此，其处理函数非常类似：
 \begin{code-block}{rust}
-fn get_field_type_name(field: &syn::Field) -> syn::Result<Option<String>> {
-    if let syn::Type::Path(syn::TypePath { path: syn::Path { ref segments, .. }, .. }) = field.ty
+fn get_field_type_name(
+    field: &syn::Field,
+) -> syn::Result<Option<String>> {
+
+    if let syn::Type::Path(
+        syn::TypePath {
+            path: syn::Path { ref segments, .. },
+            ..
+    }) = field.ty
     {
-        if let Some(syn::PathSegment { ref ident, .. }) = segments.last() {
+        if let Some(syn::PathSegment {
+            ref ident, .. }) = segments.last() {
             return Ok(Some(ident.to_string()));
         }
     }
@@ -707,11 +722,14 @@ fn get_field_type_name(field: &syn::Field) -> syn::Result<Option<String>> {
 
 有了上述的基础之后，接下来修改其他函数：
 \begin{code-block}{rust}
-fn get_generics(st: &syn::DeriveInput) -> syn::Result<syn::Generics> {
+fn get_generics(
+    st: &syn::DeriveInput,
+) -> syn::Result<syn::Generics> {
     let fields = get_filed_from_derive_input_debug(st)?;
     let mut generics_params = st.generics.clone();
     let mut field_type_name = Vec::new();
     let mut phantomdata_type_param_names = Vec::new();
+
     for field in fields {
         if let Some(name) = get_field_type_name(&field)? {
             field_type_name.push(name);
@@ -720,10 +738,12 @@ fn get_generics(st: &syn::DeriveInput) -> syn::Result<syn::Generics> {
             phantomdata_type_param_names.push(phd);
         }
     }
+
     for param in generics_params.params.iter_mut() {
         if let syn::GenericParam::Type(t) = param {
             let type_name = t.ident.to_string();
-            // 如果PhantomData类型包裹了对应的类型，并且，结构体的原始字段并不包含对应的类型
+            // 如果PhantomData类型包裹了对应的类型，
+            // 并且，结构体的原始字段并不包含对应的类型
             // 则不追加Debug限定
             if phantomdata_type_param_names.contains(&type_name)
                 && !field_type_name.contains(&type_name)
@@ -742,6 +762,7 @@ fn get_generics(st: &syn::DeriveInput) -> syn::Result<syn::Generics> {
 #[derive(CustomDebug)]
 pub struct Custom<'a, T, U, W, X> {
     name: &'a str,
+
     #[debug = "0b{:08b}"]
     age: u8,
     other: T,
@@ -819,7 +840,9 @@ impl<'ast> Visit<'ast> for TypePathVisitor {
         if node.path.segments.len() >= 2 {
             let generic_type_name = node.path.segments[0].ident.to_string();
             if self.generic_type_names.contains(&generic_type_name) {
-                self.associated_types.entry(generic_type_name).or_insert(Vec::new()).push(node.clone());
+                self.associated_types.entry(
+                    generic_type_name).or_insert(
+                        Vec::new()).push(node.clone());
             }
         }
         // 进行递归式的访问，否则，无法遍历所有满足条件的语法树节点
@@ -829,8 +852,11 @@ impl<'ast> Visit<'ast> for TypePathVisitor {
 \end{code-block}
 然后对其他的结构体语法树进行visit模式的访问：
 \begin{code-block}{rust}
-fn get_generic_associated_types(st: &syn::DeriveInput) -> HashMap<String, Vec<syn::TypePath>> {
-    let origin_generic_param_names: Vec<String> = st.generics.params.iter().filter_map(|f| {
+fn get_generic_associated_types(
+    st: &syn::DeriveInput,
+) -> HashMap<String, Vec<syn::TypePath>> {
+    let origin_generic_param_names: Vec<String> =
+        st.generics.params.iter().filter_map(|f| {
             if let syn::GenericParam::Type(ty) = f {
                 return Some(ty.ident.to_string());
             }
@@ -875,11 +901,16 @@ fn get_generics(st: &syn::DeriveInput) -> syn::Result<syn::Generics> {
             let type_name = t.ident.to_string();
             if phantomdata_type_param_names.contains(&type_name)
                 && !field_type_name.contains(&type_name)
-            { continue; }
-            // 针对关联数据类型，不对泛型参数`T`本身再添加约束了，除非`T`本身也被直接使用了
+            {
+                continue;
+            }
+            // 针对关联数据类型，不对泛型参数`T`本身再添加约束了
+            // 除非`T`本身也被直接使用了
             if associated_types_map.contains_key(&type_name)
                 && !field_type_name.contains(&type_name)
-            { continue; }
+            {
+                continue;
+            }
             t.bounds.push(parse_quote!(std::fmt::Debug));
         }
     }
@@ -916,4 +947,3 @@ pub struct Custom<'a, T, U: TraitA> {
 \end{figure}
 
 \input{rust_part_7}
-

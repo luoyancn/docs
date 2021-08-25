@@ -21,6 +21,6 @@ help:
 
 .PHONY: clean
 clean:
-	rm -rf *.aux *.bbl *.blg *.log *.out *.pyg *.toc *.atfi _minted* svg-inkscape
+	rm -rf *.aux *.bbl *.blg *.log *.out *.pyg *.toc *.atfi _minted* *.listing svg-inkscape
 
 

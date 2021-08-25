@@ -240,17 +240,17 @@ GCC提供了一系列的内置函数，用于进行优化程序。
 \1 \_\_builtin\_types\_compatible\_p
 
 该函数为GCC的扩展函数，用于判断2个数据的类型是否相同。其原型定义如下：
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
   int __builtin_types_compatible_p(type_a, type_b);
-\end{code-in-enumerate}
+\end{code-block}
 
 在真正的使用当中，可以用于进行宏定义，来判断传递的参数是否为需要的类型：
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 // 判断传递的参数是否为数组
 #define BUILD_BUG_ON_ZERO(e) (sizeof(char[1 - 2 * !!(e)]) - 1)
 #define __same_type(a, b) __builtin_types_compatible_p(typeof(a), typeof(b))
 #define __must_be_array(a) BUILD_BUG_ON_ZERO(__same_type((a), &(a)[0]))
-\end{code-in-enumerate}
+\end{code-block}
 
 关于BUILD\_BUG\_ON\_ZERO在前面的已经仔细讲解过，其主要作用就是用来发现编译时的错误，
 \_\_same\_type宏定义用于判断传入的参数是否是相同的数据类型，a表示原始的数据，(a)[0]表示
@@ -259,7 +259,7 @@ GCC提供了一系列的内置函数，用于进行优化程序。
 a是一个数组或指针，反之，就会报错，从而在编译时刻就发现错误。同样的，该宏定义还可以区分数组与指向数组
 的指针：typeof(a)返回的是数组类型，而typeof(\&a[0])返回的则是指针类型。
 
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 int a[] = {1,2,3};
 __must_be_array(a);
 float b[] = {1,2,3};
@@ -270,18 +270,18 @@ __must_be_array(d); // 编译时提示错误
 
 int *e = a;
 __must_be_array(e); // 同样是编译提示错误
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 \_\_arm\_\_
 
 该属性用于判断当前的编译器或者代码是否针对arm结构，具体的使用如下：
-\begin{code-in-enumerate}{c}
+\begin{code-block}{c}
 #if defined(__arm__)
         printf("This is build for arm arch\n");
 #else
         printf("This is build for no-arm arch\n");
 #endif
-\end{code-in-enumerate}
+\end{code-block}
 除了针对ARM之外，还有其他的一些特殊的宏定义，大致如下：
 \begin{enumerate}
   \item 针对x86-64：\_\_amd64\_\_, \_\_amd64, \_\_x86\_64\_\_, \_\_x86\_64

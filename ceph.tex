@@ -2,12 +2,12 @@
 
 \begin{outline}[enumerate]
   \1 安装ceph
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 yum install ceph -y
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 配置ceph monitor 集群
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cat /etc/ceph/ceph.conf
 [global]
 fsid = a7f64266-0894-4f1e-a635-d0aeaca0e993
@@ -87,10 +87,10 @@ monmaptool --create --add controller 10.2.2.4 --add compute1 10.2.2.5 \
 # 拷贝必要的文件到其他的ceph节点
 scp -r /etc/ceph/* root@compute1:/etc/ceph
 scp -r /etc/ceph/* root@compute2:/etc/ceph
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 配置ceph monitor 节点
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 在controller执行
 mkdir -p /var/lib/ceph/mon/ceph-controller
 ceph-mon --mkfs -i controller --monmap /etc/ceph/monmap \
@@ -108,10 +108,10 @@ mkdir -p /var/lib/ceph/mon/ceph-compute2
 ceph-mon --mkfs -i compute2 --monmap /etc/ceph/monmap \
     --keyring /etc/ceph/ceph.mon.keyring
 service ceph start mon
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 配置ceph osd
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # controller
 mkdir -p /var/lib/ceph/osd/ceph-0
 ceph-disk prepare --cluster ceph --cluster-uuid \
@@ -132,10 +132,10 @@ ceph-disk prepare --cluster ceph --cluster-uuid \
     a7f64266-0894-4f1e-a635-d0aeaca0e993 --fs-type xfs  /dev/vdb
 ceph-disk activate /dev/vdb1
 chkconfig ceph on
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 针对openstack设置
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 删除默认pool
 ceph osd pool delete data  data --yes-i-really-really-mean-it
 ceph osd pool delete metadata metadata --yes-i-really-really-mean-it
@@ -163,10 +163,10 @@ scp /etc/ceph/ceph.client.glance.keyring root@compute1:/etc/ceph
 
 scp /etc/ceph/ceph.client.awcloud.keyring root@compute2:/etc/ceph
 scp /etc/ceph/ceph.client.glance.keyring root@compute2:/etc/ceph
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 针对libvirt的设置
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cd /opt
 export secret_id=a7f64266-0894-4f1e-a635-d0aeaca0e993
 cat > secret.xml <<EOF
@@ -180,6 +180,6 @@ EOF
 virsh secret-define --file secret.xml
 ceph auth get-key client.awcloud | tee client.awcloud.key
 virsh secret-set-value --secret $secret_id --base64 $(cat client.awcloud.key)
-\end{code-in-enumerate}
+\end{code-block}
 
 \end{outline}

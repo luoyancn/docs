@@ -69,7 +69,7 @@ Docker的repo中已经提供了比较多的可用镜像，但是，总有一些�
 \begin{outline}[enumerate]
   \1 安装一个minimal vm
   \1 修改操作系统的部分设置和属性
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 dnf erase NetworkManager NetworkManager-glib NetworkManager-config-server -y
 cat >>/etc/sysconfig/network-scripts/ifcfg-eth0<<-EOF
 TYPE=Ethernet
@@ -81,21 +81,21 @@ EOF
 sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
 systemctl stop firewalld
 dnf clean all
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 打包相关文件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 tar --numeric-owner --exclude=/proc --exclude=/sys --exclude=/mnt \
     --exclude=/var/cache --exclude=/usr/share/{foomatic,backgrounds,perl5,\
     fonts,cups,qt4,groff,kde4,icons,pixmaps,emacs,gnome-background-properties,\
     sounds,gnome,games,desktop-directories}  \
     --exclude=/var/log -zcvf /mnt/rhel7.tar.gz.tar.gz /
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 导入docker repo
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cat rhel7.tar.gz | docker import - rhel7
-\end{code-in-enumerate}
+\end{code-block}
 
 \end{outline}
 
@@ -105,9 +105,9 @@ Kickstart创建的docker镜像文件体积小，启动迅速，比较适合。�
 docker镜像，则需要切换到ubuntu的宿主机上。下面的例子以fedora宿主机为例。
 \begin{outline}[enumerate]
   \1 安装制作docker镜像的依赖
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 dnf install libguestfs-tools-c appliance-tools libguestfs-tools-c -y
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 编写一个kickstart文件如附件
 \textattachfile{init.ks}{\textcolor{blue}{init.ks}}
@@ -121,17 +121,17 @@ dnf install libguestfs-tools-c appliance-tools libguestfs-tools-c -y
 %\par}
 
   \1 创建docker的image文件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 特别注意的是，需要在英文环境下进行操作，否则可能不成功
 export LANG=en_US.utf8
 appliance-creator -c init.ks -d -v -t /tmp -o /tmp/Fedora24 \
       --name "Fedora24" --release 24 --format=qcow2
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 导入镜像到docker repo当中
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 virt-tar-out -a /tmp/Fedora24/Fedora24/Fedora24-sda.qcow2 / - | docker import - fedora24
-\end{code-in-enumerate}
+\end{code-block}
 \end{outline}
 
 虽然kickstart文件不能完全跨平台，但是在fedora上，我们可以通过kickstart制作redhat的docker镜像。

@@ -1290,14 +1290,26 @@ fn get_filed_from_derive_input_each(st: &syn::DeriveInput) -> syn::Result<&Struc
     ))
 }
 fn get_attr_field_ident(field: &syn::Field) -> Option<syn::Ident> {...}
-fn get_generic_fields_type_each<'a>(st: &'a syn::Type, outer_ident_name: &str,
+fn get_generic_fields_type_each<'a>(
+    st: &'a syn::Type,
+    outer_ident_name: &str,
 ) -> Option<&'a syn::Type> {...}
-fn generate_builder_struct_fields_def_each(fields: &StructFields,
+
+fn generate_builder_struct_fields_def_each(
+    fields: &StructFields,
 ) -> syn::Result<proc_macro2::TokenStream> {...}
-fn generate_builder_struct_fields_init_each(fields: &StructFields,
+
+fn generate_builder_struct_fields_init_each(
+    fields: &StructFields,
 ) -> syn::Result<Vec<proc_macro2::TokenStream>> {...}
-fn generate_setter_each(fields: &StructFields) -> syn::Result<proc_macro2::TokenStream> {...}
-fn generate_builder_function(fields: &StructFields, origin_struct_ident: &syn::Ident,
+
+fn generate_setter_each(
+    fields: &StructFields
+) -> syn::Result<proc_macro2::TokenStream> {...}
+
+fn generate_builder_function(
+    fields: &StructFields,
+    origin_struct_ident: &syn::Ident,
 ) -> syn::Result<proc_macro2::TokenStream> {...}
 \end{code-block}
 
@@ -1306,6 +1318,7 @@ fn generate_builder_function(fields: &StructFields, origin_struct_ident: &syn::I
 #[derive(Debug, BuilderEach)]
 pub struct CommandEach {
     executable: String,
+
     #[builder(each = "arg")]
     args: Vec<String>,
     #[builder(each = "env")]
@@ -1313,7 +1326,9 @@ pub struct CommandEach {
     others: Vec<String>,
     current_dir: Option<String>,
 }
+
 fn main() {
+
     let builder = CommandEach::builder()
         .executable("lucifer".to_owned())
         .arg("lucifer".to_owned())
@@ -1323,12 +1338,15 @@ fn main() {
         .others(vec![])
         .build()
         .unwrap();
+
     info!("{:#?}", builder);
+
     let builder = CommandEach::builder()
         .executable("lucifer".to_owned())
         .others(vec![])
         .build()
         .unwrap();
+
     info!("{:#?}", builder);
 }
 \end{code-block}
@@ -1358,15 +1376,11 @@ fn get_attr_field_ident(field: &syn::Field) -> syn::Result<Option<syn::Ident>> {
         // 获得标签的语法树节点
         if let Ok(syn::Meta::List(ref list)) = attr.parse_meta() {
             // 二次解构
-            let syn::MetaList {
-                ref path,
-                ref nested,
-                ..
-            } = list;
+            let syn::MetaList { ref path, ref nested, ..  } = list;
             if let Some(__path__) = path.segments.first() {
                 if __path__.ident == "builder" {
-                    if let Some(syn::NestedMeta::Meta(syn::Meta::NameValue(__dict__))) =
-                        nested.first()
+                    if let Some(syn::NestedMeta::Meta(
+                        syn::Meta::NameValue(__dict__))) = nested.first()
                     {
                         if __dict__.path.is_ident("each") {
                             if let syn::Lit::Str(ref arg_token) = __dict__.lit {
@@ -1378,8 +1392,7 @@ fn get_attr_field_ident(field: &syn::Field) -> syn::Result<Option<syn::Ident>> {
                         } else {
                             // 如果builder当中的标签不是each，则返回一个错误
                             // 错误的范围则限定在标签的语法树节点
-                            return Err(syn::Error::new_spanned(
-                                list,
+                            return Err(syn::Error::new_spanned(list,
                                 r#"expected `builder(each = "...")`"#,
                             ));
                         }
@@ -1401,13 +1414,16 @@ fn generate_builder_function(
     origin_struct_ident: &syn::Ident,
 ) -> syn::Result<proc_macro2::TokenStream> {
     ...
-    for (idx, (__ident__, __type__)) in idents.iter().zip(types.iter()).enumerate() {
-        if get_generic_fields_type_each(__type__, "Option").is_none()
+    for (idx, (__ident__, __type__)) in idents.iter().zip(
+        types.iter()).enumerate() {
+        if get_generic_fields_type_each(
+            __type__, "Option").is_none()
             && get_attr_field_ident(&fields[idx])?.is_none()
         ...
     }
     let mut fill_result = Vec::new();
-    for (idx, (__ident__, __type__)) in idents.iter().zip(types.iter()).enumerate() {
+    for (idx, (__ident__, __type__)) in idents.iter().zip(
+        types.iter()).enumerate() {
         if get_attr_field_ident(&fields[idx])?.is_some() {
             fill_result.push(quote!(#__ident__: self.#__ident__.clone()));
         }
@@ -1416,33 +1432,39 @@ fn generate_builder_function(
     ...
     Ok(final_token)
 }
-fn generate_setter_each(fields: &StructFields) -> syn::Result<proc_macro2::TokenStream> {
+
+fn generate_setter_each(
+    fields: &StructFields,
+) -> syn::Result<proc_macro2::TokenStream> {
     ...
-    for (idx, (ident, type_)) in idents.iter().zip(types.iter()).enumerate() {
+    for (idx, (ident, type_)) in idents.iter().zip(
+        types.iter()).enumerate() {
         let mut tokenstream_piece;
-        if let Some(inner_type) = get_generic_fields_type_each(type_, "Option") {
+        if let Some(inner_type) = get_generic_fields_type_each(
+            type_, "Option") {
             ...
-        } else if let Some(ref builder_for_each) = get_attr_field_ident(&fields[idx])? {
+        } else if let Some(
+            ref builder_for_each) = get_attr_field_ident(&fields[idx])? {
             ...
         }
     }
 }
+
 fn generate_builder_struct_fields_init_each(
     fields: &StructFields,
 ) -> syn::Result<Vec<proc_macro2::TokenStream>> {
     let init_data: syn::Result<Vec<proc_macro2::TokenStream>> = fields
-        .iter()
-        .map(|f| {
+        .iter().map(|f| {
             let ident = &f.ident;
             if get_attr_field_ident(f)?.is_some() {
                 Ok(quote!(#ident: std::vec::Vec::new()))
             } else {
                 Ok(quote!(#ident: std::option::Option::None))
             }
-        })
-        .collect();
+        }).collect();
     Ok(init_data?)
 }
+
 fn generate_builder_struct_fields_def_each(
     fields: &StructFields,
 ) -> syn::Result<proc_macro2::TokenStream> {
@@ -1450,7 +1472,8 @@ fn generate_builder_struct_fields_def_each(
     let types: syn::Result<Vec<_>> = fields
         .iter()
         .map(|f| {
-            if let Some(inner_type) = get_generic_fields_type_each(&f.ty, "Option") {
+            if let Some(inner_type) = get_generic_fields_type_each(
+                &f.ty, "Option") {
                 Ok(quote!(std::option::Option<#inner_type>))
             } else if get_attr_field_ident(f)?.is_some() {
                 let origin_type = &f.ty;
@@ -1459,8 +1482,7 @@ fn generate_builder_struct_fields_def_each(
                 let origin_type = &f.ty;
                 Ok(quote!(std::option::Option<#origin_type>))
             }
-        })
-        .collect();
+        }).collect();
     let __types__ = types?;
     Ok(quote!( #(#idents: #__types__), *))
 }

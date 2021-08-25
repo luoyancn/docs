@@ -13,7 +13,7 @@ pod的ip地址段为10.1.0.0/16。
 
 \begin{outline}[enumerate]
   \1 配置yum源（\textattachfile{cern.repo}{\textcolor{blue}{cern.repo}}和\textattachfile{docker.repo}{\textcolor{blue}{docker.repo}}，如附件）和安装通用软件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cp cern.repo /etc/yum.repos.d
 cp docker.repo /etc/yum.repos.d
 yum install etcd docker-engine-1.12.6-1.el7.centos.x86_64 \
@@ -21,10 +21,10 @@ yum install etcd docker-engine-1.12.6-1.el7.centos.x86_64 \
 # 防止update的时候，用community版本的docker-engine替换相关的软件包
 mv docker.repo docker.repo_bak
 reboot
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 修改系统参数
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 修改主机名
 echo $HOSTNAME > /etc/hostname
 # 关闭并禁用防火墙
@@ -71,10 +71,10 @@ vgcreate docker /dev/vda3
 lvcreate -l +80%FREE --thinpool dockerlv docker
 
 reboot
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 配置docker
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 vi /usr/lib/systemd/system/docker.service
 [Unit]
 Description=Docker Application Container Engine
@@ -135,7 +135,7 @@ KillMode=process
 
 [Install]
 WantedBy=multi-user.target
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 准备对应的二进制文件
 
@@ -166,11 +166,11 @@ WantedBy=multi-user.target
   \1 设置安全证书
 
 准备对应的目录
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 mkdir -p /etc/etcd/ssl /etc/kubernetes/ssl /var/log/kubernetes/ /var/lib/kubelet/ /etc/cni/net.d
-\end{code-in-enumerate}
+\end{code-block}
 准备对应的ssl内容文件
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cat >/etc/kubernetes/ssl/ca-config.json<<EOF
 {
     "signing": {
@@ -292,9 +292,9 @@ cat>/etc/kubernetes/ssl/kubernetes-csr.json<<EOF
 }
 EOF
 
-\end{code-in-enumerate}
+\end{code-block}
 生成对应的证书，并分发至各个节点
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 cd /etc/kubernetes/ssl
 cfssl gencert -initca ca-csr.json |cfssljson -bare ca
 cfssl gencert \
@@ -320,10 +320,10 @@ cp /etc/kubernetes/ssl/* /etc/etcd/ssl
 # 同时，同步到其他节点
 for id in {2..3};do scp /etc/kubernetes/ssl/* root@k8s$id:/etc/etcd/ssl; \
     scp /etc/kubernetes/ssl/* root@k8s$id:/etc/kubernetes/ssl;done
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 设置kubernetes的context
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 kubectl config set-cluster kubernetes \
         --embed-certs=true \
         --certificate-authority=/etc/kubernetes/ssl/ca.pem \
@@ -339,14 +339,14 @@ kubectl config set-context kubernetes \
         --user=admin
 sleep 1
 kubectl config use-context kubernetes
-\end{code-in-enumerate}
+\end{code-block}
 将生成的context文件同步到其他的节点
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 for id in {2..3};do scp -r /root/.kube root@k8s$id:/root/;done
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 设置kubelet的context
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 BOOTSTRAP_TOKEN="$(head -c 16 /dev/urandom |od -An -t x |tr -d ' ')"
 cat > /etc/kubernetes/token.csv <<EOF
 ${BOOTSTRAP_TOKEN},kubelet-bootstrap,10001,"system:kubelet-bootstrap"
@@ -389,16 +389,16 @@ kubectl config set-context default \
 sleep 1
 kubectl config use-context default \
         --kubeconfig=/etc/kubernetes/kube-proxy.kubeconfig
-\end{code-in-enumerate}
+\end{code-block}
 将生成的context文件同步到其他的节点
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 for id in {2..3};do scp /etc/kubernetes/*.kubeconfig root@kubernetes$id:/etc/kubernetes/; scp /etc/kubernetes/token.csv root@kubernetes$id:/etc/kubernetes/;done
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 配置etcd集群
 
 Etcd集群最少为3台，但生产环境下，最好为5台。
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # k8s1 node, 20.30.40.6
 cat>/etc/etcd/etcd.conf<<EOF
 ETCD_NAME="k8s1"
@@ -487,12 +487,12 @@ EOF
 source /root/.bashrc
 etcdctl ls
 etcdctl member list
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 配置docker
 
 最好是单独给docker配置存储
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 准备之后所需要的docker image镜像
 docker pull reg.qiniu.com/quay/calico-node:v3.1.1
 docker pull reg.qiniu.com/quay/calico-cni:v3.1.1
@@ -511,12 +511,12 @@ docker pull gcr.io/kubernetes-helm/tiller:v2.6.0
 docker pull gcr.io/google-containers/fluentd-elasticsearch:1.24
 docker pull gcr.io/google-containers/kibana:v5.4.0
 docker pull gcr.io/google_containers/pause:3.0
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 配置kubernetes controller服务
 
 kubernetes的controller服务主要包含如下的几个部分：kube-apiserver, kube-controller-manager和kube-scheduler。
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # k8s1, 20.30.40.6
 vi /usr/lib/systemd/system/kube-apiserver.service
 [Unit]
@@ -748,12 +748,12 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 
 for id in kube-{apiserver,controller-manager,scheduler};do systemctl enable $id;systemctl start $id;done
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 配置kubernetes node服务
 
 kubernetes的node服务主要包含如下的几个部分：kubelet和kube-proxy。
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 每个节点增加calico的配置文件
 cat >/etc/cni/net.d/calico-node.conf<<EOF
 {
@@ -1008,13 +1008,13 @@ for id in {1..3};do kubectl label node k8s$id node-role.kubernetes.io/master=k8s
     --overwrite;kubectl label node k8s$id node-role.kubernetes.io/node=k8s$id \
     --overwrite;done
 
-\end{code-in-enumerate}
+\end{code-block}
 
   \1 配置Calico服务
 
 在该文档中，不再使用flannel作为容器集群的网络方案，而是使用calico。calico大部分都是容器，因此需要借助k8s本身
 来部署calico。需要使用到的k8s的部署yaml模板文件主要是\textattachfile{calico.yaml}{\textcolor{blue}{calico.yaml}}.
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 # 修改模板文件内容
 sed -i -r \
     -e "s|__CALICO_NODE_IMAGE__|reg.qiniu.com/quay/calico-node:v3.1.1|" \
@@ -1046,13 +1046,13 @@ kubectl create -f /opt/calico
 for id in k8s{1..3};do ssh $id mv /etc/cni/net.d/calico-node.conf /etc/cni/net.d/calico-node.conf_bak;done
 
 calicoctl node status
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 安装kubedns
 
 在该文档中，由于kubedns采用容器的方式进行部署，因此需要在calico部署完成之后再进行，否则，会因为pod无法分配到ip，导致kubedns部署失败。
 需要使用到的kubedns的部署yaml模板文件主要是\textattachfile{kubedns.yaml}{\textcolor{blue}{kubedns.yaml}}.
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 sed -i -r \
     -e "s|__KUBE_DNS_DOMAIN__|k8s.zhangjl.me|" \
     -e "s|__KUBE_DNS_VERSION__|1.14.9|" \
@@ -1063,12 +1063,12 @@ sed -i -r \
     kubedns.yaml
 
 kubectl create -f kubedns.yaml
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 安装dashboard
 
 在该文档中，dashboard采用容器的方式进行部署，需要使用到的dashboard的部署yaml模板文件主要是\textattachfile{dashboard.yaml}{\textcolor{blue}{dashboard.yaml}}.
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
     sed -i -r \
     -e "s|__KUBE_INSECURE_APISERVER__|http://20.30.40.6:7070|" \
     -e "s|__KUBE_DASHBOARD_VERSION__|v1.8.3|" \
@@ -1078,14 +1078,14 @@ kubectl create -f kubedns.yaml
     dashboard.yaml
 
 kubectl create -f dashboard.yaml
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 安装heapster
 
 Heapster是kubernetes默认的监控插件。该服务也是以容器的方式进行部署。需要使用到的yaml模板文件主要是
 \textattachfile{influxdb-grafana.yaml}{\textcolor{blue}{influxdb-grafana.yaml}}，
 \textattachfile{heapster.yaml}{\textcolor{blue}{heapster.yaml}}。
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 sed -i -r \
     -e "s|__KUBE_HEAPSTER_GRAFANA_VERSION__|v4.4.3|" \
     -e "s|__KUBE_HEAPSTER_GRAFANA_IMAGE__|gcr.io/google-containers/heapster-grafana-amd64:v4.4.3|" \
@@ -1123,7 +1123,7 @@ sed -i -r \
 kubectl apply -f influxdb-grafana.yaml
 sleep 20
 kubectl apply -f heapster.yaml
-\end{code-in-enumerate}
+\end{code-block}
 注意，如果heapster对应的pod运行不正常，请仔细检查kubedns服务以及dns的ip是否为18.18.0.2。
 
 \1 安装ingress
@@ -1133,7 +1133,7 @@ Ingress同样使用容器的方式进行部署，部署过程中需要使用的y
 \textattachfile{default-backend.yaml}{\textcolor{blue}{default-backend.yaml}}
 和\textattachfile{nginx-ingress-controller.yaml}{\textcolor{blue}{nginx-ingress-controller.yaml}}
 需要注意，ingress-controller已经不再放到gcr上了，同步的更新地址为\url{https://github.com/kubernetes/ingress-nginx/releases}。
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 sed -i -r \
     -e "s|__KUBE_NGINX_INGRESS_CONTROLLER_IMAGE__|quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.12.0" \
     -e "s|__KUBE_NGINX_INGRESS_CONTROLLER_VERSION__|0.12.0|" \
@@ -1147,14 +1147,14 @@ sed -i -r \
     default-backend.yaml
 
 kubectl create -f /opt/ingress
-\end{code-in-enumerate}
+\end{code-block}
 
 \1 设置自动补全
-\begin{code-in-enumerate}{bash}
+\begin{code-block}{bash}
 yum install bash-completion -y
 kubectl completion bash > /etc/bash_completion.d/kubectl-completion
 source /etc/bash_completion.d/kubectl-completion
-\end{code-in-enumerate}
+\end{code-block}
 
 至此，基本的一个kubernetes平台已经搭建完毕，可以正常使用了。
 \end{outline}
