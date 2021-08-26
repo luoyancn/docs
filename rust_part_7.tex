@@ -1889,11 +1889,11 @@ pub async fn fake_select_two() -> u8 {
 }
 \end{code-block}
 
-\begin{attention}
+\begin{note}
 Join，join\_all以及join系列的函数和join!这个宏，以及select函数和select!宏，都
 包含在futures-rs这个类库当中（tokio当中也有），但是，这些函数以及宏定义，是兼容
 目前所有的异步类库的。因此，可以在async-std以及tokio当中使用。
-\end{attention}
+\end{note}
 
 需要注意的是，异步任务（包括async-std、futures以及tokio等）通常是并行运行，但是
 这个“并行”的基础是\colorblock{通过共享一个执行线程实现的}。这就意味着阻塞一个操作系统（std）
@@ -1917,7 +1917,135 @@ pub async fn async_file_opts() -> io::Result<()> {
 }
 \end{code-block}
 
-而针对Rust常用的多线程通信方案channel，异步编程同样提供了对应的异步方案：
+同样是由于Rust的异步实现都是通过共享线程实现的，因此，必然会带来这样的问题：
+有的异步任务属于定时任务，需要定期的执行，如果通过普通的sleep操作进行控制权
+让出，必然会阻塞当前线程的运行，使得异步操作失败。针对这种问题，async-std提供
+了自己的定时器解决方案，只不过，这个定时器方案需要启用async-std的unstable特性：
+\begin{code-block}{rust}
+[dependencies]
+async-std = {version = "1.9.0", features = ["attributes", "unstable"]}
+\end{code-block}
+而代码则需要进行如下的变化：
+\begin{code-block}{rust}
+use std::time::Duration;
+use async_std::stream::{self, StreamExt};
+
+fn main() {
+    // 生成一个定时器stream，用于定时发送提示
+    let mut intvl = stream::interval(Duration::from_secs(1));
+    let mut count = 0;
+    // while let Some(_) = intvl.next().await {
+    while let Some(_) = block_on(intvl.next()) {
+        count += 1;
+        if count > 5 {
+            break;
+        }
+        println!("{} seconds elapsed ", count);
+    }
+}
+\end{code-block}
+通过在async-std的运行时内部利用stream实现一个定时器，可以很好的和当前线程进行
+合理的分离，使得异步的定时任务成为可能。而在上面的代码当中，出现了一个关键字，
+或者说是新的概念：stream。Stream实际上对应的是Rust当中迭代器的概念。在目前通用的
+Rust异步编程类库当中，Stream的定义和实现上都是类似的，以futures-rs为例，其定义
+大致如下\footnote{来源：\url{https://docs.rs/futures/0.3.16/futures/stream/trait.Stream.html}}
+\begin{code-block}{rust}
+pub trait Stream {
+
+    type Item;
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>
+    ) -> Poll<Option<Self::Item>>;
+
+    fn size_hint(&self) -> (usize, Option<usize>) { ... }
+}
+\end{code-block}
+而async-std当中的Stream定义则稍微有些不同，不过，核心部分是类似的\footnote{async：\url{https://docs.rs/async-std/1.9.0/async_std/stream/trait.Stream.html}}：
+\begin{code-block}{rust}
+pub fn poll_next(
+    self: Pin<&mut Self>,
+    cx: &mut Context<'_>
+) -> Poll<Option<Self::Item>>
+\end{code-block}
+并且，async-std也特意说明了，async-std当中的Stream实际上是对futures-rs当中的Stream的重新
+导出（re-export），因此，二者在本质上并没有什么区别。和普通future相比，Stream在实现
+上实际上并没有太大的区别，在编译器内部也是通过状态机或者生成器实现的。比如，一个
+简单的Stream实现如下：
+\begin{code-block}{rust}
+use std::pin::Pin;
+
+use async_std::prelude::*;
+use async_std::stream;
+use async_std::task::{Context, Poll};
+
+fn increment(
+    s: impl Stream<Item = i32> + Unpin,
+) -> impl Stream<Item = i32> + Unpin {
+
+    struct Increment<S>(S);
+
+    impl<S: Stream<Item = i32> + Unpin> Stream for Increment<S> {
+
+        type Item = S::Item;
+
+        fn poll_next(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Option<Self::Item>> {
+
+            match Pin::new(&mut self.0).poll_next(cx) {
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(None) => Poll::Ready(None),
+                Poll::Ready(Some(item)) => Poll::Ready(Some(item + 1)),
+            }
+        }
+    }
+
+    Increment(s)
+}
+
+let mut s = increment(stream::once(7));
+\end{code-block}
+只不过，在真实的生产环境当中，stream的使用并没有这么复杂：
+\begin{code-block}{rust}
+// 下列2行任选其一即可
+// use futures::stream::{self, StreamExt};
+use async_std::stream::{self, StreamExt};
+
+fn test_stream_future() {
+    // futures-rs的用法
+    //let mut streamf = stream::iter(1..=10);
+
+    // async-std的用法
+    let mut streamf = stream::from_iter(1..=10);
+
+    let res = block_on(streamf.next());
+    assert_eq!(Some(1), res);
+
+    // 迭代器消费了一个元素
+    let all_item = block_on(streamf.collect::<Vec<u8>>());
+    assert_eq!(vec![2, 3, 4, 5, 6, 7, 8, 9, 10], all_item);
+}
+\end{code-block}
+可以看到，futures-rs/async-std的stream和普通的迭代器基本没有太大的差别。而上面
+的定时器，可以看作是async-std实现的一个stream特例。
+\begin{critical}
+默认情况下，针对有限的stream（即数据有限的迭代器），标准迭代器的所有方法都可以
+使用，但是，针对无限的stream（即数据无限的迭代器），那些需要遍历所有stream当中
+的元素的方法或者函数，则应当禁止使用，否则可能造成用于无法返回，比如下面的例子：
+\begin{code-block}{rust}
+// 构造一个无限的流，流当中的每个元素都是1
+let ones = async_std::stream::repeat(1);
+// 无法结束，因为min函数需要迭代流当中的所有元素
+// 这是无法完成的操作
+let least = ones.min().await.unwrap();
+println!("The smallest number one is {}.", least);
+\end{code-block}
+\end{critical}
+
+针对Rust常用的多线程通信方案channel，async-std以及futures-rs同样提供了对应的异步方案：
 \begin{code-block}{rust}
 use async_std::channel::{unbounded, RecvError, TryRecvError};
 async fn test_async_channel() {
@@ -1926,6 +2054,11 @@ async fn test_async_channel() {
     assert_eq!(sender.send(1).await, Ok(()));
     assert_eq!(recver.recv().await, Ok(1));
     assert_eq!(recver.try_recv(), Err(TryRecvError::Empty));
+    // 不管是unbounded还是bounded的channel，如果sender
+    // 没有继续发送消息，也没有进行关闭，但是，继续使用
+    // recver.recv() 操作，会导致对应的任务进入死锁状态
+    // 无法继续向后执行，因此，下面的代码需要注意
+    // assert_eq!(recver.recv().await, Ok(_));
     drop(sender);
     assert_eq!(recver.try_recv(), Err(TryRecvError::Closed));
     assert_eq!(recver.recv().await, Err(RecvError));
@@ -1940,7 +2073,10 @@ Rust异步编程的所有完整实现，包括贡献了async/await关键字。�
 发展比较快，生态比较完善，因此，相比较而言，future-rs使用并不是特别多。尤其是，
 针对执行器，迭代器以及channel等的实现上，async-std以及tokio等都非常灵活和完善，
 并且和future-rs的使用方式相兼容，因此，直接使用future-rs当作异步执行器并不是特别
-常见，而是使用future-rs的其他功能。
+常见，而是使用future-rs的其他功能。而async-std的目的是提供一个异步的Rust标准库（std）
+的实现方案，在目前的版本当中，Rust的std方法，大部分都可以在\colorblock{async-std当中
+找到对应的异步实现}，因此可以考虑在大多数的异步环境当中，直接使用async-std替换
+对应的标准库。
 \end{note}
 
 \section{异步编程的实现方案-tokio}
