@@ -219,7 +219,6 @@ void bye()
 {
     printf("bye\n");
 }
-
 int main(int argc, char * argv[])
 {
     return 0;
@@ -267,7 +266,6 @@ __must_be_array(b);
 int c = 123;
 int *d = &c;
 __must_be_array(d); // 编译时提示错误
-
 int *e = a;
 __must_be_array(e); // 同样是编译提示错误
 \end{code-block}
@@ -278,8 +276,6 @@ __must_be_array(e); // 同样是编译提示错误
 \begin{code-block}{c}
 #if defined(__arm__)
         printf("This is build for arm arch\n");
-#else
-        printf("This is build for no-arm arch\n");
 #endif
 \end{code-block}
 除了针对ARM之外，还有其他的一些特殊的宏定义，大致如下：

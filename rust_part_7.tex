@@ -8,6 +8,7 @@ Rust的线程操作必须使用闭包完成。在之前看到的闭包当中，�
 \begin{code-block}{rust}
 use std::thread;
 use std::time::Duration;
+
 fn main() {
     thread::spawn(|| {
         for i in 1..10 {
@@ -15,10 +16,12 @@ fn main() {
             thread::sleep(Duration::from_millis(1));
         }
     });
+
     for i in 1..5 {
         println!("hi number {} from the main thread!", i);
         thread::sleep(Duration::from_millis(1));
     }
+
 }
 \end{code-block}
 和其他语言的线程概念一样，当主线程结束时，所有的线程都会被终止。因此上述代码当中，
@@ -26,16 +29,19 @@ fn main() {
 进/线程的目的，和其他的开发语言相同，需要在主进程当中调用join函数：
 \begin{code-block}{rust}
 fn main() {
+
     let handle = thread::spawn(|| {
         for i in 1..10 {
             println!("hi number {} from the spawned thread!", i);
             thread::sleep(Duration::from_millis(1));
         }
     });
+
     for i in 1..5 {
         println!("hi number {} from the main thread!", i);
         thread::sleep(Duration::from_millis(1));
     }
+
     handle.join().unwrap();
 }
 \end{code-block}
@@ -48,9 +54,11 @@ Thread::spawn的返回值是JoinHandle，是一个拥有所有权的值，当对
 \begin{code-block}{rust}
 fn main() {
     let v = vec![1, 2, 3];
+
     let handle = thread::spawn(|| {
         println!("Here's a vector: {:?}", v);
     });
+
     handle.join().unwrap();
 }
 \end{code-block}
@@ -65,11 +73,15 @@ fn main() {
 下方的代码：
 \begin{code-block}{rust}
 fn main() {
+
     let v = vec![1, 2, 3];
+
     let handle = thread::spawn(|| {
         println!("Here's a vector: {:?}", v);
     });
+
     drop(v);
+
     handle.join().unwrap();
 }
 \end{code-block}
@@ -81,11 +93,14 @@ fn main() {
 \begin{code-block}{rust}
 fn main() {
     let v = vec![1, 2, 3];
+
     let handle = thread::spawn(move || {
         println!("Here's a vector: {:?}", v);
     });
+
     // 下方代码无法再进行执行
     // println!("{:?}", v);
+
     handle.join().unwrap();
 }
 \end{code-block}
@@ -123,6 +138,7 @@ fn main() {
             Ok(_) => println!("Send success"),
             Err(error) => println!("Send failed :{:?}", error),
         }
+
     });
 
     let res = match recevier.recv() {
@@ -152,13 +168,16 @@ fn main() {
     let (sender, recevier) = mpsc::channel();
 
     let handler = thread::spawn(move || {
+
         let vals = vec!["lucifer", "titans", "garuda"];
+
         for val in vals {
             match sender.send(val) {
                 Ok(_) => println!("Send success"),
                 Err(error) => println!("Send failed :{:?}", error),
             }
         }
+
     });
 
     for msg in recevier {
@@ -192,6 +211,7 @@ fn main() {
             }
         }
     });
+
     let handler_copy = thread::spawn(move || {
         let vals = vec!["zhangjl", "luoyan", "zhangzz"];
 
@@ -202,13 +222,16 @@ fn main() {
             }
         }
     });
+
     for msg in recevier {
         println!("The msg is {}", msg);
     }
+
     match handler_copy.join() {
         Err(error) => println!("Error{:?}", error),
         _ => (),
     }
+
     match handler.join() {
         Err(error) => println!("Error{:?}", error),
         _ => (),
@@ -222,12 +245,15 @@ fn main() {
 计数器（Arc）。在基本的操作上，互斥锁的使用和其他语言当中没有太大的区别：
 \begin{code-block}{rust}
 use std::sync::Mutex;
+
 fn main() {
+
     let m = Mutex::new(5);
     {
         let mut num = m.lock().unwrap();
         *num = 6;
     }
+
     println!("m = {:?}", m);
 }
 \end{code-block}
@@ -246,20 +272,25 @@ fn main() {
 use std::rc::Rc;
 use std::sync::Mutex;
 use std::thread;
+
 fn main() {
     let counter = Rc::new(Mutex::new(0));
     let mut handles = vec![];
+
     for _ in 0..10 {
         let counter = Rc::clone(&counter);
         let handle = thread::spawn(move || {
             let mut num = counter.lock().unwrap();
             *num += 1;
         });
+
         handles.push(handle);
     }
+
     for handle in handles {
         handle.join().unwrap();
     }
+
     println!("Result: {}", *counter.lock().unwrap());
 }
 \end{code-block}
@@ -278,20 +309,25 @@ fn main() {
 \begin{code-block}{rust}
 use std::sync::{Arc, Mutex};
 use std::thread;
+
 fn main() {
     let counter = Arc::new(Mutex::new(0));
     let mut handles = vec![];
+
     for _ in 0..10 {
         let counter = Arc::clone(&counter);
         let handle = thread::spawn(move || {
             let mut num = counter.lock().unwrap();
             *num += 1;
         });
+
         handles.push(handle);
     }
+
     for handle in handles {
         handle.join().unwrap();
     }
+
     println!("Result: {}", *counter.lock().unwrap());
 }
 \end{code-block}
@@ -303,11 +339,14 @@ fn main() {
 如下：
 \begin{code-block}{rust}
 let mut v_thread = vec![];
+
 for id in 1..5 {
     let thread_name = format!("child-{}", id);
     let size: usize = 1024;
+
     // 定义线程的名称，设置线程占用的栈大小为1M(1024)
     let builder = Builder::new().name(thread_name).stack_size(size);
+
     // builder.spawn返回的是Result<JoinHander, std::io::Error>
     // 需要进行处理，取出真正的线程句柄
     match builder.spawn(move || {
@@ -318,13 +357,16 @@ for id in 1..5 {
         );
     }) {
         Ok(child) => v_thread.push(child),
-        Err(error) => error!("Cannot create the thread {} because: {:?}", id, error),
+        Err(error) => error!(
+            "Cannot create the thread {} because: {:?}", id, error),
     };
 }
+
 // 其他的同普通的线程，
 for child in v_thread {
     child.join().unwrap();
 }
+
 \end{code-block}
 
 由于线程包含自己的资源空间，因此，存在一个特殊的存储空间——线程本地存储（Thread Local Storage，TLS），
@@ -332,16 +374,20 @@ for child in v_thread {
 \begin{code-block}{rust}
 use std::cell::RefCell;
 use std::thread;
+
 fn main() {
     // 在线程本地存储定义一个FOO变量，最终的类型是thread::LocalKey
     thread_local!(static FOO: RefCell<u32> = RefCell::new(1));
+
     // 提供了一个with方法，可以通过给该方法传入闭包
     // 来操作线程本地存储中包含的变量
     FOO.with(|f| {
         info!("The f borrow is {}", *f.borrow());
         *f.borrow_mut() = 2;
     });
+
     let handler = thread::spawn(move || {
+
         // 子线程也有一个线程本地存储实例FOO，为主线程的副本
         // 也可以使用thread_local!宏在该子线程中重新创建一个LocalKey实例
         FOO.with(|f| {
@@ -349,23 +395,26 @@ fn main() {
             *f.borrow_mut() = 3;
         });
     });
+
     // 主线程当中FOO实例并没有被子线程修改为3
     // thread local!宏定义单个线程内的一些独享数据
     FOO.with(|f| {
         info!("The f borrow is {}", *f.borrow());
     });
+
     handler.join().unwrap();
 }
 \end{code-block}
 
 在同步原语支持方面，Rust也有自己的实现方式，通过使用std::thread当中的park函数提供
-阻塞线程的能力，但并不能永久的阻塞线程，存在时间限制；而std::thread::part\_timeout
+阻塞线程的能力，但并不能永久的阻塞线程，存在时间限制；而\codeinline{rust}{std::thread::part_timeout}
 则可以显式的指定阻塞的超时时间；std::thread::Thread::unpark则可以将阻塞的线程重启；
 如果需要让出当前线程的时间片，则需要使用std::thread::yeild\_now，让其他线程进行执行。
 简单的阻塞例子如下：
 \begin{code-block}{rust}
 use std::thread::{self, Builder};
 use std::time::Duration;
+
 fn main() {
     let parked_thread = Builder::new()
         .spawn(|| {
@@ -375,10 +424,14 @@ fn main() {
             info!("Thread parked");
         })
         .unwrap();
+
     thread::sleep(Duration::from_secs(5));
+
     info!("Unparking the thread");
+
     // 从JoinHandle中得到具体的线程
     parked_thread.thread().unpark();
+
     // 将该线程重新启动，该线程会继续沿着之前暂停的上下文执行
     parked_thread.join().unwrap();
 }
@@ -387,8 +440,10 @@ fn main() {
 除了常见的互斥锁（Mutex）之外，Rust也支持读写锁（RwLock）。读写锁的基本示例如下：
 \begin{code-block}{rust}
 use std::sync::RwLock;
+
 fn main() {
     let rw_lock = RwLock::new(5);
+
     // 读写锁的使用必须使用{}进行区分，即便是单独使用读或者写也是一样
     // 通过代码块{}，让读写锁自动释放，否则会出现死锁
     {
@@ -396,10 +451,12 @@ fn main() {
         let read_2 = rw_lock.read().unwrap();
         info!("The read_1 is {}, and read_2 is {}", read_1, read_2);
     }
+
     {
         let mut write = rw_lock.write().unwrap();
         *write = 100;
     }
+
     info!("The data is {:?}", rw_lock);
 }
 \end{code-block}
@@ -410,9 +467,12 @@ fn main() {
 \begin{code-block}{rust}
 use std::sync::{Arc, Barrier};
 use std::thread;
+
 fn main() {
     let mut vec = vec![];
+
     let barrier = Arc::new(Barrier::new(5));
+
     for id in 0..5 {
         let barrier_copy = barrier.clone();
         vec.push(thread::spawn(move || {
@@ -420,6 +480,7 @@ fn main() {
             // wait阻塞了所有的线程，当所有线程的wait之前部分全部执行完成之后
             // wait操作才算执行完成，才会执行每个线程后续的操作
             barrier_copy.wait();
+
             info!("{} After wait...", id);
         }));
     }
@@ -597,7 +658,7 @@ Async-Std\footnote{\url{https://github.com/async-rs/async-std}}也提供了
 内容加载内存当中，唤醒，则是调用者访问文件内容。
 
 Rust的异步实现依赖于Future。在标准库当中，Rust提供了Future的
-Trait以及\codeinlinebg{rust}{async}和\codeinlinebg{rust}{await}2个异步并发的关键字，
+Trait以及\codeinline{rust}{async}和\codeinline{rust}{await}2个异步并发的关键字，
 但是并没有提供具体的实现（即运行时），运行时则是由其他的库提供的，常见的就包括
 上面提到的Async-Std和Tokio，以及Rust官方提供的futures（不在Rust的标准库当中）。
 Rust的异步运行时可以分为2部分：执行器（executor）和反应器（reactor），
@@ -617,8 +678,8 @@ fn main() {
     futures::executor::block_on(future);
 }
 \end{code-block}
-在上述的例子当中，使用关键字\codeinlinebg{rust}{async}修饰的函数都是异步函数，这些
-函数都会返回一个Future Trait，如果不使用\codeinlinebg{rust}{async}关键字，实际上
+在上述的例子当中，使用关键字\codeinline{rust}{async}修饰的函数都是异步函数，这些
+函数都会返回一个Future Trait，如果不使用\codeinline{rust}{async}关键字，实际上
 也是可以实现异步函数的定义的，只不过，会相对比较麻烦，并且需要显式的使用Future，
 比如下面的代码：
 \begin{code-block}{rust}
@@ -638,7 +699,7 @@ pub trait Future {
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output>;
 }
 \end{code-block}
-其中，Output指的是异步函数的返回数据类型，而\codeinlinebg{rust}{poll}函数则是整个
+其中，Output指的是异步函数的返回数据类型，而\codeinline{rust}{poll}函数则是整个
 Future工作机制的核心。该函数的实质是一个有限状态机，返回的Poll实际上是状态的描述。
 Poll的定义如下：
 \begin{code-block}{rust}
@@ -647,7 +708,7 @@ pub enum Poll<T> {
     Pending,
 }
 \end{code-block}
-当异步函数的执行结果完成并且可用时，\codeinlinebg{rust}{poll}函数将返回一个Ready
+当异步函数的执行结果完成并且可用时，\codeinline{rust}{poll}函数将返回一个Ready
 包裹的结果，表示完成；如果执行还没有结束，则会返回一个Pending，表示执行还将继续，
 相关的数据还没有准备完成，需要继续等待或者轮询，并且从当前的context当中，克隆一个
 waker，一旦future状态有新的变化，waker函数将被唤醒。注意，如果状态不是Ready，poll函数
@@ -723,16 +784,16 @@ fn async_read_file(name: &str) -> impl Future<Output = String> {
     future::ready(String::from(name))
 }
 \end{code-block}
-上述代码的功能很简单，读取foo.txt文件，然后使用\codeinlinebg{rust}{then}连接第二个
+上述代码的功能很简单，读取foo.txt文件，然后使用\codeinline{rust}{then}连接第二个
 future：如果foo.txt的内容长度小于给定的最小值，则读取另一个文件bar.txt的内容，并将
-其长度追加到返回结果当中，否则，只返回foo.txt的内容。上述操作当中，必须使用\codeinlinebg{rust}{move}
+其长度追加到返回结果当中，否则，只返回foo.txt的内容。上述操作当中，必须使用\codeinline{rust}{move}
 关键字，否则会存在一个生命周期的错误；另外，if/else必须返回相同的类型，但是，
-上述代码当中，if返回的是\codeinlinebg{rust}{futures::future::Map}，而else返回的是\codeinlinebg{rust}{futures::future::Ready}，
-必须使用\codeinlinebg{rust}{Either}将结果进行封装，转换成所期望的future。
+上述代码当中，if返回的是\codeinline{rust}{futures::future::Map}，而else返回的是\codeinline{rust}{futures::future::Ready}，
+必须使用\codeinline{rust}{Either}将结果进行封装，转换成所期望的future。
 
 \subsection{Future的async/await模式}
 从上面的各种例子都可以看到，使用普通的方式实现Rust的异步编程可能会涉及到非常复杂的
-代码，于是，Rust官方使用\codeinlinebg{rust}{async/await}等关键字，来简化异步编程的实现，
+代码，于是，Rust官方使用\codeinline{rust}{async/await}等关键字，来简化异步编程的实现，
 屏蔽了繁琐的实现细节。使用上述两个关键字之后，Rust的编译器会在编译过程当中进行
 自动转换，转换成Future的模式，比如：
 \begin{code-block}{rust}
@@ -759,8 +820,8 @@ async fn example(min_len: usize) -> String {
 \end{code-block}
 可以看到，代码更加的简练，并且逻辑上也是非常清晰。
 
-但是，不管怎么变换，Future的内在还是一个有限状态机。\codeinlinebg{rust}{async}负责
-将对应的函数转换成有限状态机，而\codeinlinebg{rust}{await}调用代表了不同的状态。
+但是，不管怎么变换，Future的内在还是一个有限状态机。\codeinline{rust}{async}负责
+将对应的函数转换成有限状态机，而\codeinline{rust}{await}调用代表了不同的状态。
 在上述代码当中，编译器将创建一个具有4个状态的状态机：
 \begin{figure}[H]
   \centering
@@ -775,7 +836,7 @@ async fn example(min_len: usize) -> String {
   \item \colorblock{Waiting on bar.txt}状态表示函数等待第二个async\_read\_file结果，同样也是一个暂停点
 \end{enumerate}
 
-有限状态机通过调用\codeinlinebg{rust}{poll}函数实现状态的切换，从而实现Future Trait：
+有限状态机通过调用\codeinline{rust}{poll}函数实现状态的切换，从而实现Future Trait：
 \begin{figure}[H]
   \centering
   \begin{minipage}{\textwidth}
@@ -869,16 +930,18 @@ Rust编译器生成的Start分支的代码可能如下：
 ExampleStateMachine::Start(state) => {
     // from body of `example`
     let foo_txt_future = async_read_file("foo.txt");
+
     // `.await` operation
     let state = WaitingOnFooTxtState {
         min_len: state.min_len,
         foo_txt_future,
     };
+
     *self = ExampleStateMachine::WaitingOnFooTxt(state);
 }
 \end{code-block}
 在example函数开始的时候，状态机实际上处于Start状态，在这种状态下，会执行example函数
-体当中的代码，直到遇到第一个await关键字，即执行\codeinlinebg{rust}{async_read_file("foo.txt")}
+体当中的代码，直到遇到第一个await关键字，即执行\codeinline{rust}{async_read_file("foo.txt")}
 这句，而为了处理该函数后面的await操作，编译器需要将状态机的状态修改为WaitingOnFooTxtState。
 由于loop-match操作，状态机会跳入到WaitingOnFooTxtState分支。
 
@@ -894,7 +957,10 @@ ExampleStateMachine::WaitingOnFooTxt(state) => {
             if content.len() < state.min_len {
                 let bar_txt_future = async_read_file("bar.txt");
                 // `.await` operation
-                let state = WaitingOnBarTxtState { content, bar_txt_future, };
+                let state = WaitingOnBarTxtState {
+                    content,
+                    bar_txt_future,
+                };
                 *self = ExampleStateMachine::WaitingOnBarTxt(state);
             } else {
                 *self = ExampleStateMachine::End(EndState));
@@ -1042,6 +1108,7 @@ struct WaitingOnWriteState {
 因此可以利用该特性在堆区上创建自引用数据结构：
 \begin{code-block}{rust}
 fn main() {
+
     let mut heap_value = Box::new(SelfReferential {
         // 使用0x00当作初始的地址
         self_ptr: 0 as *const _,
@@ -1057,6 +1124,7 @@ fn main() {
     println!("heap value at: {:p}", heap_value);
     println!("internal reference: {:p}", heap_value.self_ptr);
 }
+
 struct SelfReferential {
     self_ptr: *const Self,
 }
@@ -1080,11 +1148,14 @@ struct SelfReferential {
 use std::mem;
 
 fn main() {
+
     let mut heap_value = Box::new(SelfReferential {
         self_ptr: 0 as *const _,
     });
+
     let ptr = &*heap_value as *const SelfReferential;
     heap_value.self_ptr = ptr;
+
     println!("heap value at: {:p}", heap_value);
     println!("internal reference: {:p}", heap_value.self_ptr);
 
@@ -1095,11 +1166,15 @@ fn main() {
 
     println!("value at: {:p}", &stack_value);
     println!("internal reference: {:p}", stack_value.self_ptr);
+
     let hp = *heap_value;
     println!("heap value at: {:p}", &hp);
     println!("internal reference: {:p}", &(hp.self_ptr));
 }
-struct SelfReferential { self_ptr: *const Self, }
+
+struct SelfReferential {
+    self_ptr: *const Self,
+}
 \end{code-block}
 则可以观察到，对应的结构体的内存地址全部发生了变化：
 \begin{figure}[H]
@@ -1132,6 +1207,7 @@ Rust的Pinging API通过使用Pin Wrapper类型以及Unpin这个标记型Trait�
 利用这种思路，我们可以将之前编写的自引用结构进行改写：
 \begin{code-block}{rust}
 use core::marker::PhantomPinned;
+
 struct SelfReferential {
     self_ptr: *const Self,
     _pin: PhantomPinned,
@@ -1157,22 +1233,28 @@ use std::mem;
 use std::marker::PhantomPinned;
 
 fn main() {
+
     let mut heap_value = Box::pin(SelfReferential {
         self_ptr: 0 as *const _,
         _pin: PhantomPinned,
     });
+
     let ptr = &*heap_value as *const SelfReferential;
     heap_value.self_ptr = ptr;
+
     println!("heap value at: {:p}", heap_value);
     println!("internal reference: {:p}", heap_value.self_ptr);
+
     // break it
     let stack_value = mem::replace(&mut *heap_value, SelfReferential {
         self_ptr: 0 as *const _,
         _pin: PhantomPinned,
     });
+
     println!("value at: {:p}", &stack_value);
     println!("internal reference: {:p}", stack_value.self_ptr);
 }
+
 struct SelfReferential {
     self_ptr: *const Self,
     _pin: PhantomPinned,
@@ -1369,7 +1451,7 @@ new方法接收一个关联类型为()的任意Future，并且通过Box::pin将�
 Task可以在任意时间存在，所以，Future也需要在任意时间内有效。
 
 由于Future Trait的poll方法定义为\codeinline{rust}{fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>;}，
-因此，首先需要通过as\_mut方法将self.future从\codeinlinebg{rust}{Pin<Box<T>>}（Box::pin的返回）转换成
+因此，首先需要通过as\_mut方法将self.future从\codeinline{rust}{Pin<Box<T>>}（Box::pin的返回）转换成
 Pin<\&mut T>，然后对转换之后的future调用poll函数。由于Task::poll方法应该只由稍后
 创建的执行器调用，因此需要将该函数设置为私有模式。
 

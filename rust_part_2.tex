@@ -233,12 +233,10 @@ mod tests {
 pub fn greeting(name: &str) -> String {
     format!("Hello {}!", name)
 }
-
 #[cfg(test)]
 mod tests {
     // 引用暴露的模块代码
     use super::*;
-
     #[test]
     fn greeting_contains_name() {
         let result = greeting("Carol");
@@ -253,23 +251,19 @@ mod tests {
 pub struct Guess {
     value: i32,
 }
-
 impl Guess {
     pub fn new(value: i32) -> Guess {
         if value < 1 || value > 100 {
             panic!("Guess value must be between 1 and 100, got {}.", value);
         }
-
         Guess {
             value
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     #[should_panic]
     fn greater_than_100() {
@@ -283,7 +277,6 @@ mod tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     #[should_panic(expected = "Guess value must be between 1 and 100")]
     fn greater_than_100() {
@@ -296,10 +289,8 @@ mod tests {
 \begin{code-block}{bash}
 // 默认并行的方式运行所有的测试用例
 cargo test
-
 // 串行的方式运行所有的测试用例
 cargo test -- --test-threads=1
-
 // 运行指定的测试用例，可匹配以add开头的所有测试用例
 cargo test add
 \end{code-block}
@@ -323,7 +314,6 @@ mkdir tests
 echo > tests/units.rs<<EOF
 // 导入的lib名称必须是当前crate的名称
 use shared;
-
 #[test]
 fn it_adds_two() {
     assert_eq!(4, adder::add_two(2));
@@ -385,7 +375,6 @@ let live_closure = |num: i32| -> (i32, i32) {
     // 或者修改为return语句
     // return (num*10, num*20);
 };
-
 // 如果不需要返回值，则闭包的写法需要注意一下：
 let other = |x| {
     println!("{}", x);
@@ -434,7 +423,6 @@ where
             value: None,
         }
     }
-
     pub fn value(&mut self, arg: u32) -> u32 {
         match self.value {
             Some(v) => v,
@@ -455,7 +443,6 @@ where
 let mut cacher = Cacher::new(|x: u32| -> u32 { x * 10 });
 let mut val = cacher.value(32);
 println!("The val of cacher is {}", val);
-
 val = cacher.value(45);
 println!("The val of cacher second time is {}", val);
 \end{code-block}
@@ -481,7 +468,6 @@ where
             value: BTreeMap::new(),
         }
     }
-
     pub fn value(&mut self, arg: u32) -> u32 {
         // 从现有的结果记录当中查询是否存在arg对应的计算结果
         match self.value.get(&arg) {
@@ -519,7 +505,6 @@ X在闭包出现之前已经存在，定义闭包equal\_to\_x的时候，可以�
 pub trait Iterator {
     type Item;
     fn next(&mut self) -> Option<Self::Item>;
-    ...
 }
 \end{code-block}
 其中的type Item和Self::Item定义了trait的关联数据类型，即该trait要求同时定义一个

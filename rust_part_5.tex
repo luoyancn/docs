@@ -1,7 +1,7 @@
 \subsection{过程宏案例-派生过程宏Builder深入}
 通常情况下，Rust的结构体并不是要求所有的字段都必须有值，或者必须初始化，存在可选的
 字段，因此，可以继续对Builder过程宏进行改造。比如将上例当中的
-\codeinlinebg{rust}{Command}结构体
+\codeinline{rust}{Command}结构体
 定义修改为如下：
 \begin{code-block}{rust}
 pub struct Command {
@@ -11,8 +11,8 @@ pub struct Command {
     current_dir: Option<String>,
 }
 \end{code-block}
-即\codeinlinebg{rust}{current_dir}
-为可选字段，而Builder生成的结构体\codeinlinebg{rust}{CommandBuilder}
+即\codeinline{rust}{current_dir}
+为可选字段，而Builder生成的结构体\codeinline{rust}{CommandBuilder}
 则如下：
 \begin{code-block}{rust}
 pub struct CommandBuilder {
@@ -23,7 +23,7 @@ pub struct CommandBuilder {
 }
 \end{code-block}
 
-而这样的结构体，如果将其展开为语法树，原始结构体的\codeinlinebg{rust}{current_dir}
+而这样的结构体，如果将其展开为语法树，原始结构体的\codeinline{rust}{current_dir}
 字段形式大致如下：
 \begin{code-block}{json}
 Path(
@@ -479,15 +479,15 @@ fn main() {
         .unwrap();
 }
 \end{code-block}
-即，使用\codeinlinebg{rust}{#[builder(each = "arg")]}
+即，使用\codeinline{rust}{#[builder(each = "arg")]}
 这样的代码对结构体的字段进行标记，标记之后，原本对结构体进行初始化，使用的是一个vec结构（args），
 后续可以使用单个元素（arg）进行追加的方式进行初始化。通常来说，实现这种宏，都应该要求builder当中的标签
 和真实的属性名之间最好有区别。如果要求标签和属性名相同，则需要进行额外的其他特殊处理，即需要避免生成一个一次性通过列表进行赋值的方法。
 以上述代码为例，如果使用builder宏装饰env字段，并且标签也是env，那么，针对env字段，最好的方式就是不要实现一个
-使用列表直接复制的函数，即\codeinlinebg{rust}{builder.env("something")}与
-\codeinlinebg{rust}{builder.env(vec!["nothing", "ok"])}这2种形式
+使用列表直接复制的函数，即\codeinline{rust}{builder.env("something")}与
+\codeinline{rust}{builder.env(vec!["nothing", "ok"])}这2种形式
 无法并存，只能存在第一个。另外的重点是，这个builder宏，只能在被使用了
-\codeinlinebg{rust}{#[derive(Builder)]}
+\codeinline{rust}{#[derive(Builder)]}
 修饰之后的结构体当中使用，而不能单独使用，因此，类似builder的宏被称之为惰性属性
 宏，其完整的定义形式，一般是\codeinline{rust}{#[proc_macro_derive(Builder, attributes(builder))]}
 这种。
@@ -570,23 +570,23 @@ Attribute {
 \end{code-block}
 在上述的输出当中，需要关注的有几个点：
 \begin{enumerate}
-  \item 属性的style值为Outer，如果对结构体的装饰变成了\codeinlinebg{rust}{#![derive]}这种，则style会变成Inner
+  \item 属性的style值为Outer，如果对结构体的装饰变成了\codeinline{rust}{#![derive]}这种，则style会变成Inner
   \item Rust会把属性拆分成2部分，path和tokens，其中path表示路径，tokens则是一个原始的TokenStream，并没有变成语法树节点，仅仅只是做了分词处理，没有任何语义，需要自行解析，因此，可以在其中加入自己规定的语法结构
   \item path指导编译器决定如何处理后面的部分
-  \item tokens如果本身是一个符合Rust语法规范的结构，可以采用\codeinlinebg{rust}{parse_meta}方法将path和tokens解析成为\codeinlinebg{rust}{syn::Meta}数据类型，使之成为独立的语法树节点
+  \item tokens如果本身是一个符合Rust语法规范的结构，可以采用\codeinline{rust}{parse_meta}方法将path和tokens解析成为\codeinline{rust}{syn::Meta}数据类型，使之成为独立的语法树节点
 \end{enumerate}
 
-关于\codeinlinebg{rust}{syn::Meta}\footnote{类型定义：\url{https://docs.rs/syn/1.0.73/syn/enum.Meta.html}}
+关于\codeinline{rust}{syn::Meta}\footnote{类型定义：\url{https://docs.rs/syn/1.0.73/syn/enum.Meta.html}}
 数据类型，其中包含3种：
 \begin{enumerate}
-  \item \codeinlinebg{rust}{syn::Meta::Path}表示一个路径，\codeinlinebg{rust}{#[A]}只有一个小节，但是A也是一个Path；\codeinlinebg{rust}{#[A::B::C]}也是一个Path，但是会被拆分成多个PathSegment。
-  \item \codeinlinebg{rust}{syn::Meta::List}表示一个列表，这个列表必须由一个前置路径和一个括号标记组成，括号内部的内容通过逗号分割为多个条目（组成列表），每个条目又是一个\codeinlinebg{rust}{syn::Meta}
-数据类型。比如\codeinlinebg{rust}{#[Foo(AA,BB,CC)]}当中，Foo就是前置路径，而AA等则是列表项，同时，也是\codeinlinebg{rust}{syn::Meta}数据类型；
-而\codeinlinebg{rust}{#[Foo(AAA,BBB(CCC,DDD))]}表示列表可以嵌套，Foo是全局的前置路径，而BBB是内层\codeinlinebg{rust}{syn::Meta::List}的前置路径。
-  \item \codeinlinebg{rust}{syn::Meta::NameValue}则是常见的键值对，key部分是一个\codeinline{rust}{syn::Path}类型，而value则通常是字符串。比如
-\codeinlinebg{rust}{#[xxx="yyy"]}。默认情况下，kv对只能有一对，如果需要有多个kv对，则必须使用list类型，即\codeinline{rust}{#[Foo(x="y",w="z")]}这种形式。
+  \item \codeinline{rust}{syn::Meta::Path}表示一个路径，\codeinline{rust}{#[A]}只有一个小节，但是A也是一个Path；\codeinline{rust}{#[A::B::C]}也是一个Path，但是会被拆分成多个PathSegment。
+  \item \codeinline{rust}{syn::Meta::List}表示一个列表，这个列表必须由一个前置路径和一个括号标记组成，括号内部的内容通过逗号分割为多个条目（组成列表），每个条目又是一个\codeinline{rust}{syn::Meta}
+数据类型。比如\codeinline{rust}{#[Foo(AA,BB,CC)]}当中，Foo就是前置路径，而AA等则是列表项，同时，也是\codeinline{rust}{syn::Meta}数据类型；
+而\codeinline{rust}{#[Foo(AAA,BBB(CCC,DDD))]}表示列表可以嵌套，Foo是全局的前置路径，而BBB是内层\codeinline{rust}{syn::Meta::List}的前置路径。
+  \item \codeinline{rust}{syn::Meta::NameValue}则是常见的键值对，key部分是一个\codeinline{rust}{syn::Path}类型，而value则通常是字符串。比如
+\codeinline{rust}{#[xxx="yyy"]}。默认情况下，kv对只能有一对，如果需要有多个kv对，则必须使用list类型，即\codeinline{rust}{#[Foo(x="y",w="z")]}这种形式。
 \end{enumerate}
-只要是attr符合上述标准，则可以使用\codeinlinebg{rust}{parse_meta}函数对其进行解析，比如下面的例子：
+只要是attr符合上述标准，则可以使用\codeinline{rust}{parse_meta}函数对其进行解析，比如下面的例子：
 \begin{code-block}{rust}
 #[proc_macro_derive(Test)]
 pub fn do_test(input: TokenStream) -> TokenStream {
@@ -606,7 +606,7 @@ pub struct CommandEach {
 ...
 }
 \end{code-block}
-上述代码通过\codeinlinebg{bash}{cargo check}之后，可以得到类似如下的结果：
+上述代码通过\codeinline{bash}{cargo check}之后，可以得到类似如下的结果：
 \begin{code-block}{json}
 Ok(
     List(
@@ -1351,7 +1351,7 @@ fn main() {
 }
 \end{code-block}
 
-如果通过\codeinlinebg{bash}{cargo expand}将代码进行展开，得到的结果类似如下：
+如果通过\codeinline{bash}{cargo expand}将代码进行展开，得到的结果类似如下：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{rust_label_expand.png}
@@ -1406,8 +1406,8 @@ fn get_attr_field_ident(field: &syn::Field) -> syn::Result<Option<syn::Ident>> {
 \end{code-block}
 
 由于需要返回错误信息，因此，也需要对其他使用到该函数的地方进行修改。对于普通的
-使用方式，直接在该方法的后面添加\codeinlinebg{rust}{?}即可，而如果是闭包，则需要
-稍微注意一下。调用了\codeinlinebg{rust}{get_attr_field_ident}函数的代码修改如下：
+使用方式，直接在该方法的后面添加\codeinline{rust}{?}即可，而如果是闭包，则需要
+稍微注意一下。调用了\codeinline{rust}{get_attr_field_ident}函数的代码修改如下：
 \begin{code-block}{rust}
 fn generate_builder_function(
     fields: &StructFields,

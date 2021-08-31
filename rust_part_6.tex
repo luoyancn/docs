@@ -137,7 +137,7 @@ fn get_speciald_format_of_field(field: &syn::Field) -> syn::Result<Option<String
 }
 \end{code-block}
 
-剩下的，则是对之前的\codeinlinebg{rust}{generate_debug_trait}函数进行一定的修改：
+剩下的，则是对之前的\codeinline{rust}{generate_debug_trait}函数进行一定的修改：
 \begin{code-block}{rust}
 fn generate_debug_trait(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let struct_name_literal = st.ident.to_string();
@@ -441,7 +441,7 @@ DeriveInput {
 \begin{enumerate}
   \item 泛型参数作用在整个结构体上，单独使用generics表示
   \item 泛型参数在语法树节点上，和泛型参数所装饰的类型/字段没有必然的联系
-  \item 泛型参数的\codeinlinebg{rust}{where}限定，单独使用了where\_clause进行保存
+  \item 泛型参数的\codeinline{rust}{where}限定，单独使用了where\_clause进行保存
 \end{enumerate}
 
 如果想实现对带泛型参数的结构体的Debug Trait，从Rust的语法规则上，有如下的需求：
@@ -457,8 +457,8 @@ impl<T: Debug, U: Debug> Debug for ForType<T, U> {...}
 因此，在使用过程宏对泛型参数进行处理实现Debug Trait时，也必须满足上述的要求。
 
 对于包含有泛型函数的结构体，其语法树结构（DeriveInput）会包含
-generics（\codeinlinebg{rust}{syn::Generics}）参数\footnote{结构体描述：\url{https://docs.rs/syn/1.0.73/syn/struct.Generics.html}}，
-而该结构体当中非常重要的字段params，其具体类型\codeinlinebg{rust}{syn::GenericParam}\footnote{结构体定义：\url{https://docs.rs/syn/1.0.73/syn/enum.GenericParam.html}}
+generics（\codeinline{rust}{syn::Generics}）参数\footnote{结构体描述：\url{https://docs.rs/syn/1.0.73/syn/struct.Generics.html}}，
+而该结构体当中非常重要的字段params，其具体类型\codeinline{rust}{syn::GenericParam}\footnote{结构体定义：\url{https://docs.rs/syn/1.0.73/syn/enum.GenericParam.html}}
 如下：
 \begin{code-block}{rust}
 pub enum GenericParam {
@@ -468,7 +468,7 @@ pub enum GenericParam {
 }
 \end{code-block}
 可以看到，对于过程宏而言，泛型参数的定义非常广泛，包含了泛型类型，生命周期以及常量等。
-在添加上述的泛型参数时，需要使用到一个工具函数：\codeinlinebg{rust}{split_for_impl}。
+在添加上述的泛型参数时，需要使用到一个工具函数：\codeinline{rust}{split_for_impl}。
 该函数的作用，就是将真正的泛型类型（\codeinline{rust}{syn::GenericParam}）解析
 成3部分：
 \begin{figure}[H]
@@ -515,7 +515,7 @@ pub struct Custom {
     age: u8,
 }
 \end{code-block}
-这种没有泛型参数的，不会有什么变化，通过\codeinlinebg{bash}{cargo expand}展开之后
+这种没有泛型参数的，不会有什么变化，通过\codeinline{bash}{cargo expand}展开之后
 的结果基本和之前是相同的；如果将代码进行修改，添加上泛型参数：
 \begin{code-block}{rust}
 #[derive(CustomDebug)]
@@ -558,18 +558,18 @@ pub struct GeekKindergarten<T, U> {
 }
 \end{code-block}
 如果按照之前的处理方式，那我们的过程宏对泛型参数的处理，生成的限定条件应该是
-\codeinlinebg{rust}{T: Debug, U: Debug}。但是，由于在Rust当中，\codeinline{rust}{PhantomData}
-本身就已经实现了Debug Trait，因此，从实际上讲，是没有必要对U或者\codeinlinebg{rust}{PhantomData<U>}做
+\codeinline{rust}{T: Debug, U: Debug}。但是，由于在Rust当中，\codeinline{rust}{PhantomData}
+本身就已经实现了Debug Trait，因此，从实际上讲，是没有必要对U或者\codeinline{rust}{PhantomData<U>}做
 Trait限定的。面对这类本身已经实现了Debug的泛型结构体，有一种应对办法，即在生成Trait限定时，
 不是针对每一个泛型参数去限制，而是对结构体中每一个字段的类型来添加限制，简而言之，
-限定条件应该修改为\codeinlinebg{rust}{Foo<U>: Debug, PhantomData<T>: Debug}。
+限定条件应该修改为\codeinline{rust}{Foo<U>: Debug, PhantomData<T>: Debug}。
 \begin{critical}
 但是这种方式的副作用非常大，因此，在实际的生产环境当中，几乎无人使用。
 \end{critical}
 
-由于\codeinlinebg{rust}{PhantomData}在Rust当中使用非常频繁，通常的做法是：判断是否
-包含\codeinlinebg{rust}{PhantomData}类型的字段，如果有，则查看被其包裹的泛型参数
-是否只是在\codeinlinebg{rust}{PhantomData}当中出现过，如果是，则不对相关的泛型参数添加Debug Trait限定了。
+由于\codeinline{rust}{PhantomData}在Rust当中使用非常频繁，通常的做法是：判断是否
+包含\codeinline{rust}{PhantomData}类型的字段，如果有，则查看被其包裹的泛型参数
+是否只是在\codeinline{rust}{PhantomData}当中出现过，如果是，则不对相关的泛型参数添加Debug Trait限定了。
 以下面的代码为例：
 \begin{code-block}{rust}
 struct GeekKindergarten<T, U, V, W> {
@@ -583,15 +583,15 @@ struct GeekKindergarten<T, U, V, W> {
 
 \begin{note}
 \begin{enumerate}
-  \item 泛型参数\codeinlinebg{rust}{T}没有出现在\codeinlinebg{rust}{PhantomData}的类型当中，因此，需要添加Debug Trait限定
-  \item 泛型参数\codeinlinebg{rust}{U}出现在了\codeinlinebg{rust}{PhantomData}当中，但是，由于其同时作为了结构体的其他字段，因此，仍然需要添加Debug限定
-  \item \codeinlinebg{rust}{V}只出现在了\codeinlinebg{rust}{PhantomData}当中，无需添加Debug限定
-  \item \codeinlinebg{rust}{W}虽然被其他的类型包裹，但是并没有出现在\codeinlinebg{rust}{PhantomData}，因此，同样需要增加Debug限定
+  \item 泛型参数\codeinline{rust}{T}没有出现在\codeinline{rust}{PhantomData}的类型当中，因此，需要添加Debug Trait限定
+  \item 泛型参数\codeinline{rust}{U}出现在了\codeinline{rust}{PhantomData}当中，但是，由于其同时作为了结构体的其他字段，因此，仍然需要添加Debug限定
+  \item \codeinline{rust}{V}只出现在了\codeinline{rust}{PhantomData}当中，无需添加Debug限定
+  \item \codeinline{rust}{W}虽然被其他的类型包裹，但是并没有出现在\codeinline{rust}{PhantomData}，因此，同样需要增加Debug限定
 \end{enumerate}
 \end{note}
 
-根据这些提示，需要首先针对\codeinlinebg{rust}{PhantomData}进行处理，即将其包裹的
-数据类型提取出来，在处理之前，首先看看包含了\codeinlinebg{rust}{PhantomData}的
+根据这些提示，需要首先针对\codeinline{rust}{PhantomData}进行处理，即将其包裹的
+数据类型提取出来，在处理之前，首先看看包含了\codeinline{rust}{PhantomData}的
 结构体字段的语法树结构：
 \begin{code-block}{rust}
 #[derive(CustomDebug)]
@@ -663,7 +663,7 @@ Field {
     ),
 }
 \end{code-block}
-因此，提取\codeinlinebg{rust}{PhantomData}字段的包裹数据类型操作大致如下：
+因此，提取\codeinline{rust}{PhantomData}字段的包裹数据类型操作大致如下：
 \begin{code-block}{rust}
 fn get_phantomdata_generic_type_name(
     filed: &syn::Field,
@@ -697,8 +697,8 @@ fn get_phantomdata_generic_type_name(
     Ok(None)
 }
 \end{code-block}
-同样的，也需要将其他字段的类型提取出来，需要注意类似\codeinlinebg{rust}{bar: Baz<W>}这种，
-只需要将其中的Baz类型提取出来。这种字段的语法树结构和上面的类似，只是\codeinlinebg{rust}{PhantomData}
+同样的，也需要将其他字段的类型提取出来，需要注意类似\codeinline{rust}{bar: Baz<W>}这种，
+只需要将其中的Baz类型提取出来。这种字段的语法树结构和上面的类似，只是\codeinline{rust}{PhantomData}
 被其他的数据类型所替换而已，因此，其处理函数非常类似：
 \begin{code-block}{rust}
 fn get_field_type_name(
@@ -816,14 +816,14 @@ pub struct Geek<T:Trait> {
     com: Foo<Bar<Baz<T::Value>>>,
 }
 \end{code-block}
-如果我们需要对上述的结构体\codeinlinebg{rust}{Geek}进行语法树节点的解析，比如，针对
-\codeinline{rust}{com: Foo<Bar<Baz<T::Value>>>}当中的\codeinlinebg{rust}{T::Value}
-进行解析和提取，就比较麻烦，按照之前的介绍，则需要使用很多层的\codeinlinebg{rust}{if-let}
-进行解构。比较幸运的是，\codeinlinebg{rust}{syn}提供了一种\colorblock{Visit访问模式}。
+如果我们需要对上述的结构体\codeinline{rust}{Geek}进行语法树节点的解析，比如，针对
+\codeinline{rust}{com: Foo<Bar<Baz<T::Value>>>}当中的\codeinline{rust}{T::Value}
+进行解析和提取，就比较麻烦，按照之前的介绍，则需要使用很多层的\codeinline{rust}{if-let}
+进行解构。比较幸运的是，\codeinline{rust}{syn}提供了一种\colorblock{Visit访问模式}。
 
 Visitor模式的核心原理在于定义了一个名为Visit的Trait，这个Trait包含了上百个类型的语法树
 节点各自所对应的回调函数，当其遍历语法树时，每遍历到一个节点，就会调用相关的回调函数。
-比如上面的需求，只需要筛选出\codeinlinebg{rust}{syn::TypePath}类型的节点，所以只需要
+比如上面的需求，只需要筛选出\codeinline{rust}{syn::TypePath}类型的节点，所以只需要
 实现这个节点所对应的回调函数即可，如果需要实现对其他类型的visit访问，则需要参考syn的
 官方文档\footnote{\url{https://docs.rs/syn/1.0.64/syn/visit/index.html}}：
 \begin{code-block}{rust}

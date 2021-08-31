@@ -468,6 +468,7 @@ impl User {
             self.username, self.age, self.email, self.activate
         );
     }
+
     fn create() -> User {
         return User {
             username: String::from(""),
@@ -512,6 +513,7 @@ enum Coin {
     Dime,
     Quarter,
 }
+
 fn value_in_cents(coin: Coin) -> u8 {
     match coin {
         Coin::Penny => 1,
@@ -530,6 +532,7 @@ enum IPADDR {
     V4(u8, u8, u8, u8),
     V6(String),
 }
+
 impl IPADDR {
     fn show(&self) {
         match self {
@@ -538,6 +541,7 @@ impl IPADDR {
             IPADDR::V6(v6) => println!("The V6 addr is ipv6 addr {}", v6),
         }
     }
+
     fn format(&self) -> String {
         match self {
             IPADDR::V4(a, b, c, d) => {
@@ -548,6 +552,7 @@ impl IPADDR {
         }
     }
 }
+
 impl fmt::Display for IPADDR {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -576,6 +581,7 @@ enum Message {
     Write(String), // 类元组结构体
     ChangeColor(i32, i32, i32), // 类元组结构体
 }
+
 impl Message {
     fn call(&self) {
         match self {
@@ -592,10 +598,13 @@ impl Message {
 \begin{code-block}{rust}
 let mut msg = Message::Quit;
 msg.call();
+
 msg = Message::Move { x: 100, y: 200 };
 msg.call();
+
 msg = Message::Write(String::from("zhangjl"));
 msg.call();
+
 msg = Message::ChangeColor(255, 0, 0);
 msg.call();
 \end{code-block}
@@ -625,8 +634,10 @@ fn plus(x: Option<u8>) -> Option<u8> {
        Some(i) => Some(i + 1),
     }
 }
+
 let six = plus(Some(5));
 let six_num = six.unwrap();
+
 let none_type = plus(None);
 let none_value = none_type.unwrap_or_default();
 \end{code-block}
@@ -635,6 +646,7 @@ Match可以匹配多个条件，但是，如果只需要匹配个别的情况，
 需要使用通配符进行处理，通配符为\_，其基本使用如下：
 \begin{code-block}{rust}
 let some_u8_value = 0u8;
+
 match some_u8_value {
     1 => println!("one"),
     3 => println!("three"),
@@ -649,7 +661,9 @@ match some_u8_value {
 if let Some(3) = some_u8_value {
     println!("three");
 }
+
 let mut count = 0;
+
 if let Coin::Quarter(state) = coin {
     println!("State quarter from {:?}!", state);
 } else {
@@ -660,12 +674,14 @@ if let Coin::Quarter(state) = coin {
 同样的，match也可以和其他的数据类型一起使用：
 \begin{code-block}{rust}
 let v = vec![1, 2, 3];
+
 // 从集合vector当中获取索引标记的数据
 let ele = match v.get(1) {
     // Some(&ref)，即some当中的参数永远是引用数据类型
     Some(val) => *val,
     None => 0,
 };
+
 println!("{}", ele);
 \end{code-block}
 
@@ -705,15 +721,21 @@ pub fn logging() {
 如下：
 \begin{code-block}{rust}
 mod logging;
-use logging as log; // 模块别名
+
+// 模块别名
+use logging as log;
 \end{code-block}
 在使用模块的时候，一定注意，mod关键字必须放在use之前。而common和logging属于
 相同的层次，如果在common当中需要使用logging模块，则必须使用全路径crate。如果
 如同在main当中使用logging一样
 \begin{code-block}{rust}
+
 // common.rs
 mod logging;
-// mod crate::logging; 同样是错误的代码
+
+
+// 同样是错误的代码
+// mod crate::logging;
 \end{code-block}
 则会出现下列错误：
 \begin{figure}[H]
@@ -724,8 +746,10 @@ mod logging;
 \end{figure}
 而正确的使用方式（全路径）则如下：
 \begin{code-block}{rust}
+
 // common.rs
 use crate::logging;
+
 \end{code-block}
 
 如果强行需要在common.rs文件当中，以相对路径的方式使用logging，则必须将logging.rs

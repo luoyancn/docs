@@ -224,7 +224,7 @@
 \renewcommand{\fcolorbox}[4][]{#4}
 
 \newtcblisting{code-block}[1]
-{colback=gray!20!white,colframe=gray!35!white,listing only,breakable,listing engine=minted,
+{beamer, colback=gray!20!white,colframe=gray!35!white,listing only,breakable,width=\linewidth,listing engine=minted,
  minted language={#1},minted options={fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,}}
 
 % 设置单行代码样式，当页面宽度不够时，bgcolor参数将影响换行操作
