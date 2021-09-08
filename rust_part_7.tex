@@ -2162,6 +2162,351 @@ Rust异步编程的所有完整实现，包括贡献了async/await关键字。�
 \end{note}
 
 \section{异步编程的实现方案-tokio}
+作为目前使用最为广泛的异步开发库之一，Tokio和async-std类似，但更多是被async-std
+所借鉴，包括直接异步的方式使用，以及显式的block方式使用，都是tokio首创的。使用
+使用tokio也需要在项目的Cargo.toml当中引入相关的依赖：
+\begin{code-block}{toml}
+[dependencies]
+futures = "0.3.15"
+tokio = { version = "1.10.0", features = ["full"]}
+\end{code-block}
+
+Tokio常见的用法和async-std类似，比如直接使用block的方式：
+\begin{code-block}{rust}
+let rt = tokio::runtime::Runtime::new().unwrap();
+rt.block_on(open_file_fake());
+\end{code-block}
+注意，和async-std以及futures-rs稍有不同，tokio具有明确的运行时的概念。
+
+当然，也可以使用宏定义的方式：
+\begin{code-block}{rust}
+#[tokio::main]
+async fn main() {
+    let blocking_task = tokio::task::spawn_blocking(|| {
+    });
+    blocking_task.await.unwrap();
+}
+\end{code-block}
+同样的，针对于测试，tokio也提供了对应的宏定义支持：
+\begin{code-block}{rust}
+#[tokio::test]
+async fn test_block() {
+    let block_task = tokio::task::spawn_blocking(|| {});
+    block_task.await.unwrap();
+}
+\end{code-block}
+Tokio不仅可以用于标准的Rust开发，同样可以应用于嵌入式开发；不仅可以用于普通的异步
+功能开发，同样可以用于异步文件IO操作；不仅可以用于网络开发，同样可以应用于多线程
+开发。
+\subsection{异步文件IO}
+同async-std类似，tokio同样提供了文件系统的异步io支持，包括文件/夹的创建、删除
+以及其他的操作，tokio都提供了同std库相同或者相近的功能。在实际的异步开发当中，
+可以直接使用这些tokio所提供的函数或者功能替代std的相关函数或者功能。
+
+比如遍历指定路径下的所有内容（非递归）：
+\begin{code-block}{rust}
+use tokio::fs;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+pub async fn fs_direntry_tokio(
+    path: &str
+) -> Result<Vec<OsString>, std::io::Error> {
+    let mut vec_path = vec![];
+    let mut entries = fs::read_dir(path).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        vec_path.push(entry.file_name());
+    }
+    Ok(vec_path)
+}
+\end{code-block}
+
+比如递归方式创建指定路径：
+\begin{code-block}{rust}
+use tokio::fs;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+async fn test_tokio_fs() {
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    let res = builder.create("/tmp/zhangjl/luoyan/zhangzz").await.unwrap();
+    assert_eq!((), res);
+}
+\end{code-block}
+
+文件的读取操作，tokio也提供了异步操作的方式：
+\begin{code-block}{rust}
+use tokio::fs;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+pub async fn read_file_to_bytes(
+    path: &str
+) -> Result<Vec<u8>, std::io::Error> {
+    let mut file = fs::File::open(path).await?;
+    let mut buffer = [0; 10];
+    let len = file.read(&mut buffer).await?;
+    Ok(buffer[0..len].to_owned())
+}
+\end{code-block}
+
+如果是直接读取文件为可读的字符类型，则可以如下操作：
+\begin{code-block}{rust}
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+pub async fn read_file_to_string(
+    path: &str, read_all: bool
+) -> Result<String, std::io::Error> {
+    let file = fs::File::open(path).await?;
+    let mut reader = BufReader::new(file);
+    let mut buffer = String::new();
+    if read_all {
+        // 读取所有内容
+        reader.read_to_string(&mut buffer).await?;
+    } else {
+        // 只读取一行
+        reader.read_line(&mut buffer).await?;
+    }
+    Ok(buffer)
+}
+\end{code-block}
+
+而文件的写操作，更是tokio异步io必须支持的操作：
+\begin{code-block}{rust}
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+pub async fn write_to_file(
+    path: &str, content: &str
+) -> std::io::Result<()> {
+    let mut file = fs::File::create(path).await?;
+    file.write_all(content.as_bytes()).await?;
+    file.sync_all().await?;
+    Ok(())
+}
+\end{code-block}
+上述操作只是tokio异步io的很小一部分，在实际的实现当中，tokio基本上将std当中的io和
+文件操作全部实现了一遍。因此，针对异步编程的需求，使用tokio替换std当中的io和文件
+操作，是一个非常不错的选择。
+
+\subsection{异步网络}
+网络是目前应用最为广泛的部分，异步化的网络应用，可以极大的提高整体应用的性能。
+毫无疑问，tokio也提供了关于TCP/UDP以及文件套接字的异步支持。
+
+最常见的TCP服务器，如果使用tokio进行异步化，则基本的示例可能如下：
+\begin{code-block}{rust}
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::net::TcpListener;
+
+pub async fn tokio_tcp_server() {
+    // quit\n\r的字节表示
+    let quit = [113, 117, 105, 116, 13, 10];
+    // 监听在8080端口
+    if let Ok(listerner) = TcpListener::bind("0.0.0.0:8080").await {
+        loop {
+            if let Ok((mut socket, addr)) = listerner.accept().await {
+                info!("Recived new Client : {}", addr);
+                tokio::spawn(async move {
+                    let mut buf = [0; 24];
+                    loop {
+                        let n = match socket.read(&mut buf).await {
+                            Ok(n) if n == 0 => return,
+                            Ok(n) => {
+                                info!("TCP server received {} bytes from {}",
+                                    n, addr);
+                                n
+                            }
+                            Err(e) => {
+                                error!(
+                                    "Failed to read from client {} , ERROR: {:#?}",
+                                    addr, e
+                                );
+                                return;
+                            }
+                        };
+                        if buf[0..n].as_ref() == quit {
+                            info!("Recived quit command, disconnect the cline {}",
+                                addr);
+                            // 关闭客户端的连接
+                            if let Ok(_) = socket.shutdown().await {}
+                            return;
+                        }
+
+                        info!("Write message to client {}", addr);
+                        if let Err(e) = socket.write_all(&buf[0..n]).await {
+                            error!("Failed to write to socket, ERROR:{:#?}", e);
+                            return;
+                        }
+                    }
+                });
+            }
+        }
+    }
+}
+\end{code-block}
+
+很明显的，TCP的client也可以使用异步的方式对服务器进行访问，比如简单的发送一些消息：
+\begin{code-block}{rust}
+async fn test_tokio_tcp_connect() {
+    if let Ok(mut stream) = TcpStream::connect("127.0.0.1:8080").await {
+        // 向服务端发送的是字节数组，而不是字符串
+        if let Ok(_) = stream.write_all(b"hello tcp server").await {
+            // 客户端主动关闭与服务器的连接
+            if let Ok(_) = stream.shutdown().await {}
+        }
+    }
+}
+\end{code-block}
+
+如果需要从server端读取信息，则应当如下操作，比如一次性读取定量的数据：
+\begin{code-block}{rust}
+async fn test_tokio_tcp_connect() {
+    if let Ok(mut stream) = TcpStream::connect("127.0.0.1:8080").await {
+        // 向服务端发送的是字节数组，而不是字符串
+        if let Ok(_) = stream.write_all(b"hello tcp server").await {
+            let mut buffer = [0; 20];
+            let mut buffer = tokio::io::ReadBuf::new(&mut buffer);
+            if let Ok(_) =
+                futures::future::poll_fn(
+                    |ctx| stream.poll_peek(ctx, &mut buffer)).await
+            {
+                println!(
+                    "Client recevied message: {:?}",
+                    str::from_utf8(buffer.filled()).unwrap()
+                );
+            }
+            // 客户端主动关闭与服务器的连接
+            if let Ok(_) = stream.shutdown().await {}
+        }
+    }
+}
+\end{code-block}
+\begin{critical}
+上述代码使用的\codeinline{rust}{poll_peek}通常不用于多次调用，如果将上述代码进行
+改写，则代码将一直不会结束：
+\begin{code-block}{rust}
+// 将缓冲区变小
+let mut buffer = [0; 10];
+let mut buffer = tokio::io::ReadBuf::new(&mut buffer);
+// 如果服务器发送的消息超过了10个字节
+// 尝试通过while let的方式进行分片读取
+// 但实际结果是，只会输出服务器发送消息
+// 的前10个字节内容，后续内容会被忽略
+// 并且，该循环不会结束。即不能满足
+// 我们分片读取的需求
+while let Ok(_) =
+    futures::future::poll_fn(
+        |ctx| stream.poll_peek(ctx, &mut buffer)).await
+{
+    println!(
+        "Client recevied message: {:?}",
+        str::from_utf8(buffer.filled()).unwrap()
+    );
+}
+\end{code-block}
+\end{critical}
+
+和普通的tcp server相同，tokio也支持双工读写模式：
+\begin{code-block}{rust}
+if let Ok(stream) = TcpStream::connect("127.0.0.1:8080").await {
+    //loop {
+    if let Ok(ready) = stream.ready(
+        Interest::READABLE | Interest::WRITABLE).await {
+        // 判断连接是否可读，即连接当中是否有内容
+        if ready.is_readable() {
+            let mut data = vec![0; 1024];
+            match stream.try_read(&mut data) {
+                Ok(n) => println!("read {} bytes", n),
+                Err(ref err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                    return;
+                }
+                Err(err) => println!("Error: {:?}", err),
+            }
+        }
+
+        // 判断连接是否可写，即是否可以进行消息的发送
+        if ready.is_writable() {
+            match stream.try_write(b"let`s rock") {
+                Ok(n) => println!("write {} bytes", n),
+                Err(ref err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                    return;
+                }
+                Err(err) => println!("Error: {:?}", err),
+            }
+        }
+    }
+    //}
+}
+\end{code-block}
+当然，tokio的异步网络同样支持单工模式，比如只接收数据：
+\begin{code-block}{rust}
+let stream = TcpStream::connect("127.0.0.1:8080").await?;
+let mut msg = vec![0; 1024];
+loop {
+    // 判断socket是否可读
+    stream.readable().await?;
+
+    // 注意，使用的是try_read
+    match stream.try_read(&mut msg) {
+        Ok(n) => {
+            msg.truncate(n);
+            break;
+        }
+        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+            continue;
+        }
+        Err(e) => {
+            return Err(e.into());
+        }
+    }
+}
+\end{code-block}
+
+不仅支持只读，也支持只写；不仅支持TCP协议，同样支持UDP协议。由于相关内容比较类似，
+故不再赘述。针对Unix/Linux，常用的网络协议还包括文件socket，这一部分，tokio也提供
+了相关的支持：
+\begin{code-block}{rust}
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::net::{TcpListener, TcpStream, UnixListener, UnixStream};
+pub async fn tokio_unix_socket_server(socket_path: &str) {
+    let quit = [113, 117, 105, 116, 13, 10];
+    // 创建临时文件
+    let parent_path = temp_dir();
+    let bind_path = parent_path.as_path().join(socket_path);
+    // 将socket绑定到临时文件
+    if let Ok(filesocks) = UnixListener::bind(&bind_path) {
+        loop {
+            if let Ok((mut socket, client)) = filesocks.accept().await {
+                info!("Client {:?} connected", client);
+                if let Err(err) = socket.write_all(b"hello unix socket").await {
+                    error!("failed to write to client , ERROR:{:?}", err);
+                    return;
+                }
+                if let Ok(_) = socket.readable().await {
+                    let mut buffer = [0; 24];
+                    if let Ok(size) = socket.try_read(&mut buffer) {
+                        info!("Socket server recevied message :{:?}",
+                                &buffer[0..size]);
+                        if buffer[0..size].as_ref() == quit {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        drop(filesocks);
+        if let Ok(_) = tokio::fs::remove_file(bind_path).await {}
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let quit = [113, 117, 105, 116, 13, 10];
+    if let Ok(mut stream) = UnixStream::connect("/tmp/zhangjl.socket").await {
+        if let Ok(_) = stream.readable().await {
+            let mut buf = Vec::with_capacity(4096);
+            if let Ok(size) = stream.try_read_buf(&mut buf) {
+                println!("Read {} bytes of message: {:?}", size, buf);
+            }
+            if let Ok(_) = stream.write_all(&quit).await {}
+        }
+    }
+}
+\end{code-block}
+
+
 \section{异步编程的实现方案-mio}
 
 \section{优秀的并发-Crossbeam}

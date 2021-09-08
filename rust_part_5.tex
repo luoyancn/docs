@@ -1254,8 +1254,10 @@ fn do_expand_each(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream
     let builder_name_ident = syn::Ident::new(&builder_name_literal, st.span());
     let struct_name_ident = &st.ident;
     let fields = get_filed_from_derive_input_each(st)?;
-    let builder_struct_fields_def = generate_builder_struct_fields_def_each(fields)?;
-    let builder_struct_fields_init = generate_builder_struct_fields_init_each(fields)?;
+    let builder_struct_fields_def = \
+        generate_builder_struct_fields_def_each(fields)?;
+    let builder_struct_fields_init = \
+        generate_builder_struct_fields_init_each(fields)?;
     let setter_functions = generate_setter_each(fields)?;
     let build_function = generate_builder_function(fields, &struct_name_ident)?;
     let ret = quote!(
@@ -1276,7 +1278,9 @@ fn do_expand_each(st: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream
     );
     Ok(ret)
 }
-fn get_filed_from_derive_input_each(st: &syn::DeriveInput) -> syn::Result<&StructFields> {
+fn get_filed_from_derive_input_each(
+    st: &syn::DeriveInput
+) -> syn::Result<&StructFields> {
     if let syn::Data::Struct(syn::DataStruct {
         fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
         ..
@@ -1318,7 +1322,6 @@ fn generate_builder_function(
 #[derive(Debug, BuilderEach)]
 pub struct CommandEach {
     executable: String,
-
     #[builder(each = "arg")]
     args: Vec<String>,
     #[builder(each = "env")]
@@ -1326,9 +1329,7 @@ pub struct CommandEach {
     others: Vec<String>,
     current_dir: Option<String>,
 }
-
 fn main() {
-
     let builder = CommandEach::builder()
         .executable("lucifer".to_owned())
         .arg("lucifer".to_owned())
@@ -1338,15 +1339,12 @@ fn main() {
         .others(vec![])
         .build()
         .unwrap();
-
     info!("{:#?}", builder);
-
     let builder = CommandEach::builder()
         .executable("lucifer".to_owned())
         .others(vec![])
         .build()
         .unwrap();
-
     info!("{:#?}", builder);
 }
 \end{code-block}
