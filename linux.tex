@@ -487,7 +487,6 @@ xfreerdp /u:Administrator /p:'123456' /v:192.168.1.1  /h:1000 /w:1920
 # 将远程主机的端口映射到本地，将远程的8888端口映射到本地的8000端口
 # 工具可以使用windows10 自带的wsl
 ssh -L8000:0.0.0.0:8888 root@10.1.4.24
-
 # wsl 设置默认用户为root
 C:\Users\zhangjl\AppData\Local\Microsoft\WindowsApps\fedoraremix.exe config --default-user root
 \end{code-block}
@@ -517,11 +516,9 @@ virt-resize --expand /dev/sda2 ironic-vm.qcow2 ironic-vm-200GB.qcow2 --LV-expand
 virt-filesystems -a ironic-vm-200.qcow2 --long -h --all
 # compress image file
 qemu-img convert -c -O qcow2 ironic-vm-resized.qcow2 ironic-vm.qcow2
-
 # 直接挂载磁盘到虚拟机
 virsh attach-disk --domain kubernetes1  /home/zhangjl/gfs1 --target vdd --targetbus virtio  \
     --sourcetype file --live --config
-
 # 挂载qcow2的磁盘
 virsh attach-disk --domain kubernetes1  /home/zhangjl/gfs1 --target vdd --targetbus virtio  \
     --sourcetype file --live --config --cache none --driver qemu --subdriver qcow2
@@ -532,29 +529,21 @@ virsh attach-disk --domain kubernetes1  /home/zhangjl/gfs1 --target vdd --target
 #首先对rbd进行映射
 rbd map liberty-pool/be3eab24-81f0-48f0-bf6d-1387da64184b_disk
 # 通常会得到一个输出，类似于：/dev/rbd0
-
 #然后查看分区的信息
 fdisk -lu /dev/rbd0
-
 #得到的信息大致如下：
 # Disk /dev/rbd0: 85 GB, 85896599040 bytes
 # 255 heads, 63 sectors/track, 10443 cylinders, total 167766795 sectors
 # Units = sectors of 1 * 512 = 512 bytes
-#
 #     Device Boot      Start         End      Blocks   Id  System
 # /dev/rbd0p1   *        2048   167765961    83883366   83  Linux
-# Warning: Partition 1 does not end on cylinder boundary.
-
 #利用上述得到的units大小和磁盘的起始地址，计算偏移量
 echo "512*2048" | bc
 #得到的结果可能为 1048576
-
 #随后将rbd进行挂载
 mount -o offset=1048576 /dev/rbd0 /mnt
-
 #随后修改rbd磁盘文件内容，修改完毕之后，卸载磁盘
 umount /mnt
-
 # 取消rbd映射
 rbd unmap /dev/rbd0
 \end{code-block}
@@ -714,6 +703,68 @@ grub2-set-default 'CentOS Linux (3.10.0-514.26.2.el7.x86_64) 7 (Core)'
 
 # 查看当前的默认启动内核
 grub2-editenv list
+\end{code-block}
+
+\1 tmux的基本使用
+
+Tmux的默认配置文件是\codeinline{bash}{~/.tmux.conf}，可以在此处设置tmux的各种个性化的设置，默认启动
+tmux时，会读取该文件的设置对tmux进行初始化。比如下面的模板：
+\begin{code-block}{bash}
+# 设置tmux的配色，使之可以兼容zsh的主题设置
+set -g default-terminal "screen-256color"
+# 启用鼠标，允许鼠标上下滚轮
+set -g mouse on
+\end{code-block}
+
+其基本的操作如下：
+\begin{code-block}{bash}
+# 创建一个名为rust的会话
+tmux new -s rust
+
+# 列出所有的会话
+tmux ls
+
+# 从会话当中分离（直接在当前的会话窗口执行）
+tmux detach -s rust
+
+# 恢复会话
+tmux attach -t rust
+
+# 更改会话名称（在当前的会话窗口执行）
+tmux rename -t rust rustbuild
+\end{code-block}
+
+Tmux的前缀键为Ctrl+b，执行下列所有操作之前，都需要先按下前缀键。
+\begin{code-block}{bash}
+# 创建新窗口
+ctrl+b c
+
+# 选择下一个窗口
+ctrl+b n
+
+# 选择前一个窗口
+ctrl+b p
+
+# 选择编号窗口
+ctrl+b 0~9数字编号
+
+# 重命名窗口
+ctrl+b ,
+
+# 关闭窗口
+ctrl+b &
+
+# 菜单方式选择窗口
+ctrl+b w
+
+# 水平分割
+ctrl+b "
+
+# 垂直分割
+ctrl+b %
+
+# 窗格切换
+ctrl+b 方向键
 \end{code-block}
 
 \end{outline}

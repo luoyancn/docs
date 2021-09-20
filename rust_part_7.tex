@@ -2506,6 +2506,176 @@ async fn main() {
 }
 \end{code-block}
 
+\subsection{运行时runtime}
+在之前的内容当中提到了，tokio和future-rs以及async-std的显著不同在于提供了自己的
+runtime，如果不是使用宏定义的方式，必须显式的生成runtime，否则，异步任务将不会
+得到任何的执行。
+默认情况下，使用宏定义方式得到的runtime是多线程的模式，该模式会生成一个线程池，通常
+这是针对绝大多数场景的最佳模式。其使用方式大致如下：
+\begin{code-block}{rust}
+use tokio::runtime;
+
+fn main() {
+    if let Ok(multi_rt) = runtime::Runtime::new() {
+        let mut init = 10;
+        multi_rt.block_on(async {
+            init += 100;
+        });
+        assert_eq!(init, 110);
+        drop(multi_rt);
+    }
+}
+\end{code-block}
+
+如果还需要对多线程模式的runtime进行细节上的调整，比如，设置运行时的最大线程（线程池数量），
+或者设置启动前/后的动作，则需要使用另外的方式：
+\begin{code-block}{rust}
+if let Ok(multi_rt) = runtime::Builder::new_multi_thread()
+    .enable_all()
+    // 设置工作线程池数量
+    .worker_threads(8)
+    // 设置线程启动时的动作
+    .on_thread_start(|| println!("hello multi"))
+    // 设置线程结束时的动作
+    .on_thread_stop(|| println!("goodbye"))
+    .build()
+{
+    let mut init = 10;
+    multi_rt.block_on(async {
+        init += 100;
+    });
+    assert_eq!(init, 110);
+    drop(multi_rt);
+}
+\end{code-block}
+需要注意，默认模式的runtime（多线程模式）在启动的时候，会创建一系列可用的线程形成
+线程池，而异步函数或者任务，会被runtime的调度器调度到合适的线程上进行运行。由于任务数
+和线程数量并不相同，在某些场景下，会造成资源浪费，因此，tokio也提供了单线程的runtime，
+即只在当前线程当中生成runtime：
+\begin{code-block}{rust}
+use tokio::runtime;
+
+fn test_tokio_runtime_current_thread() {
+    if let Ok(current_rt) = runtime::Builder::new_current_thread()
+        .enable_all()
+        // 由于是单线程模式，因此下列两行不会被执行
+        // .on_thread_stop(|| println!("Exit..."))
+        // .on_thread_start(|| println!("Staring..."))
+        // 并且，也不会执行worker_thread函数
+        // .worker_threads(8)
+        .build()
+    {
+        let mut init = 10;
+        let mut str_owned = String::new();
+        current_rt.block_on(async {
+            println!("Using the current runtime");
+            init += 200;
+            str_owned = hello_tokio().await;
+        });
+        assert_eq!(init, 210);
+        assert_eq!("hello tokio", str_owned);
+        drop(current_rt);
+    }
+}
+\end{code-block}
+
+不管是多线程还是单线程模式，Tokio的runtime不仅可以执行异步的任务，同样可以执行
+同步阻塞任务，只需要将默认的\codeinline{rust}{spawn}替换成\codeinline{rust}{spawn_blocking}即可：
+\begin{code-block}{rust}
+// 生成异步任务
+current_rt.spawn(||{
+    println!("Using the current runtime");
+}).await;
+
+// 生成并执行同步任务
+current_rt.spawn_blocking(||{
+    println!("Using the current runtime");
+});
+\end{code-block}
+
+默认情况下，使用Builder手工生成的runtime没有其他资源的驱动，这些资源包括io，时间（time）
+以及网络等。因此，如果直接在这些手工生成的runtime当中使用io/time/network的功能会失败。
+为了解决这个问题，则需要使用\codeinline{rust}{Builder::enable_io}或者\codeinline{rust}{Builder::enable_time}，
+当然，也可以直接全部引入\codeinline{rust}{Builder::enable_all}。
+
+相比于默认的方式，Builder提供了更为灵活的处理方式，比如针对线程池进行名称设置（\codeinline{rust}{thread_name}）,
+设置线程的堆栈大小（\codeinline{rust}{thread_stack_size}，字节为单位）等等。
+
+Runtime也存在生命周期，当其处于活动状态时，其中的线程可能在空闲一段时间之后被关闭，
+而当runtime被销毁（drop）时，该runtime上所有的线程都会被销毁，任何在该runtime的
+线程上运行的任务，不管是否结束，都会被强制终止。
+
+\subsection{Tokio的同步原语}
+由于Tokio使用的是线程池的方式（默认情况下）执行的任务，当存在任务之间需要进行通信
+的需求时，就需要一些其他的机制，这就是Tokio的同步原语所解决的问题。2个任务之间
+相互发送消息进行状态的同步，可以很好的避免状态共享所带来的问题。
+
+所有的消息发送和接收都是通过tokio的通道（channel）实现的。在tokio当中存在不同类型
+的channel，包括一对一的通道（oneshot channel），多对一的通道（多个生产者，一个消费者，mpsc channel），
+多对多通道（多个生产者，多个消费者，broadcast channel）以及一对多的通道（单个生产者，多个消费者，watch channel）。
+不同类型的通道适用于不同的应用场景。
+
+Oneshot类型的channel使用方式大致如下：
+\begin{code-block}{rust}
+use tokio::sync
+
+async fn test_tokio_oneshot() {
+    let (sender, recevier) = sync::oneshot::channel();
+    tokio::spawn(async move {
+        let res = hello_tokio().await;
+        if let Ok(_) = sender.send(res) {}
+    });
+
+    if let Ok(res) = recevier.await {
+        println!("The result is {}", res);
+        assert_eq!("hello tokio", res);
+    }
+}
+\end{code-block}
+
+如果是使用runtime的block方式，则大致可以修改为如下的模式：
+\begin{code-block}{rust}
+fn test_tokio_oneshot_block_on() {
+    if let Ok(rt) = runtime::Builder::new_multi_thread().enable_all().build() {
+        let (sender, recevier) = sync::oneshot::channel();
+        let send_task = async {
+            let res = hello_tokio().await;
+            if let Ok(_) = sender.send(res) {}
+        };
+        let recv_task = async {
+            if let Ok(res) = recevier.await {
+                println!("The result in test_tokio_oneshot_block_on is {}", res);
+                assert_eq!("hello tokio", res);
+            }
+        };
+
+        rt.block_on(async { tokio::join!(send_task, recv_task) });
+    }
+}
+\end{code-block}
+或者另外一种模式：
+\begin{code-block}{rust}
+fn test_tokio_oneshot_block_on_all() {
+    if let Ok(rt) = runtime::Builder::new_multi_thread().enable_all().build() {
+        let (sender, recevier) = sync::oneshot::channel();
+        rt.block_on(async move {
+            tokio::spawn(async move {
+                let res = hello_tokio().await;
+                if let Ok(_) = sender.send(res) {}
+            });
+
+            if let Ok(res) = recevier.await {
+                println!("The result is {}", res);
+                assert_eq!("hello tokio", res);
+            }
+        });
+    }
+}
+\end{code-block}
+不仅是Oneshot模式的channel，任意类型的tokio channel，都可以使用类似上述三种模式。
+
+
+\subsection{信号与定时器与杂项}
 
 \section{异步编程的实现方案-mio}
 
