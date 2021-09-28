@@ -61,6 +61,8 @@
 % \usemintedstyle{tango}
 % 设置minted字体
 \setmonofont{CodeNewRoman Nerd Font Mono}
+% 显示tree的输出(特殊字符)
+%\setmonofont{CMU Typewriter Text}
 \hypersetup{%
     % 对书签进行编号
     bookmarksnumbered=true,
@@ -485,9 +487,12 @@
   \end{tcolorbox}
 \end{titlepage}
 % 恢复原本设定的页面布局
-\afterpage{\restoregeometry}
+{
+\pagestyle{empty}
+\clearpage\mbox{}\clearpage
+}
 
-\newpage
+%\newpage
 % 去除目录前后的空白页
 %\let\cleardoublepage\clearpage
 
@@ -501,6 +506,7 @@
   \thispagestyle{empty}
 }
 
+\afterpage{\restoregeometry}
 % 页码从正文开始计算，不从目录开始
 \mainmatter
 
