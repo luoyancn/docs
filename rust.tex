@@ -9,8 +9,6 @@
 export CARGO_HOME=/opt/cargo
 export RUSTUP_HOME=/opt/rustup
 export PATH=/opt/cargo/bin:$PATH
-# 如果由于网络问题，需要设置代理，则如下操作：
-# export all_proxy=socks5://127.0.0.1:8588
 \end{code-block}
 
 Windows，则是修改系统的环境变量，将CARGO\_HOME和RUSTUP\_HOME指向合适的
@@ -24,7 +22,6 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 \begin{code-block}{bash}
 rustup toolchain add nightly
 rustup component add rust-src rls rust-analysis
-cargo install flamegraph cargo-geiger cargo-expand
 cargo +nightly install racer
 \end{code-block}
 
@@ -41,6 +38,15 @@ cargo +nightly install racer
 # proxy = "socks5://127.0.0.1:8588"
 # EOF
 \end{code-block}
+如果需要将某一个Rust工程切换成nightly分支进行编译，则操作如下：
+\begin{code-block}{bash}
+# 与工程或者workspace的Cargo.toml同级的目录
+echo 'nightly' > rust-toolchain
+# 或者进行全局切换
+rustup default stable
+#rustup override set nightly
+\end{code-block}
+
 
 \section{Rust的交叉编译}
 Rust本身也支持进行交叉编译，可以在Linux下完成针对ARM/Windows的目标文件的编译。

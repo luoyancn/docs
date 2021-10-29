@@ -2674,6 +2674,259 @@ fn test_tokio_oneshot_block_on_all() {
 \end{code-block}
 不仅是Oneshot模式的channel，任意类型的tokio channel，都可以使用类似上述三种模式。
 
+相比于一对一的通道，多对一通道（mpsc）和Rust本身的通道非常类似，可以如同流式一样的
+接收多个结果：
+\begin{code-block}{rust}
+// async模式
+async fn test_tokio_mpsc() {
+    let (sender, mut receiver) = sync::mpsc::channel(24);
+    tokio::spawn(async move {
+        for i in 1..10 {
+            let res = hello_index(i).await;
+            if let Ok(_) = sender.send(res).await {
+                println!("Send {} success", i);
+            }
+        }
+    });
+
+    let mut index = 1;
+    while let Some(res) = receiver.recv().await {
+        assert_eq!(format!("Hello, {}", index), res);
+        index += 1;
+    }
+}
+
+// 常见的block on模式
+fn test_tokio_mpsc_block_on() {
+    let (sender, mut receiver) = sync::mpsc::channel(24);
+    if let Ok(rt) = runtime::Builder::new_multi_thread().enable_all().build() {
+        rt.block_on(async move {
+            tokio::spawn(async move {
+                for i in 1..10 {
+                    let res = hello_index(i).await;
+                    if let Ok(_) = sender.send(res).await {
+                        println!("Send {} success", i);
+                    }
+                }
+            });
+
+            let mut index = 1;
+            while let Some(res) = receiver.recv().await {
+                assert_eq!(format!("Hello, {}", index), res);
+                index += 1;
+            }
+        });
+    }
+}
+\end{code-block}
+
+如果在mpsc当中对发送者使用了clone操作，则必须在适当的时候将其进行drop，否则会出现
+死锁的问题：
+\begin{code-block}{rust}
+async fn test_tokio_mpsc_clone() {
+    let (sender, mut receiver) = sync::mpsc::channel(24);
+    for i in 1..10 {
+        let sender_clone = sender.clone();
+        tokio::spawn(async move { if let Ok(_) = sender_clone.send(i).await {} });
+    }
+
+    drop(sender);
+
+    let mut index = 1;
+    while let Some(res) = receiver.recv().await {
+        assert_eq!(index, res);
+        index += 1;
+    }
+}
+\end{code-block}
+
+通道不仅可以传递常见的数据类型，也可以传递符合数据类型，比如：
+\begin{code-block}{rust}
+struct Temp {
+    age: u8,
+}
+
+async fn test_tokio_mpsc_clone_datatype() {
+    // 明确指定通道的数据类型
+    let (sender, mut receiver) = sync::mpsc::channel::<Temp>(24);
+    for i in 1..10 {
+        let sender_clone = sender.clone();
+        tokio::spawn(async move {
+            if let Ok(_) = sender_clone.send(Temp { age: i }).await {}
+        });
+    }
+
+    drop(sender);
+
+    let mut index = 1;
+    while let Some(res) = receiver.recv().await {
+        assert_eq!(index, res.age);
+        index += 1;
+    }
+}
+\end{code-block}
+
+一对一通道（oneshot）与多对一通道（mpsc）通常结合起来，构造req/resp类型的同步模式，
+以此来共享资源，比如：
+\begin{code-block}{rust}
+enum Commond {
+    Increment,
+}
+
+async fn test_tokio_mpsc_oneshot_combine() {
+    let (cmd_sender, mut cmd_receiver) =
+        sync::mpsc::channel::<(Commond, sync::oneshot::Sender<u32>)>(32);
+
+    tokio::spawn(async move {
+        let mut counter: u32 = 0;
+        while let Some((cmd, oneshot_sender)) = cmd_receiver.recv().await {
+            match cmd {
+                Commond::Increment => {
+                    let prev = counter;
+                    counter += 1;
+                    if let Ok(_) = oneshot_sender.send(prev) {}
+                }
+            }
+        }
+    });
+
+    let mut join_handlers: Vec<tokio::task::JoinHandle<Option<u32>>> = vec![];
+    for _ in 0..10 {
+        let cmd_sender_clone = cmd_sender.clone();
+        let join_handler = tokio::spawn(async move {
+            let (oneshot_sender, oneshot_receiver) =
+                sync::oneshot::channel::<u32>();
+
+            if let Some(_) = cmd_sender_clone
+                .send((Commond::Increment, oneshot_sender))
+                .await
+                .ok()
+            {
+                if let Ok(res) = oneshot_receiver.await {
+                    return Some(res);
+                }
+            }
+            None
+        });
+        join_handlers.push(join_handler);
+    }
+
+    drop(cmd_sender);
+
+    let mut res_number = vec![];
+    for join_handler in join_handlers.drain(..) {
+        if let Ok(Some(res)) = join_handler.await {
+            res_number.push(res);
+        }
+    }
+
+    assert_eq!(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9], res_number);
+}
+\end{code-block}
+在上述代码当中，mpsc通道负责产生数据，并且向接收者当中发送，而接收者是由一个标记以及
+oneshot的发送者组成，当mpsc的接收者收到消息时，其oneshot发送者则将真实的数据进行
+发送。另外，和之前的代码有所不同的是，\codeinline{rust}{tokio::spawn}的结果处理。
+以前是没有进行任何处理，直接丢弃的，但是，实际上，该函数的结果是可以有真实意义的。
+比如，我们可以用\codeinline{rust}{JoinHandle}（\codeinline{rust}{tokio::spawn}的返回结果）
+进行结果数据的传递，正如在上述代码当中所做的一样。
+
+广播通道（boardcast，多对多通道）和消息队列当中的广播机制相似，相当于多个生产者，
+多个消费者，但是每个消费者接收到的信息是完全一致的。在一般的应用当中，广播通道
+使用并不多，但是，在一些特殊的场景下，有非常大的作用，简单的广播通道如下：
+\begin{code-block}{rust}
+async fn test_tokio_boardcast_channel() {
+    let (sender, mut recevier_first) = sync::broadcast::channel(16);
+    let mut recevier_second = sender.subscribe();
+    let mut recevier_third = sender.subscribe();
+
+    println!(" In the boardcast channel");
+    let mut handlers = vec![];
+
+    handlers.push(tokio::spawn(async move {
+        let mut resvec = vec![];
+        while let Ok(res) = recevier_first.recv().await {
+            println!("recevier_first recevied {}", res);
+            resvec.push(res);
+        }
+        resvec
+    }));
+
+    handlers.push(tokio::spawn(async move {
+        let mut resvec = vec![];
+        while let Ok(res) = recevier_second.recv().await {
+            println!("recevier_second recevied {}", res);
+            resvec.push(res);
+        }
+        resvec
+    }));
+
+    handlers.push(tokio::spawn(async move {
+        let mut resvec = vec![];
+        while let Ok(res) = recevier_third.recv().await {
+            println!("recevier_third recevied {}", res);
+            resvec.push(res);
+        }
+        resvec
+    }));
+
+    for i in 0..10 {
+        if let Ok(_) = sender.send(i) {}
+    }
+
+    drop(sender);
+
+    for joinhandle in handlers {
+        if let Ok(rev) = joinhandle.await {
+            assert_eq!(Vec::from_iter(0..10), rev);
+        }
+    }
+}
+\end{code-block}
+
+当然，上述代码有的地方还可以使用一些手段进行简化，使之更加简练：
+\begin{code-block}{rust}
+async fn test_tokio_boardcast_channel() {
+    let (sender, mut recevier_first) = sync::broadcast::channel(16);
+    let mut recevier_second = sender.subscribe();
+    let mut recevier_third = sender.subscribe();
+    ...
+    for (mut recv, name) in [
+        (recevier_first, stringify!(recevier_first)),
+        (recevier_second, stringify!(recevier_second)),
+        (recevier_third, stringify!(recevier_third)),
+    ] {
+        handlers.push(tokio::spawn(async move {
+            let mut resvec = vec![];
+            while let Ok(res) = recv.recv().await {
+                println!("recevier {} recevied {}", name, res);
+                resvec.push(res);
+            }
+            resvec
+        }));
+    }
+    ...
+}
+\end{code-block}
+
+
+还有一种通道，即一对多通道（watch channel，监视通道），这种通道和之前的广播通道比较类似，
+但是存在区别：通道之中只会保存最近的数据，当新的数据被发送时，所有的消费者都会
+收到通知，但并不是所有的消费者都能收到数据，和消息队列非常相似。另外，监视通道
+实际上类似于容量为1的广播通道。通常，监视通道用于广播配置更改或者提示程序的状态变更，
+比如用于关闭某个程序。比如，监控变量的变化：
+\begin{code-block}{rust}
+async fn test_tokio_watch_basic() {
+    let (watch_sender, mut watch_receiver) = sync::watch::channel("hello");
+
+    tokio::spawn(async move { if let Ok(_) = watch_sender.send("world") {} });
+
+    while let Ok(()) = watch_receiver.changed().await {
+        println!("{}", *watch_receiver.borrow());
+    }
+}
+\end{code-block}
+
+比如，使用监视通道定期检查配置文件，当文件内容发生变更时，向消费者发送配置更改的信号：
 
 \subsection{信号与定时器与杂项}
 

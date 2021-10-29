@@ -182,6 +182,12 @@ git checkout master
 git fetch upstream
 git merge upstream/master
 git push -u origin master
+# 打tag
+git tag -a v1.4 -m "my version 1.4"
+# 推送全部tag
+git push origin --tags
+# 推送指定tag
+git push origin v1.5
 \end{code-block}
 
 \section{禁用ipv6}
@@ -252,16 +258,13 @@ dnf install google-chrome-stable -y
 vi /etc/default/grub
 #GRUB_CMDLINE_LINUX="rd.lvm.lv=rhel/swap crashkernel=auto rd.lvm.lv=rhel/root rhgb quiet"
 GRUB_CMDLINE_LINUX="rd.lvm.lv=rhel/swap crashkernel=2048M rd.lvm.lv=rhel/root rhgb quiet"
-
 grub2-mkconfig -o /boot/grub2/grub.cfg
 reboot
 systemctl enable kdump;systemctl start kdump
-
 yum install kernel-debuginfo crash gdb -y
 cd /var/crash/xxx
 crash /usr/lib/debug/lib/modules/3.10.0-327.18.2.el7.x86_64/vmlinux vmcore
 \end{code-block}
-
 通过以上的命令，即可分析core dump的问题根源。
 
 \section{Libvirt tls迁移}
@@ -357,14 +360,11 @@ virsh -c qemu+tls://<hostname>/system
 # 升级kernel到4.10以上版本
 vi /etc/default/grub
 GRUB_CMDLINE_LINUX="rd.lvm.lv=rhel/swap crashkernel=2048M rd.lvm.lv=rhel/root rhgb quiet kvm-intel.nested=1"
-
 grub2-mkconfig -o /boot/grub2/grub.cfg
-
 # 或者直接修改grub文件
 vi /boot/grub2/grub.cfg
 linux16 /vmlinuz-4.12.3-1.el7.elrepo.x86_64 root=/dev/mapper/system-lv_root ro rd.lvm.lv=system/lv_root \
     rhgb quiet LANG=en_US.UTF-8 kvm-intel.nested=1
-
 # 或者修改启动参数
 cat << EOF > /etc/modprobe.d/kvm_intel.conf
 options kvm-intel nested=1
@@ -372,13 +372,11 @@ options kvm-intel enable_shadow_vmcs=1
 options kvm-intel enable_apicv=1
 options kvm-intel ept=1
 EOF
-
 # 另外，为了与嵌套的VM通信，需要禁用反向路径过滤，否则RHEL将丢弃任何网络数据包，以防止不对称路由
 cat << EOF > /etc/sysctl.d/98-rp-filter.conf
 net.ipv4.conf.default.rp_filter = 0
 net.ipv4.conf.all.rp_filter = 0
 EOF
-
 # 然后重启服务器
 reboot
 
@@ -486,7 +484,9 @@ xfreerdp /u:Administrator /p:'123456' /v:192.168.1.1  /h:1000 /w:1920
 \begin{code-block}{bash}
 # 将远程主机的端口映射到本地，将远程的8888端口映射到本地的8000端口
 # 工具可以使用windows10 自带的wsl
-ssh -L8000:0.0.0.0:8888 root@10.1.4.24
+ssh -L0.0.0.0:8000:0.0.0.0:8888 root@10.1.4.24
+# 放到后台执行
+ssh -fNT -L0.0.0.0:5022:0.0.0.0:22 root@172.16.1.21
 # wsl 设置默认用户为root
 C:\Users\zhangjl\AppData\Local\Microsoft\WindowsApps\fedoraremix.exe config --default-user root
 \end{code-block}
