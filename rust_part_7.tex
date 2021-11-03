@@ -2927,6 +2927,136 @@ async fn test_tokio_watch_basic() {
 \end{code-block}
 
 比如，使用监视通道定期检查配置文件，当文件内容发生变更时，向消费者发送配置更改的信号：
+\begin{code-block}{rust}
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct Config {
+    timeout: Duration,
+}
+
+impl Config {
+    async fn load_from_file() -> std::io::Result<Config> {
+        Ok(Config {
+            timeout: Duration::from_secs(5),
+        })
+    }
+}
+
+async fn async_operation() {
+    println!("async operations");
+}
+
+async fn test_tokio_watch_second() {
+    if let Ok(mut config) = Config::load_from_file().await {
+        let (watch_sender, watch_receiver) = sync::watch::channel(config.clone());
+        tokio::spawn(async move {
+            loop {
+                time::sleep(Duration::from_secs(5)).await;
+                // 监控文件状态，一旦文件发生变化，则进行通知
+                if let Ok(new_config) = Config::load_from_file().await {
+                    if new_config != config {
+                        if let Ok(_) = watch_sender.send(new_config.clone()) {
+                            config = new_config;
+                        }
+                    }
+                }
+            }
+        });
+
+        let mut handlers = vec![];
+        for _ in 0..5 {
+            let mut watch_receiver_clone = watch_receiver.clone();
+            let handler = tokio::spawn(async move {
+                let op = async_operation();
+                tokio::pin!(op);
+
+                // 获取初始状态
+                let mut conf = watch_receiver_clone.borrow().clone();
+                let mut op_start = Instant::now();
+                let sleep = time::sleep_until(op_start + conf.timeout);
+                tokio::pin!(sleep);
+
+                loop {
+                    tokio::select! {
+                        _ = &mut sleep => {
+                            op.set(async_operation());
+                            op_start = Instant::now();
+                            sleep.set(time::sleep_until(op_start+conf.timeout));
+                        }
+                        // 如果监控到状态发生了变化
+                        _ = watch_receiver_clone.changed() => {
+                            conf = watch_receiver_clone.borrow().clone();
+                            sleep.as_mut().reset(op_start + conf.timeout);
+                        }
+                        _ = &mut op => {
+                            return
+                        }
+                    }
+                }
+            });
+            handlers.push(handler);
+        }
+
+        for handle in handlers {
+            if let Ok(_) = handle.await {}
+        }
+    }
+}
+\end{code-block}
+
+不过上述例子稍微有些复杂，并且，出现了我们之前并没有使用过的\codeinline{rust}{pin!}
+和\codeinline{rust}{select!}。关于这2个宏的定义以及具体使用将在后面内容当中进行详细
+的展开。
+
+除了使用上述的通道进行同步处理之外，tokio也提供了一些其他的方式保证数据的同步，
+这些方式和标准库std对应的类似，但不同的是tokio提供的是异步等待，而标准库当中的
+则是线程阻塞：
+\begin{itemize}
+  \item Barrier：可以确保多个任务等待彼此到达某一个设定的节点，然后再一起进行执行
+  \item Mutex：互斥锁，确保共享数据在同一时刻只能被一个线程所访问
+  \item Notify：基本的通知机制
+  \item RwLock：读写锁，允许多读，但同一时间只能有一个写操作
+  \item Semaphore：信号量，用于限制并发数的数量
+\end{itemize}
+
+比如，使用Barrier实现同步：
+\begin{code-block}{rust}
+use std::sync::Arc;
+async fn test_tokio_barrier() {
+    let mut handlers = Vec::with_capacity(10);
+    let barrier = Arc::new(sync::Barrier::new(10));
+    for _ in 0..10 {
+        let barrier_clone = barrier.clone();
+        handlers.push(tokio::spawn(async move {
+            println!("Before wait");
+            // 必须等到所有的线程都执行到此处，后续代码才会
+            // 继续执行。
+            let wait_result = barrier_clone.wait().await;
+            println!("After wait");
+            wait_result
+        }));
+    }
+
+    let mut numbers = 0;
+    for handle in handlers {
+        if let Ok(wait_result) = handle.await {
+            if wait_result.is_leader() {
+                numbers += 1;
+            }
+        }
+    }
+
+    assert_eq!(1, numbers);
+}
+\end{code-block}
+
+而tokio的Mutex更多的则是使用异步等待替换std的Mutex的线程阻塞，不过，tokio的Mutex
+有一个非常明显的特点：\colorblock{Mutex的锁保护可以跨await进行使用}。和之前的固有
+印象不同，在异步代码当中使用标准库的Mutex是非常推荐的一种方式。与标准的Mutex不同，
+异步互斥锁的特性是在.await点上保持其锁定，但这通常导致其比标准的Mutex（阻塞互斥锁）
+的开销更大。所以，在可以使用标准Mutex的情况下，应当优先使用std的Mutex。而异步互斥锁
+（tokio的Mutex），则主要是提供于对连续性IO资源的共享可变访问。简而言之，如果
+互斥锁锁定的是数据，而不是IO资源，则应当使用std的Mutex。
+
 
 \subsection{信号与定时器与杂项}
 
