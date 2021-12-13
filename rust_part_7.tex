@@ -1100,7 +1100,7 @@ struct WaitingOnWriteState {
 \end{itemize}
 
 由于第三种方式提供了零成本的抽象，没有增加额外的运行成本，因此被Rust采用，这就是
-所谓的\colorblock{Pining（固定/锚点）}。
+所谓的\colorblock{Pining（固定/锚点）。}
 
 禁止内存地址移动，或者说固定内存地址，通常可以采取的一种方式是将其放在内存的堆区（heap），
 因为堆区分配的值在大多数情况下已经有一个固定的内存地址，在调用allocate时被创建，
@@ -2510,7 +2510,7 @@ async fn main() {
 在之前的内容当中提到了，tokio和future-rs以及async-std的显著不同在于提供了自己的
 runtime，如果不是使用宏定义的方式，必须显式的生成runtime，否则，异步任务将不会
 得到任何的执行。
-默认情况下，使用宏定义方式得到的runtime是多线程的模式，该模式会生成一个线程池，通常
+默认情况下，不使用宏定义方式得到的runtime是多线程的模式，该模式会生成一个线程池，通常
 这是针对绝大多数场景的最佳模式。其使用方式大致如下：
 \begin{code-block}{rust}
 use tokio::runtime;
@@ -2579,6 +2579,97 @@ fn test_tokio_runtime_current_thread() {
 }
 \end{code-block}
 
+默认情况下，使用Builder手工生成的runtime没有其他资源的驱动，这些资源包括io，时间（time）
+以及网络等。因此，如果直接在这些手工生成的runtime当中使用io/time/network的功能会失败。
+为了解决这个问题，则需要使用\codeinline{rust}{Builder::enable_io}或者\codeinline{rust}{Builder::enable_time}，
+当然，也可以直接全部引入\codeinline{rust}{Builder::enable_all}。
+
+相比于默认的方式，Builder提供了更为灵活的处理方式，比如针对线程池进行名称设置（\codeinline{rust}{thread_name}）,
+设置线程的堆栈大小（\codeinline{rust}{thread_stack_size}，字节为单位）等等。
+
+Runtime也存在生命周期，当其处于活动状态时，其中的线程可能在空闲一段时间之后被关闭，
+而当runtime被销毁（drop）时，该runtime上所有的线程都会被销毁，任何在该runtime的
+线程上运行的任务，不管是否结束，都会被强制终止。
+
+\codeinline{rust}{block_on}是进入Runtime的主要方式，但并不是唯一方式：还可以通过
+\codeinline{rust}{enter}进入Runtime。但是，2者有很大的不同：\codeinline{rust}{block_on}
+会阻塞当前的主线程，直到任务结束，而\codeinline{rust}{enter}只是陷入到Runtime当中，
+并不会阻塞当前的主线程执行，它会返回一个\codeinline{rust}{EnterGuard}实例，该实例
+没有其它作用，它仅仅只是声明从它开始的所有异步任务都将在runtime上下文中执行，直到删除该实例，
+比如下面的代码：
+\begin{code-block}{rust}
+let rt = Runtime::new().unwrap();
+
+// 进入runtime，但不阻塞当前线程
+let guard1 = rt.enter();
+
+// 生成的异步任务将放入当前的runtime上下文中执行
+tokio::spawn(async {
+  time::sleep(time::Duration::from_secs(5)).await;
+  println!("task1 sleep over: {}", now());
+});
+
+// 释放runtime上下文，这并不会删除runtime
+drop(guard1);
+
+// 可以再次进入runtime
+let guard2 = rt.enter();
+tokio::spawn(async {
+  time::sleep(time::Duration::from_secs(4)).await;
+  println!("task2 sleep over: {}", now());
+});
+
+drop(guard2);
+\end{code-block}
+
+Runtime不仅可以用于常见的模式，也可以用于tokio的注解方式。默认情况下，\codeinline{rust}{#[tokio::main]}
+创建的是多线程的runtime，实际上，还有多种方式用于注解方式的runtime生成和配置：
+\begin{code-block}{rust}
+#[tokio::main(flavor = "multi_thread"] // 等价于#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 10))] // 最大线程数为10个
+#[tokio::main(worker_threads = 10))]
+
+#[tokio::main(flavor = "current_thread")] // 创建单线程的runtime
+\end{code-block}
+
+Runtime实现了\codeinline{rust}{Send}和\codeinline{rust}{Sync}这两个Trait，因此可
+以将runtime包在\codeinline{rust}{Arc}里，然后跨线程使用同一个runtime。很明显的是，
+在Rust的普通线程当中，可以使用tokio的runtime，进一步的提升程序的并发性，利用多核
+cpu，比如：
+\begin{code-block}{rust}
+use std::thread;
+use tokio;
+
+fn main() {
+    let t1 = thread::spawn(|| {
+        let rt = tokio::runtime::Builder::new()
+            .new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(...)
+    });
+
+    let t2 = thread::spawn(|| {
+        let rt = tokio::runtime::Builder::new()
+            .new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(...)
+    });
+
+    t1.join().unwrap();
+    t2.join().unwrap();
+}
+\end{code-block}
+虽然上述代码当中的runtime都是单线程模式的，但是，通过Rust本身的多线程机制，我们
+仍然可以充分利用多核CPU。但是这几个线程是不受控制的，完全由操作系统决定如何调度
+它们。这种方式是多线程runtime的雏形。它和多线程runtime的区别在于，多线程runtime
+会调度管理这些线程，会尽量以高效的方式来分配任务（如从其它线程中偷任务）。但是
+有了多线程，就有了额外的切换开销，就有了CPU利用率的浪费。因此，可以这样认为，
+\colorblock{单线程runtime对单个线程(单核CPU)的利用率，是高于多线程runtime的}。
+
 不管是多线程还是单线程模式，Tokio的runtime不仅可以执行异步的任务，同样可以执行
 同步阻塞任务，只需要将默认的\codeinline{rust}{spawn}替换成\codeinline{rust}{spawn_blocking}即可：
 \begin{code-block}{rust}
@@ -2593,23 +2684,123 @@ current_rt.spawn_blocking(||{
 });
 \end{code-block}
 
-默认情况下，使用Builder手工生成的runtime没有其他资源的驱动，这些资源包括io，时间（time）
-以及网络等。因此，如果直接在这些手工生成的runtime当中使用io/time/network的功能会失败。
-为了解决这个问题，则需要使用\codeinline{rust}{Builder::enable_io}或者\codeinline{rust}{Builder::enable_time}，
-当然，也可以直接全部引入\codeinline{rust}{Builder::enable_all}。
+Tokio提供了2种功能的线程：
+\begin{itemize}
+  \item 用于异步任务的工作线程（worker thread）
+  \item 用于同步任务的阻塞线程（blocking thread）
+\end{itemize}
 
-相比于默认的方式，Builder提供了更为灵活的处理方式，比如针对线程池进行名称设置（\codeinline{rust}{thread_name}）,
-设置线程的堆栈大小（\codeinline{rust}{thread_stack_size}，字节为单位）等等。
+单个线程或多个线程的runtime，指的都是工作线程，即只用于执行异步任务的线程，这些
+任务主要是IO密集型的任务。Tokio默认会将每一个工作线程均匀地绑定到每一个CPU核心上。
+而上面代码当中，执行的同步任务，实际上就是阻塞线程，他会阻塞整个线程的执行（比如main函数）。
+如果直接在runtime中执行阻塞线程的操作，由于这类阻塞操作不在tokio系统内，tokio无
+法识别这类线程阻塞的操作，tokio只能等待该线程阻塞操作的结束，才能重新获得那个
+线程的管理权。换句话说，worker thread被线程阻塞的时候，它已经脱离了tokio的控制，
+在一定程度上破坏了tokio的调度系统。
 
-Runtime也存在生命周期，当其处于活动状态时，其中的线程可能在空闲一段时间之后被关闭，
-而当runtime被销毁（drop）时，该runtime上所有的线程都会被销毁，任何在该runtime的
-线程上运行的任务，不管是否结束，都会被强制终止。
+Worker thread只用于执行那些异步任务，异步任务指的是不会阻塞线程的任务；blocking thread
+则用于那些长时间计算的或阻塞整个线程的任务，只有在调用了\codeinline{rust}{spawn_blocking()}才会
+创建一个对应的blocking thread。Blocking thread不用于执行异步任务，因此runtime不会
+去调度管理这类线程，它们在本质上相当于一个\codeinline{rust}{thread::spawn()}创建的独立线程，
+它也不会像\codeinline{rust}{block_on()}操作一样会阻塞当前线程。它和独立线程的唯
+一区别，是blocking thread是在runtime内的，可以在runtime内对它们使用一些异步操作，
+例如await：
+\begin{code-block}{rust}
+fn main() {
+    let rt1 = Runtime::new().unwrap();
+    // 创建一个blocking thread，可立即执行(由操作系统调度系统决定何时执行)
+    // 注意，不阻塞当前线程
+    let task = rt1.spawn_blocking(|| {
+      println!("in task: {}", now());
+      // 注意，是线程的睡眠，不是tokio的睡眠，因此会阻塞整个线程
+      thread::sleep(std::time::Duration::from_secs(10))
+    });
+
+    // 小睡1毫秒，让上面的blocking thread先运行起来
+    std::thread::sleep(std::time::Duration::from_millis(1));
+    println!("not blocking: {}", now());
+
+    // 可在runtime内等待blocking_thread的完成
+    rt1.block_on(async {
+      task.await.unwrap();
+      println!("after blocking task: {}", now());
+    });
+}
+\end{code-block}
+
+Blocking thread生成的任务虽然绑定了runtime，但是它不是异步任务，不受tokio调度系统
+控制。因此，如果在\codeinline{rust}{block_on()}中生成了blocking thread或普通的线程，
+\codeinline{rust}{block_on()}不会等待这些线程的完成，而是立即返回：
+\begin{code-block}{rust}
+rt.block_on(async{
+  // 生成一个blocking thread和一个独立的thread
+  // block on不会阻塞等待两个线程终止，因此block_on在这里会立即返回
+  rt.spawn_blocking(|| std::thread::sleep(std::time::Duration::from_secs(10)));
+  thread::spawn(||std::thread::sleep(std::time::Duration::from_secs(10)));
+});
+\end{code-block}
+
+它像独立线程一样，但又和runtime绑定，它不受tokio的调度系统调度，tokio不会把其它
+任务放进该线程，也不会把该线程内的任务转移到其它线程。换言之，它有机会完完整整地
+发挥单个线程的全部能力，而不像worker线程一样，可能会被调度器打断。
+
+当不再需要runtime时，可以通过drop操作，关闭runtime。一个runtime的完整关闭过程如下：
+\begin{enumerate}
+  \item 移除整个任务队列，保证不再产生也不再调度新任务
+  \item 移除当前正在执行但尚未完成的异步任务，即终止所有的worker thread
+  \item 移除Reactor，禁止接收事件通知
+\end{enumerate}
+但是，关闭runtime时，只会立即关闭未被阻塞的worker thread，那些已经运行起来的
+blocking thread以及已经阻塞整个线程的worker thread仍然会执行。然而，删除runtime
+又要等待runtime中的所有异步和非异步任务（会阻塞线程的任务）都完成，因此删除操作
+会阻塞当前线程：
+\begin{code-block}{rust}
+fn main() {
+    let rt = Runtime::new().unwrap();
+    // 一个运行5秒的blocking thread
+    // 删除rt时，该任务将继续运行，直到自己终止
+    rt.spawn_blocking(|| {
+      thread::sleep(std::time::Duration::from_secs(5));
+      println!("blocking thread task over: {}", now());
+    });
+
+    // 进入runtime，并生成一个运行3秒的异步任务，
+    // 删除rt时，该任务直接被终止
+    let _guard = rt.enter();
+    rt.spawn(async {
+      time::sleep(time::Duration::from_secs(3)).await;
+      println!("worker thread task over 1: {}", now());
+    });
+
+    // 进入runtime，并生成一个运行4秒的阻塞整个线程的任务
+    // 删除rt时，该任务继续运行，直到自己终止
+    rt.spawn(async {
+      std::thread::sleep(std::time::Duration::from_secs(4));
+      println!("worker thread task over 2: {}", now());
+    });
+
+    // 先让所有任务运行起来
+    std::thread::sleep(std::time::Duration::from_millis(3));
+
+    // 删除runtime句柄，将直接移除那个3秒的异步任务，
+    // 且阻塞5秒，直到所有已经阻塞的thread完成
+    drop(rt);
+    println!("runtime droped: {}", now());
+}
+\end{code-block}
+
+然而，某些情况下，这种阻塞是不可接受的，为此，tokio提供了另外两种关闭runtime的方法：
+\codeinline{rust}{shutdown_timeout()}和\codeinline{rust}{shutdown_background()}，
+前者会等待指定的时间，如果正在超时时间内还未完成关闭，将强行终止runtime中的所有线程；
+后者是立即强行关闭runtime。需要注意的是，强行关闭Runtime，可能会使得尚未完成的任务
+的资源泄露。因此，应小心使用强行关闭Runtime的操作。
 
 \subsection{Tokio的同步原语}
 由于Tokio使用的是线程池的方式（默认情况下）执行的任务，当存在任务之间需要进行通信
 的需求时，就需要一些其他的机制，这就是Tokio的同步原语所解决的问题。2个任务之间
 相互发送消息进行状态的同步，可以很好的避免状态共享所带来的问题。
 
+\subsubsection{通道}
 所有的消息发送和接收都是通过tokio的通道（channel）实现的。在tokio当中存在不同类型
 的channel，包括一对一的通道（oneshot channel），多对一的通道（多个生产者，一个消费者，mpsc channel），
 多对多通道（多个生产者，多个消费者，broadcast channel）以及一对多的通道（单个生产者，多个消费者，watch channel）。
@@ -2740,7 +2931,7 @@ async fn test_tokio_mpsc_clone() {
 }
 \end{code-block}
 
-通道不仅可以传递常见的数据类型，也可以传递符合数据类型，比如：
+通道不仅可以传递常见的数据类型，也可以传递复合数据类型，比如：
 \begin{code-block}{rust}
 struct Temp {
     age: u8,
@@ -3007,6 +3198,7 @@ async fn test_tokio_watch_second() {
 和\codeinline{rust}{select!}。关于这2个宏的定义以及具体使用将在后面内容当中进行详细
 的展开。
 
+\subsubsection{Barrier}
 除了使用上述的通道进行同步处理之外，tokio也提供了一些其他的方式保证数据的同步，
 这些方式和标准库std对应的类似，但不同的是tokio提供的是异步等待，而标准库当中的
 则是线程阻塞：
@@ -3035,7 +3227,6 @@ async fn test_tokio_barrier() {
             wait_result
         }));
     }
-
     let mut numbers = 0;
     for handle in handlers {
         if let Ok(wait_result) = handle.await {
@@ -3044,12 +3235,12 @@ async fn test_tokio_barrier() {
             }
         }
     }
-
     assert_eq!(1, numbers);
 }
 \end{code-block}
 
-而tokio的Mutex更多的则是使用异步等待替换std的Mutex的线程阻塞，不过，tokio的Mutex
+\subsubsection{锁-Mutex}
+而Tokio的Mutex更多的则是使用异步等待替换std的Mutex的线程阻塞，不过，tokio的Mutex
 有一个非常明显的特点：\colorblock{Mutex的锁保护可以跨await进行使用}。和之前的固有
 印象不同，在异步代码当中使用标准库的Mutex是非常推荐的一种方式。与标准的Mutex不同，
 异步互斥锁的特性是在.await点上保持其锁定，但这通常导致其比标准的Mutex（阻塞互斥锁）
@@ -3057,8 +3248,792 @@ async fn test_tokio_barrier() {
 （tokio的Mutex），则主要是提供于对连续性IO资源的共享可变访问。简而言之，如果
 互斥锁锁定的是数据，而不是IO资源，则应当使用std的Mutex。
 
+但是需要注意，如果在无法移动的.await上使用Mutex，则非常容易导致死锁。通常的做法是
+封装成\codeinline{rust}{Arc<Mutex<...>>}的模式。
+\begin{code-block}{rust}
+use std::sync::Arc;
+use tokio::{self, sync};
+async fn test_tokio_mutex() {
+    let data1 = Arc::new(sync::Mutex::new(0));
+    let data2 = Arc::clone(&data1);
+    let handler = tokio::spawn(async move {
+        let mut lock = data2.lock().await;
+        *lock += 2;
+        *lock
+    });
+    let res = handler.await.unwrap();
+    println!("The result is {}, {:?}", res, data1);
+    // 注意，必须使用{}将锁的操作包裹起来，否则，本段代码
+    // 将陷入死锁状态无法终止
+    {
+        let mut lock = data1.lock().await;
+        *lock += 2;
+    }
+    println!("{:?}", data1);
+}
+\end{code-block}
+
+注意，Tokio的Mutex和标准库的Mutex有很多相似的地方，但也有很多不同的地方，尤其是在
+被标准库的Arc包裹之后：
+\begin{code-block}{rust}
+use std::sync::Arc;
+use tokio::{self, sync};
+use std::sync::Mutex
+async fn test_tokio_notify() {
+    // Arc包括Tokio的Mutex
+    let count = Arc::new(sync::Mutex::new(10));
+    let rel = count.lock_owned().await;
+    println!("The rel is {}", *rel);
+    let count = Arc::new(sync::Mutex::new(10));
+    let rel = count.lock().await;
+    println!("The rel is {}", rel);
+
+    // Arc包裹标准的Mutex
+    let count_std = Arc::new(Mutex::new(10));
+    let rel = count_std.lock().unwrap();
+    println!("rel is {:?}", rel);
+    // 不使用Arc进行包裹的标准Mutex
+    let count_std = Mutex::new(10);
+    let rel = count_std.into_inner().unwrap();
+    println!("rel is {:?}", rel);
+}
+\end{code-block}
+如果不注意相关的使用方式，则非常容易造成死锁。
+
+\subsubsection{通知-Notify}
+Rust的异步操作同样支持使用通知机制进行同步操作，在tokio当中，通知（Notify）通常用于
+唤醒单个任务。Notify本身不会携带任何数据，仅仅只是用于通知另一个任务执行一个操作，和
+Linux当中的信号量非常相似，可以认为是一个从0个执行权开始的信号量。其中，\codeinline{rust}{notified().await}
+通常表示通知到达。如果当前没有执行权，则可以通过\codeinline{rust}{notify_one}
+进行设置。值得注意的是，如果\codeinline{rust}{notify_one}在\codeinline{rust}{notified().await}
+之前被调用，下一次的\codeinline{rust}{notified().await}会立即完成，并且消耗执行权；任何
+后续的\codeinline{rust}{notified().await}调用，都需要等待新的执行权到达。如果在执行
+\codeinline{rust}{notified().await}之前，\codeinline{rust}{notify_one}被调用了多次，
+那只有一个执行权会被存储。
+
+比较基础的用法如下：
+\begin{code-block}{rust}
+async fn test_tokio_notify_base() {
+    let notity = Arc::new(tokio::sync::Notify::new());
+    let notify_copy = notity.clone();
+    let handle = tokio::spawn(async move {
+        notify_copy.notified().await;
+        println!("Notify arrived");
+    });
+    //tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    println!("Send the notify");
+    notity.notify_one();
+    if let Ok(_) = handle.await {}
+}
+\end{code-block}
+同样的，Notify可以作为元素嵌入到其他的结构体当中使用：
+
+\begin{code-block}{rust}
+struct Channel<T> {
+    values: Mutex<VecDeque<T>>,
+    notify: tokio::sync::Notify,
+}
+impl<T> Channel<T> {
+    pub fn send(&self, value: T) {
+        if let Ok(mut values) = self.values.lock() {
+            values.push_back(value);
+            self.notify.notify_one();
+        }
+    }
+    pub async fn recv(&self) -> T {
+        loop {
+            if let Some(value) = self.values.lock().unwrap().pop_front() {
+                return value;
+            }
+            self.notify.notified().await;
+        }
+    }
+}
+async fn test_tokio_notify_channel() {
+    let channel: Channel<u8> = Channel {
+        values: Mutex::new(VecDeque::new()),
+        notify: tokio::sync::Notify::new(),
+    };
+    channel.send(32);
+    let res = channel.recv().await;
+    println!("The res is {}", res);
+}
+\end{code-block}
+
+默认情况下，Notify都只会使用\codeinline{rust}{notify_one}通知一个监听者，但是，实际上
+它也可以通知多个/所有的监听者：
+\begin{code-block}{rust}
+async fn test_tokio_notify_all() {
+    let notify = Arc::new(tokio::sync::Notify::new());
+    let notify_copy = notify.clone();
+    // 注册2个等待者
+    let notified_1 = notify.notified();
+    let notified_2 = notify.notified();
+    tokio::spawn(async move {
+        println!("sending notifications");
+        notify_copy.notify_waiters();
+    });
+    notified_1.await;
+    notified_2.await;
+}
+\end{code-block}
+
+但是需要注意，该函数不会释放执行权，它会一次性唤醒所有正在等待的等候者。严格来说，
+是让当前已经注册的等候者（即已经调用\codeinline{rust}{notified()}，但是还未执行await操作）
+在下次等待的时候，可以直接通过。
+\begin{critical}
+如果等待者已经执行了\codeinline{rust}{notified().await}
+操作，再执行该函数，则\colorblock{会导致死锁的出现}，比如下面的代码：
+\begin{code-block}{rust}
+async fn test_tokio_notify_all_other() {
+    let notify = Arc::new(tokio::sync::Notify::new());
+    let notify_copy_1 = notify.clone();
+    let notify_copy_2 = notify.clone();
+    let task_1 = tokio::spawn(async move {
+        notify_copy_1.notified().await;
+        println!("task1 completed");
+    });
+    let task_2 = tokio::spawn(async move {
+        notify_copy_2.notified().await;
+        println!("task2 completed");
+    });
+    notify.notify_waiters();
+    let _ = tokio::join!(task_1, task_2);
+}
+\end{code-block}
+这种行为需要严格避免。
+\end{critical}
+
+要解决上面的死锁问题，则代码应当进行对应的修改，将等候者的await操作取消掉：
+\begin{code-block}{rust}
+async fn test_tokio_notify_all_other() {
+    let notify = Arc::new(tokio::sync::Notify::new());
+    let notify_copy_1 = notify.clone();
+    let notify_copy_2 = notify.clone();
+    let task_1 = tokio::spawn(async move {
+        notify_copy_1.notified();
+        println!("task1 completed");
+    });
+    let task_2 = tokio::spawn(async move {
+        notify_copy_2.notified();
+        println!("task2 completed");
+    });
+    notify.notify_waiters();
+    let _ = tokio::join!(task_1, task_2);
+}
+\end{code-block}
+但是，实际上，上述代码当中，如果我们将\codeinline{rust}{notify.notify_waiters()}
+取消掉，代码仍然可以正常运行，但\colorblock{这是由于\codeinline{rust}{notified}的操作
+没有执行\codeinline{rust}{await}操作造成的}，虽然看上去结果正确，但实际上，如果取消
+\codeinline{rust}{notify_waiters}操作，从逻辑和原理上说，是错误的，notify的机制
+根本就没有发挥任何作用。
+
+\subsubsection{读写锁-RwLock与信号量-Semaphore}
+Tokio的读写锁和标准的读写锁类似，区别仅仅在于异步处理方式：
+\begin{code-block}{rust}
+async fn test_tokio_rwlock() {
+    let rwlock = Arc::new(tokio::sync::RwLock::new(100));
+    let rw_lock_copy_1 = rwlock.clone();
+    let rw_lock_copy_2 = rwlock.clone();
+
+    let task_1 = tokio::spawn(async move {
+        let res1 = rw_lock_copy_1.read().await;
+        println!("The res1 is {}", res1);
+    });
+
+    let task_2 = tokio::spawn(async move {
+        let res2 = rw_lock_copy_2.read().await;
+        println!("The res2 is {}", res2);
+    });
+
+    {
+        let mut new_value = rwlock.write().await;
+        *new_value += 100;
+        println!("Send complete nofify");
+    }
+
+    let _ = tokio::join!(task_1, task_2);
+
+    // 将所有权转移，后续rwlock失效，无法再使用
+    let mut owned = rwlock.write_owned().await;
+    *owned = 300;
+    println!("{:?}", owned);
+}
+\end{code-block}
+
+而信号量可以保证在某一时刻最多运行指定数量的并发任务。使用信号量时，需在初始化
+时指定信号灯的数量，每当任务要执行时，将从中取走一个信号灯，当任务完成时（信号灯被drop）
+会归还信号灯。当某个任务要执行时，如果此时信号灯数量为0，则该任务将等待，直到有
+信号灯被归还。因此，信号量通常用来提供类似于限量的功能。
+\begin{code-block}{rust}
+fn main() {
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        // 只有3个信号灯的信号量
+        let semaphore = Arc::new(Semaphore::new(3));
+
+        // 5个并发任务，每个任务执行前都先获取信号灯
+        // 因此，同一时刻最多只有3个任务进行并发
+        for i in 1..=5 {
+            let semaphore = semaphore.clone();
+            tokio::spawn(async move {
+                let _permit = semaphore.acquire().await.unwrap();
+                println!("{}, {}", i, now());
+                time::sleep(Duration::from_secs(1)).await;
+            });
+        }
+
+        time::sleep(Duration::from_secs(3)).await;
+    });
+}
+\end{code-block}
 
 \subsection{信号与定时器与杂项}
+Tokio也支持信号，类似Linux的信号（Signal）机制，比如直接处理ctrl+c中断信号：
+\begin{code-block}{rust}
+async fn test_tokio_singal_ctrl_c() {
+    if let Ok(_) = tokio::signal::ctrl_c().await {
+        println!("ctrl-c received!");
+    }
+}
+\end{code-block}
+
+比如，处理其他的Linux信号：
+\begin{code-block}{rust}
+// 在其他的控制台窗口发送kill -3 <pid>
+#[tokio::main]
+async fn main() {
+    if let Ok(mut stream) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::quit()) {
+        loop {
+            stream.recv().await;
+            println!("Got the signal quit");
+            break;
+        }
+    }
+}
+\end{code-block}
+
+关于时间，Tokio也做了自己的封装和处理。除了上述看到的睡眠（sleep）操作之外，tokio的
+时间模块还包含了超时取消，定时任务等等特性。比如简单的超时取消任务：
+\begin{code-block}{rust}
+use tokio::time::{timeout, Duration};
+
+async fn long_future() {
+    // do work here
+    ...
+}
+
+// 如果时间超过了1秒，则中断long_future这个异步任务的运行
+let res = timeout(Duration::from_secs(1), long_future()).await;
+
+if res.is_err() {
+    println!("operation timed out");
+}
+\end{code-block}
+
+而定时任务则更加简单：
+\begin{code-block}{rust}
+// 设定定时器，每隔2秒执行一次
+let mut interval = time::interval(time::Duration::from_secs(2));
+for _i in 0..5 {
+    interval.tick().await;
+    task_that_takes_a_second().await;
+}
+\end{code-block}
+
+但是，定时器的第一次执行是从当前时间开始，而不是间隔时间之后：
+\begin{code-block}{rust}
+let mut interval = time::interval(Duration::from_millis(10));
+
+interval.tick().await; // 立即执行
+interval.tick().await; // 与上一次间隔10ms
+interval.tick().await; // 与上一次间隔10ms
+\end{code-block}
+
+当然，定时器还可以进行变化，可以设置定时器在一个具体的时间开始执行：
+\begin{code-block}{rust}
+// 设定定时器的启动时间，即当前时间之后50ms再开始启动定时器
+let start = Instant::now() + Duration::from_millis(50);
+let mut interval = interval_at(start, Duration::from_millis(10));
+
+// 由于有启动时间的限制，所以定时器并不是立即执行，而是等待50ms之后再开始
+interval.tick().await;
+interval.tick().await; // 与上一次间隔10ms
+interval.tick().await; // 与上一次间隔10ms
+\end{code-block}
+
+同样的道理，也可以针对\codeinline{rust}{sleep}和\codeinline{rust}{timeout}设置
+启动时间：
+\begin{code-block}{rust}
+// 设置sleep定时器的启动时间，直到当前时间之后100ms之后接触
+sleep_until(Instant::now() + Duration::from_millis(100)).await;
+println!("100 ms have elapsed");
+
+let (tx, rx) = oneshot::channel();
+
+// 设置在当前时间之后10ms时间结束
+if let Err(_) = timeout_at(Instant::now() + Duration::from_millis(10), rx).await {
+    println!("did not receive value within 10 ms");
+}
+\end{code-block}
+
+而在实际的使用当中，定时器通常与\codeinline{rust}{tokio::select!}一起使用，关于
+这个宏的说明以及具体的使用示例，将在后面进行展开。
+
+和原始的Future-rs相同，tokio也支持同时运行多个task，常见的方法就是使用\codeinline{rust}{tokio::join!}
+将多个task合并起来执行，比如：
+\begin{code-block}{rust}
+async fn __in__() {
+    println!(123);
+}
+
+async fn __out__() {
+    println!("hello world");
+}
+
+fn main() {
+    if let Ok(multi_rt) = runtime::Runtime::new() {
+        multi_rt.block_on(async {
+            tokio::join!(__out__(), __in__());
+        });
+        drop(multi_rt);
+    }
+}
+\end{code-block}
+但是，需要注意，默认情况下，tokio的\codeinline{rust}{join!}是\colorblock{串行执行}的，也就是说，
+如果其中第一个task被阻塞，后续的task都无法被执行。如果想让\codeinline{rust}{join!}的
+任务也变成并行/并发执行的方式，则需要修改task的生成方式，不是直接使用异步函数，而是
+使用\codeinline{rust}{tokio::spawn}生成，然后再通过\codeinline{rust}{join!}进行合并：
+\begin{code-block}{rust}
+macro_rules! __serial_command__ {
+    ($location: expr) => {{
+        println!("Sucess poweroff the {} board", $location);
+    }};
+}
+
+async fn hello() -> ! {
+    loop {}
+    println!("hello world");
+}
+
+async fn call() {
+    __serial_command__!(123);
+}
+
+#[tokio::main]
+async fn main() {
+    let task1 = tokio::spawn(hello());
+    let task2 = tokio::spawn(call());
+    tokio::join!(task1, task2);
+}
+\end{code-block}
+
+上述代码是使用\codeinline{rust}{#[tokio::main]}这种注解方式实现的，如果不是使用
+注解，而是直接使用tokio的运行时方式实现，则需要重点注意，比如下面的代码，运行就
+会出现错误：
+\begin{code-block}{rust}
+macro_rules! __serial_command__ {
+    ($location: expr) => {{
+        println!("Sucess poweroff the {} board", $location);
+    }};
+}
+
+async fn hello() -> ! {
+    loop {}
+    println!("hello world");
+}
+
+async fn call() {
+    __serial_command__!(123);
+}
+
+fn main() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let task1 = tokio::spawn(hello());
+    let task2 = tokio::spawn(call());
+    let (_, _) = rt.block_on(async move { tokio::join!(task2, task1) });
+}
+\end{code-block}
+
+上述代码编译并没有问题，但是在运行的时候，就会出现下列错误：
+\begin{code-block}{text}
+thread 'main' panicked at 'there is no reactor running, must be called from the context of a Tokio 1.x runtime', testren/src/main.rs:77:17
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+\end{code-block}
+出现上述原因的问题，在于task1和task2是在tokio全局创建的任务，并没有和任何一个运行时
+进行任何的绑定，使用tokio的注解执行时，tokio的运行时会自动创建绑定关系。但是当使用
+\codeinline{rust}{join!}进行合并并执行时，tokio找不到一个与之对应的运行时实例来执行，
+因此就会出错。而解决的思路很简单：将task与运行时实例进行绑定即可：
+\begin{code-block}{rust}
+macro_rules! __serial_command__ {
+    ($location: expr) => {{
+        println!("Sucess poweroff the {} board", $location);
+    }};
+}
+
+async fn hello() -> ! {
+    loop {}
+    println!("hello world");
+}
+
+async fn call() {
+    __serial_command__!(123);
+}
+
+fn main() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    // 使用当前的runtime实例创建任务
+    let task1 = rt.spawn(hello());
+    let task2 = rt.spawn(async { __serial_command__!(123) });
+    let (_, _) = rt.block_on(async move { tokio::join!(task2, task1) });
+}
+\end{code-block}
+如此，上述代码即可正常运行。
+
+\subsubsection{select!}
+\codeinline{rust}{select!}是Tokio当中非常重要的一个宏，它可以并行/并发的运行多个异步任务，
+但是，只要其中一个成功返回了，就结束其他所有的异步任务。常见的使用规则如下：
+\begin{code-block}{rust}
+tokio::select! {
+    <pattern> = <async expression> (, if <precondition>)? => <handler>,
+    else => <expression>
+};
+\end{code-block}
+
+默认情况下，\codeinline{rust}{select!}会尝试匹配代码块当中的各个分支，一旦匹配到了，
+则中断后续的匹配操作，并且取消其他分支当中的异步任务。如果没有匹配到，则执行\codeinline{rust}{else}
+分支当中的代码。这个\codeinline{rust}{else}分支是可选择的，但是，如果没有这个分支，
+当其他所有分支都没有匹配到时，则\codeinline{rust}{select!}宏会直接panic。
+
+和之前的\codeinline{rust}{join!}类似，\codeinline{rust}{select!}的所有异步任务
+全部是在同一个工作线程上\colorblock{并发}运行的，因此，如果有一个分支被阻塞，则其他分支都会无法继续
+执行。如果需要所有分支都是\colorblock{并行}运行，则应当使用\codeinline{rust}{tokio::spawn}
+生成异步任务，然后在\codeinline{rust}{select!}的分支当中使用这些任务。
+
+通常，\codeinline{rust}{select!}会随机选择分支进行检查，这是满足大多数场景需求的模式。
+如果必须要求从上至下的顺序进行执行，则需要在分支当中使用\codeinline{rust}{biased;}操作。
+当然，由于一些其他的原因，我们可能会倾向于使用\codeinline{rust}{biased;}：
+\begin{itemize}
+    \item \codeinline{rust}{select!}的随机数（随机性）并不是0开销（存在cpu消耗）。
+    \item 分支当中的future之间可能需要以轮询的顺序进行交互。
+\end{itemize}
+
+不过，使用这种顺序必须注意确保对future的轮训是完全公平的。比如，如果\codeinline{rust}{select!}
+包含了stream和一个关闭的future，并且stream当中包含了大量的信息，且信息之间的时间
+间隔几乎为0，则应当将关闭future的操作放在前面的位置，确保其可以被轮询到，而不是由于
+stream一直处于就绪状态导致关闭future的分支被忽略。
+
+当使用\codeinline{rust}{select!}时，应当确保每个分支或者说每个任务是可以被安全的取消，
+以避免丢失数据。注意，tokio的\codeinline{rust}{Mutex}、\codeinline{rust}{RwLock}、
+\codeinline{rust}{Semaphore}以及\codeinline{rust}{Notify}都不是可以被安全取消的，
+这些方法或者结构体要避免在\codeinline{rust}{select!}当中使用。
+
+常见的使用方式如下：
+\begin{code-block}{rust}
+async fn do_stuff_async() {
+    // async work
+}
+
+async fn more_async_work() {
+    // more here
+}
+
+#[tokio::main]
+async fn main() {
+    tokio::select! {
+        _ = do_stuff_async() => {
+            println!("do_stuff_async() completed first")
+        }
+        _ = more_async_work() => {
+            println!("more_async_work() completed first")
+        }
+    };
+}
+\end{code-block}
+
+不仅针对异步方法/函数使用\codeinline{rust}{select!}，针对tokio的stream也可以使用：
+\begin{code-block}{rust}
+use tokio_stream::{self as stream, StreamExt};
+
+#[tokio::main]
+async fn main() {
+    let mut stream1 = stream::iter(vec![1, 2, 3]);
+    let mut stream2 = stream::iter(vec![4, 5, 6]);
+
+    let next = tokio::select! {
+        v = stream1.next() => v.unwrap(),
+        v = stream2.next() => v.unwrap(),
+    };
+
+    assert!(next == 1 || next == 4);
+}
+\end{code-block}
+
+如果需要消费掉stream当中的内容，则需要稍微进行一下变更：
+\begin{code-block}{rust}
+use tokio_stream::{self as stream, StreamExt};
+
+#[tokio::main]
+async fn main() {
+    let mut stream1 = stream::iter(vec![1, 2, 3]);
+    let mut stream2 = stream::iter(vec![4, 5, 6]);
+
+    let mut values = vec![];
+
+    loop {
+        tokio::select! {
+            Some(v) = stream1.next() => values.push(v),
+            Some(v) = stream2.next() => values.push(v),
+            else => break,
+        }
+    }
+
+    values.sort();
+    assert_eq!(&[1, 2, 3, 4, 5, 6], &values[..]);
+}
+\end{code-block}
+
+如果想完全按照分支的顺序进行执行，则需要使用上面提到的\codeinline{rust}{biased;}：
+\begin{code-block}{rust}
+#[tokio::main]
+async fn main() {
+    let mut count = 0u8;
+
+    loop {
+        tokio::select! {
+            // 指定每个分支按照顺序进行执行
+            biased;
+            _ = async {}, if count < 1 => {
+                count += 1;
+                assert_eq!(count, 1);
+            }
+            _ = async {}, if count < 2 => {
+                count += 1;
+                assert_eq!(count, 2);
+            }
+            _ = async {}, if count < 3 => {
+                count += 1;
+                assert_eq!(count, 3);
+            }
+            _ = async {}, if count < 4 => {
+                count += 1;
+                assert_eq!(count, 4);
+            }
+
+            else => {
+                break;
+            }
+        };
+    }
+}
+\end{code-block}
+
+当然，在每个分支当中，也可以使用条件判断进行进一步的处理：
+\begin{code-block}{rust}
+use tokio::sync::oneshot;
+
+#[tokio::main]
+async fn main() {
+    let (tx1, mut rx1) = oneshot::channel();
+    let (tx2, mut rx2) = oneshot::channel();
+
+    tokio::spawn(async move {
+        tx1.send("first").unwrap();
+    });
+
+    tokio::spawn(async move {
+        tx2.send("second").unwrap();
+    });
+
+    let mut a = None;
+    let mut b = None;
+
+    // 当a和b不为空时，才结束当前的循环
+    while a.is_none() || b.is_none() {
+        tokio::select! {
+            v1 = (&mut rx1), if a.is_none() => a = Some(v1.unwrap()),
+            v2 = (&mut rx2), if b.is_none() => b = Some(v2.unwrap()),
+        }
+    }
+
+    let res = (a.unwrap(), b.unwrap());
+
+    assert_eq!(res.0, "first");
+    assert_eq!(res.1, "second");
+}
+\end{code-block}
+
+但是，并不是所有的判断都可以在执行\codeinline{rust}{select!}之前进行，如果使用
+不当，则会出现错误，比如下面的代码就有问题：
+\begin{code-block}{rust}
+use tokio::time::{self, Duration};
+
+async fn some_async_work() {
+    // do work
+}
+
+#[tokio::main]
+async fn main() {
+    let sleep = time::sleep(Duration::from_millis(50));
+    tokio::pin!(sleep);
+
+    while !sleep.is_elapsed() {
+        tokio::select! {
+            _ = &mut sleep, if !sleep.is_elapsed() => {
+                println!("operation timed out");
+            }
+            _ = some_async_work() => {
+                println!("operation completed");
+            }
+        }
+    }
+
+    panic!("This example shows how not to do it!");
+}
+\end{code-block}
+在上面的例子中，\codeinline{rust}{sleep.is_elapsed()}可能返回true，即使\codeinline{rust}{sleep.poll()}
+从未返回Ready，即未运行。这会产生一个潜在的竞争条件：\codeinline{rust}{while !sleep.is_elapsed()}进行
+过期检查，以及根据\codeinline{rust}{sleep}是否过期而进行的\codeinline{rust}{select!}操作，
+这会导致\codeinline{rust}{some_async_work()}被不间断的调用，即使\codeinline{rust}{sleep}已经结束。
+修正上述代码的问题非常简单，将多个相同的检测条件归纳到一处：
+\begin{code-block}{rust}
+use tokio::time::{self, Duration};
+
+async fn some_async_work() {
+    // do work
+}
+
+#[tokio::main]
+async fn main() {
+    let sleep = time::sleep(Duration::from_millis(50));
+    tokio::pin!(sleep);
+
+    loop {
+        tokio::select! {
+            _ = &mut sleep => {
+                println!("operation timed out");
+                break;
+            }
+            _ = some_async_work() => {
+                println!("operation completed");
+            }
+        }
+    }
+}
+\end{code-block}
+
+\subsubsection{pin!}
+在上述的代码当中，又出现了一个比较关键的宏：\codeinline{rust}{pin!}。所谓的pin，
+实际上就是在堆栈当中将对应的变量固定住。默认情况下，对异步函数的调用会得到一个
+被标记为\codeinline{rust}{!Unpin}的Future所包裹的值。如同之前的内容所述，在对这些
+Future进行轮询操作（poll）之前，这些值必须被固定住。通常情况下，使用\codeinline{rust}{.await}
+操作就可以解决这个问题，不过，该操作会消费对应的future。如果需要在\codeinline{rust}{&mut _}
+上执行\codeinline{rust}{.await}操作，就必须要求调用者自行对future进行固定。固定
+future可以只用\codeinline{rust}{Box::pin}或者使用\codeinline{rust}{pin!}这个宏。
+
+比如，下面的代码就无法通过编译器的检查：
+\begin{code-block}{rust}
+async fn my_async_fn() {
+    // async logic here
+}
+
+#[tokio::main]
+async fn main() {
+    let mut future = my_async_fn();
+    // 在future的可变引用上执行await操作
+    (&mut future).await;
+}
+\end{code-block}
+
+此时，就必须使用\codeinline{rust}{pin!}进行修改：
+\begin{code-block}{rust}
+use tokio::pin;
+
+async fn my_async_fn() {
+    // async logic here
+}
+
+#[tokio::main]
+async fn main() {
+    let future = my_async_fn();
+    pin!(future);
+
+    (&mut future).await;
+}
+\end{code-block}
+
+在\codeinline{rust}{select!}和\codeinline{rust}{T: Stream + Unpin}这种stream的操作
+当中，\codeinline{rust}{pin!}使用非常普遍。不过，在使用时，需要注意几点：
+\codeinline{rust}{pin!}接收变量或者标识符作为参数，但是，\colorblock{无法接收表达式作为参数}，
+因此，下面的代码是无法通过编译的：
+\begin{code-block}{rust}
+async fn my_async_fn() {
+    // async logic here
+}
+
+#[tokio::main]
+async fn main() {
+    // 使用表达式作为pin!的参数
+    let mut future = pin!(my_async_fn());
+    (&mut future).await;
+}
+\end{code-block}
+
+和\codeinline{rust}{select!}配合使用时，则需要注意，被\codeinline{rust}{pin!}的
+future无需再进行\codeinline{rust}{.await}操作：
+\begin{code-block}{rust}
+use tokio::{pin, select};
+use tokio_stream::{self as stream, StreamExt};
+
+async fn my_async_fn() {
+    // async logic here
+}
+
+#[tokio::main]
+async fn main() {
+    let mut stream = stream::iter(vec![1, 2, 3, 4]);
+
+    let future = my_async_fn();
+    pin!(future);
+
+    loop {
+        select! {
+            // select 操作会自动调用future的.await操作
+            _ = &mut future => {
+                break;
+            }
+            Some(val) = stream.next() => {
+                println!("got value = {}", val);
+            }
+        }
+    }
+}
+\end{code-block}
+
+当然，也同样可以同时针对多个future进行固定操作：
+\begin{code-block}{rust}
+use tokio::{pin, select};
+
+async fn my_async_fn() {
+    // async logic here
+}
+
+#[tokio::main]
+async fn main() {
+    pin! {
+        let future1 = my_async_fn();
+        let future2 = my_async_fn();
+    }
+
+    select! {
+        _ = &mut future1 => {}
+        _ = &mut future2 => {}
+    }
+}
+\end{code-block}
+
+Tokio是目前在Rust当中使用相当广泛的异步开发库，相当多的类库都专门针对tokio做了很多的
+异步化改造。因此，可以在绝大部分的场景下使用tokio对代码进行异步改造和性能提升。
 
 \section{异步编程的实现方案-mio}
 

@@ -49,6 +49,10 @@
 \usepackage[inkscapearea=page]{svg}
 
 \usepackage[printwatermark]{xwatermark}
+\usepackage{pagecolor}
+
+% 设置页面颜色
+\pagecolor{yellow!8!white}
 
 % 每页的脚注重新编号
 % 强制脚注和引用在相同页，需要使用footnote，不能使用footmark
@@ -251,8 +255,16 @@
 \renewcommand{\fcolorbox}[4][]{#4}
 
 \newtcblisting{code-block}[1]
-{beamer, colback=gray!20!white,colframe=gray!35!white,listing only,breakable,width=\linewidth,listing engine=minted,
- minted language={#1},minted options={fontsize=\scriptsize,linenos=false,breaklines=true,breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,}}
+{beamer,colback=yellow!8!white,colframe=black,listing only,breakable, width=\linewidth,
+ %underlay={\begin{tcbclipinterior}
+ %\shade[inner color=black!80!white,outer color=yellow!10!white]
+ %(interior.north east) circle (1cm);
+ %\draw[help lines,step=1cm,yellow!40!black,shift={(interior.north west)}]
+ %(interior.south west) grid (interior.north east);
+ %\end{tcbclipinterior}},
+ listing engine=minted, minted language={#1},
+ minted options={fontsize=\scriptsize,linenos=false,breaklines=true,
+ breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,}}
 
 % 设置单行代码样式，当页面宽度不够时，bgcolor参数将影响换行操作
 \newcommand{\codeinlinebg}[1]{\mintinline[bgcolor=lbcolor,]{#1}}

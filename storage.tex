@@ -24,7 +24,7 @@ PV，VG和LV的关系如图 \colorunderlineref{fig:lvm}所示
   \label{fig:lvm}
 \end{figure}
 
-\subsection{扩容的基本步骤}
+\subsection{LVM扩容的基本步骤}
 \begin{outline}[enumerate]
   \1 创建pv
 \begin{code-block}{bash}
@@ -84,3 +84,29 @@ xfs_growfs /dev/rhel/root
   \caption{磁盘根分区扩容}
   \label{fig:extendlvm}
 \end{figure}
+
+\subsection{NVME扩容的基本步骤}
+如果磁盘直接使用的nvme这种ssd，则扩容的步骤稍微有些区别，这种磁盘可以直接扩容（如果还有未使用的容量空间的话）：
+\begin{outline}[enumerate]
+  \1 扩容磁盘
+
+假设nvme磁盘分区只有一个，则比较简单
+\begin{code-block}{bash}
+growpart /dev/nvme0n1 1
+\end{code-block}
+
+  \1 扩容文件系统
+
+如果是ext4文件系统
+\begin{code-block}{bash}
+resize2fs /dev/nvme0n1p1
+\end{code-block}
+
+如果是xfs文件系统
+\begin{code-block}{bash}
+# /data为nvme的挂载点
+xfs_growfs -d /data
+\end{code-block}
+
+
+\end{outline}
