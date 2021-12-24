@@ -160,6 +160,9 @@ git review -s
 # 如果是使用socket5模式的代理
 # git config --global http.proxy socks5://localhost:8588
 # git config --global https.proxy socks5://localhost:8588
+
+# 获取当前分支对应的tag，如果没有，则使用pre-release代替
+git describe --abbrev=0 --tags 2>/dev/null || echo 'pre-release'
 \end{code-block}
 
 \section{Git使用submodule}
@@ -573,6 +576,66 @@ fdisk -l -u /dev/sda
 dd if=/dev/sda of=backup.img bs=512 count=[fdisk所获得的max_size]+1
 \end{code-block}
 
+\1 直接挂在image文件的不同分区
+
+首先需要通过fdisk确定image文件的分区信息，得到每个分区的不同起始和结束地址：
+\begin{code-block}{bash}
+fdisk -l /opt/c5_tb_awc.img
+\end{code-block}
+
+如图\colorunderlineref{fig:imagefile}所示，标红部分显示了每个单元分配的字节数，
+以及image文件的分区信息和起始地址：
+\par\begin{minipage}{\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{imagefile.png}
+  \captionof{figure}{获取image文件的分区信息}
+  \label{fig:imagefile}
+\end{minipage}
+
+然后根据单元字节数和起始地址，计算出分区信息的实际偏移量（512×4096，或则512×1028096），
+即可通过偏移量对image文件进行挂载操作：
+\begin{code-block}{bash}
+# -r 表示只读，-o offset表示实际的偏移量（起始地址）
+# 可以根据偏移量进行挂载
+mount -r -o offset=2097152 /opt/c5_tb_awc.img /srv/
+\end{code-block}
+
+挂载成功之后，得到的结果与之前guestmount有区别：
+\par\begin{minipage}{\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{offset_mount.png}
+  \captionof{figure}{挂载image分区}
+  \label{fig:offset_mount}
+\end{minipage}
+
+\1 快速烧录磁盘（tf卡）设备
+
+除了使用dd对tf卡进行写入之外，还可以使用其他方法，并且更加快速。首先还是查看镜像
+文件的分区信息，参照\colorunderlineref{fig:imagefile}的操作，得到启动分区的信息（
+即标记为unknown的分区），此时主要是需要得到该分区的结束地址，以及每个单元的大小。
+紧接着，利用镜像的该分区信息，即可对tf进行分区表的划分：
+\begin{code-block}{bash}
+# bs=512表示每个单元的大小为512字节（b），count=结束地址+1
+dd if=opencl-2021-12-14.img of=/dev/sda bs=512 count=4096
+\end{code-block}
+
+上述命令执行之后，即可看到tf卡的分区表已经建立：
+\par\begin{minipage}{\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{tf_partition.png}
+  \captionof{figure}{tf卡的分区}
+  \label{fig:tf_partition}
+\end{minipage}
+
+接下来，即可根据需求对其余的分区进行格式化：
+\begin{code-block}{bash}
+mkfs.fat /dev/sda1
+mkfs.ext4 /dev/sda2
+\end{code-block}
+
+剩下的，即可利用前面的操作，直接进行image文件内容的拷贝即可。相比于原始的dd操作，
+这种操作方式可以将时间缩短到分钟级别。
+
 \1 使用tar进行操作系统的备份和恢复
 \begin{code-block}{bash}
 # 对操作系统进行备份
@@ -608,9 +671,112 @@ kpartx -dv /dev/loop0
 losetup -d /dev/loop0
 \end{code-block}
 
+\1 手动创建image文件
+
+首先需要创建空白的磁盘文件：
+\begin{code-block}{bash}
+dd if=/dev/zero of=u18.img bs=1 count=0 seek=`expr 4 * 1024 * 1024 * 1024`
+\end{code-block}
+
+接着对这个空白文件建立loop设备：
+\begin{code-block}{bash}
+# 输出即是建立的loop设备
+losetup --show -f u18.img
+\end{code-block}
+
+对loop设备进行分区，建立分区表
+\begin{code-block}{bash}
+# 假设创建的文件是loop0
+printf 'n\np\n1\n\n+1M\nt\na2\nn\np\n2\n\n+500M\nt\n\n0b\nn\np\n\n\n\n\nwq\n' | fdisk /dev/loop0
+\end{code-block}
+执行成功之后，/dev/loop0的分区表大致如下：
+\par\begin{minipage}{\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{loop_partition.png}
+  \captionof{figure}{loop设备的分区表}
+  \label{fig:loop_partition}
+\end{minipage}
+
+接下来需要先将loop设备和空白磁盘文件之间的映射关系断开：
+\begin{code-block}{bash}
+losetup -d /dev/loop0
+\end{code-block}
+
+重新建立磁盘文件第一分区的loop映射：
+\begin{code-block}{bash}
+# -o 表示偏移量，即分区单元大小（默认为512）×分区的起始地址，--sizelimit 表示当前分区的大小
+losetup  --show -f -o `expr 512 * 2048` --sizelimit `expr 1 * 1024 * 1024` /tmp/u18.img
+\end{code-block}
+
+假设新建立的映射为loop0，将引导分区的文件写入到该映射设备：
+\begin{code-block}{bash}
+dd if=preloader-mkpimage.bin of=/dev/loop0 bs=1 seek=0
+\end{code-block}
+该指令执行之后，将获得该文件写入之后的磁盘偏移量：
+\par\begin{minipage}{\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{loop_offset.png}
+  \captionof{figure}{loop设备写入之后的偏移量}
+  \label{fig:loop_offset}
+\end{minipage}
+然后根据该偏移量（假设偏移量为262144），写入另外一个文件到映射的loop设备当中：
+\begin{code-block}{bash}
+dd if=u-boot.img of=/dev/loop0 bs=1 seek=262144
+\end{code-block}
+
+然后将映射断开，建立第二分区的loop映射：
+\begin{code-block}{bash}
+loseup -d /dev/loop0
+# -o 表示偏移量，即分区大小×分区的起始地址，--sizelimit 表示当前分区的大小
+losetup  --show -f -o `expr 512 * 4096` --sizelimit `expr 500 * 1024 * 1024` /tmp/u18.img
+\end{code-block}
+
+将启动分区的文件拷贝进第二分区：
+\begin{code-block}{bash}
+mkfs.vfat -F 32 /dev/loop0
+mount /dev/loop0 /mnt
+cp opencl.rbf  /mnt/
+cp socfpga.dtb /mnt/
+cp u-boot.scr /mnt/
+cp zImage /mnt/
+umount /mnt
+losetup -d /dev/loop0
+\end{code-block}
+
+拷贝系统文件进入第三分区：
+\begin{code-block}{bash}
+# -o 表示偏移量，即分区大小×分区的起始地址，--sizelimit 表示当前分区的大小
+losetup  --show -f -o `expr 512 * 1028096` --sizelimit `expr 3500 * 1024 * 1024` /tmp/u18.img
+mkfs.ext4 -F /dev/loop0
+mount /dev/loop0 /mnt
+cp -apr ubuntusoc/* /mnt
+sync
+umount /mnt
+losetup -d /dev/loop0
+\end{code-block}
+
+至此，手动创建image文件完成。
+
+然后进行快速的tf卡的分区：
+\begin{code-block}{bash}
+# bs=512表示分区单位的大小（512字节），count=4096为
+# 对应分区的数量，即该分区结束的地址+1
+dd if=u18.img of=/dev/sda bs=512 count=4096
+\end{code-block}
+
+由于镜像的大小和tf卡的大小不同，tf卡的第三分区（ext4）需要扩区，因此，分区之后，需要进行
+手动的调整：
+\begin{code-block}{bash}
+printf 'd\n\nn\np\n\n\n\nwq\n' | fdisk /dev/sda
+\end{code-block}
+
+经过该操作之后，可以将tf卡的所有空间全部用满，剩下的，就是简单的将fat32分区和ext4分区
+进行格式化（\codeinline{bash}{mkfs.vfat -F 32 /dev/sda2 && mkfs.ext4 -F /dev/sda3}），
+然后进行对应的文件复制即可。
+
 \1 将awk的结果赋值给变量
 \begin{code-block}{bash}
- echo $id |awk -F '_' '{print $NF}'| awk -F '.' '{print $1}' | awk -F '-' '{print $1, $2}'|while read first second;do echo $first $second;done
+echo $id |awk -F '_' '{print $NF}'| awk -F '.' '{print $1}' | awk -F '-' '{print $1, $2}'|while read first second;do echo $first $second;done
 \end{code-block}
 
 \1 shell下的数值计算

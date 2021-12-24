@@ -1805,6 +1805,34 @@ fn main(){
 }
 \end{code-block}
 
+\subsubsection{Future的使用范例}
+如果Future的返回结果如同\codeinline{rust}{pub fn stats() -> impl Future<Output = Result<CpuStats, Error>>}，
+则使用方式大致如下：
+\begin{code-block}{rust}
+if let Ok(stats) = heim::cpu::stats().await {
+    println!("Context switches: {}", stats.ctx_switches());
+}
+\end{code-block}
+
+而如果Future的返回结果如\codeinline{rust}{pub fn partitions() -> impl Stream<Item = Result<Partition, Error>>}，
+则使用方式大致如下：
+\begin{code-block}{rust}
+// 必须包含，否则无法返回的item无法被识别为stream
+use futures::StreamExt;
+
+if let Ok(partitions) = heim::disk::partitions().await {
+
+    // 可以替换为
+    // futures::pin_mut!(partitions);
+    tokio::pin!(partitions);
+
+    // 将返回值识别为stream进行处理
+    while let Some(partition) = partitions.next().await {
+        println!("{:?}", partition);
+    }
+}
+\end{code-block}
+
 \section{异步编程的实现方案-async-std}
 Async-std是一种Future执行器的实现方案。其基本的使用于futures类似，都是使用block\_on
 设置异步任务的阻塞运行。相比于futures，async-std提供了一些扩展功能，比如异步的
@@ -4032,76 +4060,199 @@ async fn main() {
 }
 \end{code-block}
 
+除此之外，Tokio也同样提供了异步的linux命令支持，并且和标准库（\codeinline{rust}{std::process}）
+相兼容。常见的使用方式不再赘述，这里只简单的讲解一下如何在tokio当中使用管道符
+以及处理通配符：
+\begin{code-block}{rust}
+use std::process::Stdio;
+use tokio;
+
+// 使用在bash当中执行的方式
+let res = tokio::process::Command::new("bash")
+    .arg("-c")
+    .arg("echo 'hello world' | tr 'a-z' 'A-Z' | grep -i zhangjl")
+    .output()
+    .await
+    .unwrap();
+println!("The res is {:?}", res);
+
+// 只有bash方式可以处理通配符*，命令方式无法正确处理
+let res = tokio::process::Command::new("bash")
+    .arg("-c")
+    .arg("rm -rf /tmp/*")
+    .output()
+    .await
+    .unwrap();
+println!("The res is {:?}", res);
+
+// 或者使用下列的方式：
+
+let cmds = vec![
+    ("echo", vec!["hello world"]),
+    ("tr", vec!["a-z", "A-Z"]),
+    ("grep", vec!["zhangjl"]),
+];
+
+linux_commands(cmds).await;
+
+async fn linux_command<'a>(cmds: Vec<(&str, Vec<&str>)>) -> (
+    bool, &'a str, &'a str) {
+    let pipeline_size = cmds.len() - 1;
+    // 如果只有一组命令，即不需要处理管道符的情况
+    if 0 == pipeline_size {
+        let (cmd, args) = &cmds[0];
+        let linux_command = tokio::process::Command::new(cmd)
+            .args(args.clone())
+            .output();
+        match linux_command.await {
+            Ok(result) => {
+                if result.status.success() {
+                    println!("Sucess to execute the command {} with args {:?}",
+                        cmd, args);
+                    unsafe {
+                        println!(
+                            "The output is {}",
+                            std::str::from_utf8_unchecked(&result.stdout)
+                        );
+                    }
+                    let std_out = result.stdout.leak();
+                    let std_err = result.stderr.leak();
+                    return (
+                        result.status.success(),
+                        std::str::from_utf8(std_out).unwrap(),
+                        std::str::from_utf8(std_err).unwrap(),
+                    );
+                } else {
+                    eprintln!(
+                        "Failed to execute the command {}: {}",
+                        cmd,
+                        String::from_utf8(result.stderr).unwrap()
+                    );
+                    return (false, "", "");
+                }
+            }
+            Err(err) => {
+                eprintln!(
+                    "Cannot execute the command {} with args {:?} : {:?}",
+                    cmd, args, err
+                );
+                return (false, "", "");
+            }
+        }
+    }
+
+    let mut stdin_pipe: Vec<Stdio> = Vec::with_capacity(1);
+    let mut handler: Vec<_> = vec![];
+    let mut handler_rest: Vec<_> = vec![];
+    let mut handler_last: Vec<_> = vec![];
+
+    for (idx, (c_cmd, c_args)) in cmds.iter().enumerate() {
+        if 0 == idx {
+            // 开始的命令必须单独处理
+            match tokio::process::Command::new(c_cmd)
+                .args(c_args)
+                // 将标准输出和错误输出重定向到管道
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+            {
+                Ok(mut begin) => {
+                    // 当前命令的输出作为下一个命令的输入
+                    stdin_pipe.push(
+                        begin.stdout.take().unwrap().try_into().unwrap());
+                    handler.push(begin);
+                }
+                Err(err) => {
+                    eprintln!(
+                        "Cannot spawn the command `{}` with args {:?}: {:?}",
+                        c_cmd, c_args, err
+                    );
+                    return (false, "", "");
+                }
+            }
+        } else {
+            // 第一个管道符后面的命令
+            match tokio::process::Command::new(c_cmd)
+                .args(c_args)
+                // 使用管道作为命令的输入
+                .stdin(stdin_pipe.pop().unwrap())
+                // 同样的，将标准输出和错误输出重定向到管道当中
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+            {
+                Ok(mut child) => {
+                    if idx != pipeline_size {
+                        // 如果当前的命令后面还有管道符
+                        // 则将当前命令的输出设置为后续命令的输入
+                        stdin_pipe.push(
+                            child.stdout.take().unwrap().try_into().unwrap());
+                        handler_rest.push(child);
+                    } else {
+                        // 后续不再有管道符，即最后一组命令
+                        // 则不再设置相关的输出
+                        handler_last.push(child);
+                    }
+                }
+                Err(err) => {
+                    eprintln!(
+                        "Cannot spawn the child command `{}` with args {:?}: {:?}",
+                        c_cmd, c_args, err
+                    );
+                    return (false, "", "");
+                }
+            }
+        }
+    }
+
+    // 处理第一组命令的执行结果
+    match handler.pop().unwrap().wait().await {
+        Ok(_) => {
+            // 处理管道符所包裹的命令的输出
+            for handle in handler_rest {
+                match handle.wait_with_output().await {
+                    Ok(tmp) => {
+                        if !tmp.status.success() {
+                            println!(
+                                "Failed to execute command: {}",
+                                std::str::from_utf8(&tmp.stderr).unwrap()
+                            );
+                            return (false, "", "");
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("Cannot execute the child command:{:?}", err);
+                        return (false, "", "");
+                    }
+                }
+            }
+
+            // 处理最后一组命令的输出
+            match handler_last.pop().unwrap().wait_with_output().await {
+                Ok(latest) => {
+                    let std_out = latest.stdout.leak();
+                    let std_err = latest.stderr.leak();
+                    return (
+                        latest.status.success(),
+                        std::str::from_utf8(std_out).unwrap(),
+                        std::str::from_utf8(std_err).unwrap(),
+                    );
+                }
+                Err(err) => {
+                    eprintln!("Cannot execute last the command:{:?}", err);
+                    return (false, "", "");
+                }
+            }
+        }
+        Err(err) => {
+            eprintln!("Cannot execute the command:{:?}", err);
+            return (false, "", "");
+        }
+    }
+}
+\end{code-block}
+
 Tokio是目前在Rust当中使用相当广泛的异步开发库，相当多的类库都专门针对tokio做了很多的
 异步化改造。因此，可以在绝大部分的场景下使用tokio对代码进行异步改造和性能提升。
-
-\section{异步编程的实现方案-mio}
-
-\section{优秀的并发-Crossbeam}
-默认情况下，Rust标准库的多线程并发是非常安全和方便的，但是，也存在一些特殊情况，
-会导致标准库的多线程使用起来受到诸多的限制，比如，在递归函数当中使用多线程：
-\begin{code-block}{rust}
-use std::thread;
-const THRESHOLD: usize = 4;
-// 由于Rust的跨线程通信的限制，要求input参数必须是static的生命周期
-pub fn find_max(input: &'static [i32]) -> Option<i32> {
-    if input.len() <= THRESHOLD {
-        return input.iter().cloned().max();
-    }
-    let middle = input.len() / 2;
-    let (left, right) = input.split_at(middle);
-    // 由于thread限制，必须使用move关键字
-    let thread_left = thread::spawn(move || find_max(left));
-    let thread_right = thread::spawn(move || find_max(right));
-    let max_left = thread_left.join().unwrap().unwrap();
-    let max_right = thread_right.join().unwrap().unwrap();
-    Some(max_left.max(max_right))
-}
-fn main() {
-    static ARRAY_REF: &[i32] = &[12, 3, 45, 98, 100, 23, 878, 8765, 123, -897, 866666, 1241];
-    let res = find_max(ARRAY_REF);
-    info!("The res is {:?}", res);
-}
-\end{code-block}
-由于诸多的限制，上述代码当中，如果需要对多个数组进行排序，则这些数组必须使用static
-关键字进行标识，无法处理普通的数组，并且最终会导致生成的二进制文件比较大。
-
-除此之外，比如Rust的通道，只存在多生产者单消费者这一种模式，这也并不符合现实生活
-当中的多生产者多消费者的模型。为了改进Rust的并行/并发，目前大多数的开发者使用
-Crossbeam\footnote{\url{https://github.com/crossbeam-rs/crossbeam}}替代标准库的thread，
-比如，上述的递归函数当中使用多线程，就可以修改为如下的模式：
-\begin{code-block}{rust}
-extern crate crossbeam;
-pub fn find_max_crossbeam(input: &[i32]) -> Option<i32> {
-    if input.len() <= THRESHOLD {
-        return input.iter().cloned().max();
-    }
-    let middle = input.len() / 2;
-    let (left, right) = input.split_at(middle);
-    crossbeam::scope(|s| {
-        let thread_left = s.spawn(|_| find_max_crossbeam(left));
-        let thread_right = s.spawn(|_| find_max_crossbeam(right));
-        let max_left = thread_left.join().unwrap().unwrap();
-        let max_right = thread_right.join().unwrap().unwrap();
-        Some(max_left.max(max_right))
-    })
-    .unwrap()
-}
-fn main() {
-    static ARRAY_REF: &[i32] = &[12, 3, 45, 98, 100, 23, 878, 8765, 123, -897, 866666, 1241];
-    let res = short_lived::find_max_crossbeam(ARRAY_REF);
-    info!("The res is {:?}", res);
-    let array = [
-        12, 3, 45, 98, 100, 23, 878, 8765, 123, -897, 866666, 12411234,
-    ];
-    let res = short_lived::find_max_crossbeam(&array);
-    info!("The res is {:?}", res);
-}
-\end{code-block}
-通过这样修改的函数，不管是针对static生命周期的还是普通生命周期的数据，都能够自如的处理。
-
-同样的，也可以对Rust标准库的通道（Channel）进行优化，此时，则需要配合使用
-\href{https://github.com/crossbeam-rs/crossbeam}{Crossbeam-Channel}。比如下面的例子：
-启动2个并行的通道，一个通道负责消息的生产发送，一个通道负责消息的接收和处理。
 
 \input{rust_part_8}
