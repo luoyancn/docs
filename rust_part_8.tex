@@ -310,6 +310,115 @@ pub fn unbounded_channel_lock() {
 }
 \end{code-block}
 
+\subsection{channel}
+如同上述代码所示，crossbeam也提供了通道的功能，不过，不同的是，crossbeam只提供了
+2种类型的通道：
+\begin{itemize}
+  \item \codeinline{rust}{bounded} 即容量有限的通道
+  \item \codeinline{rust}{unbounded} 即容量没有限制的通道
+\end{itemize}
+
+通常情况下，通道的用法和其他crate当中的类似，但是，针对\codeinline{rust}{bounded}
+类型的通道，有一个比较特殊的例子，即容量为0的通道。这种类型的通道无法容纳任何信息，
+发送和接收需要同时出现，以便配对的进行消息传递：
+\begin{code-block}{rust}
+fn test_channel_bounded_zero_capacity() {
+    let (non_sender, non_recevier) = crossbeam_channel::bounded(0);
+    thread::spawn(move || {
+        non_sender.send("hello world").unwrap();
+        drop(non_sender);
+    });
+
+    assert_eq!(Ok("hello world"), non_recevier.recv());
+    drop(non_recevier);
+
+    let (non_sender, non_recevier) = crossbeam_channel::bounded(0);
+    thread::spawn(move || {
+        assert_eq!(non_recevier.recv(), Ok("hello world"));
+        drop(non_recevier);
+    });
+
+    non_sender.send("hello world").unwrap();
+    drop(non_sender);
+}
+\end{code-block}
+
+与此同时，crossbeam还支持共享通道，发送者1的消息，接收者2可以处理，同理，接收者1
+可以处理发送者2的消息：
+\begin{code-block}{rust}
+fn test_crossbeam_shared_channel() {
+    let (first_sender, first_recevier) = crossbeam_channel::bounded(0);
+    let (second_sender, second_recevier) = (first_sender.clone(), first_recevier.clone());
+
+    thread::spawn(move || {
+        assert_eq!(second_recevier.recv(), Ok("This is the first sender"));
+        second_sender.send("This is the second sender").unwrap();
+    });
+
+    first_sender.send("This is the first sender").unwrap();
+    assert_eq!(first_recevier.recv(), Ok("This is the second sender"));
+}
+\end{code-block}
+注意，clone操作只会为相同的发送端或接收端创建一个新的句柄，\colorblock{不会以任何方式创建单独的消息流}，
+即消息在所有的发送端/接收端都是共享的。
+\begin{code-block}{rust}
+let (sender_1, recevier_1) = crossbeam_channel::unbounded();
+let (sender_2, recevier_2) = (sender_1.clone(), recevier_1.clone());
+let (sender_3, recevier_3) = (sender_1.clone(), recevier_1.clone());
+thread::spawn(move || {
+    sender_1.send(10).unwrap();
+    sender_2.send(20).unwrap();
+    sender_3.send(30).unwrap();
+});
+
+// 任何一个接收端都可以接收消息，但是，接收之后，
+// 消息就从队列当中消失了。
+assert_eq!(recevier_3.recv(), Ok(10));
+assert_eq!(recevier_1.recv(), Ok(20));
+assert_eq!(recevier_2.recv(), Ok(30));
+\end{code-block}
+
+非常特别的是，接收端和发送端还可以通过引用进行共享，这是其他的框架（tokio，std）所
+不具备的能力：
+\begin{code-block}{rust}
+let (scope_sender, scope_receiver) = crossbeam_channel::bounded(0);
+crossbeam::thread::scope(|task| {
+    task.spawn(|_| {
+        let recv = scope_receiver.recv().unwrap();
+        println!("task received {}", recv);
+        scope_sender.send(100).unwrap();
+    });
+    scope_sender.send(200).unwrap();
+    let recv = scope_receiver.recv().unwrap();
+    assert_eq!(100, recv);
+})
+.unwrap();
+drop(scope_sender);
+assert_eq!(true, scope_receiver.is_empty());
+\end{code-block}
+
+Crossbeam的通道同样可以作为迭代器进行使用：
+\begin{code-block}{rust}
+fn test_crossbeam_channel_iter() {
+    let (sender, receiver) = crossbeam_channel::unbounded();
+    thread::spawn(move || {
+        sender.send(1).unwrap();
+        sender.send(2).unwrap();
+        sender.send(3).unwrap();
+        drop(sender);
+    });
+
+    // 以迭代器的方式使用通道
+    /*
+    let v: Vec<_> = receiver.iter().collect();
+    println!("result is {:?}", v);
+    */
+    for item in receiver {
+        println!("result is {:?}", item);
+    }
+}
+\end{code-block}
+
 \section{超越Unsafe}
 Rust屏蔽了一系列的不安全操作来换取应用程序的稳定性和可靠性，但是，可以通过关键字
 unsafe，切换到不安全的运行环境当中，并且在unsafe的代码块当中运行。常见的不安全操作

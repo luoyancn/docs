@@ -933,6 +933,19 @@ ctrl+b %
 ctrl+b 方向键
 \end{code-block}
 
+\1 查看文件实际占用的磁盘空间大小
+
+默认情况下，使用file，ls等命令看到的文件大小是逻辑大小，即程序从头到尾读取文件时将读取的字节数。
+但是，如果文件是稀疏类型的，比如qcow2类型的，实际大小和逻辑大小就并不相同。查看
+文件的实际大小，即占用的真正的磁盘空间，可以按照下面的方式：
+\begin{code-block}{bash}
+# du可以直接查看磁盘的占用空间
+du file
+
+# 或者给ls添加参数
+ls -s --block-size=1 file
+\end{code-block}
+
 \end{outline}
 
 \input{awk}
