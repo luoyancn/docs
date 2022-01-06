@@ -419,6 +419,282 @@ fn test_crossbeam_channel_iter() {
 }
 \end{code-block}
 
+如果存在多个通道，但是只需要其中任意一个通道的结果，则可以使用\codeinline{rust}{select!}
+宏。这个宏的定义，与tokio的类似：
+\begin{code-block}{rust}
+fn test_crossbeam_channel_select() {
+    let (sender_first, recevier_first) = crossbeam_channel::unbounded();
+    let (sender_second, recevier_second) = crossbeam_channel::unbounded();
+    thread::spawn(move || {
+        sender_first.send(10).unwrap();
+    });
+    thread::spawn(move || {
+        sender_second.send(100).unwrap();
+    });
+
+    // 下面2种是相同的
+    // crossbeam_channel::select! {
+    crossbeam::channel::select! {
+        recv(recevier_first) -> message_first => println!(
+            "The first message is {:?}", message_first),
+        recv(recevier_second) -> message_second=> println!(
+            "The second message is {:?}", message_second),
+        default(std::time::Duration::from_secs(10)) => println!("timeout"),
+    }
+}
+\end{code-block}
+Crossbeam的\codeinline{rust}{select!}宏是对\codeinline{rust}{Select}结构体的一个
+简单的二次封装，在上述代码当中的\codeinline{rust}{recv}以及\codeinline{rust}{default}
+等函数，实际上是\codeinline{rust}{Select}结构体的一些方法。关于\codeinline{rust}{select!}
+及其本质的介绍，将在后面进行展开，此处不再进行。
+
+在crossbeam当中，还有一类比较特殊的通道：时间通道。时间通道主要包含了3大类型：
+\begin{itemize}
+  \item{item} after：在具体时间之后传递单条消息的通道
+  \item{item} tick：如字面意思，定期传送单条消息的通道
+  \item{item} never：永远不会发送消息的通道
+\end{itemize}
+
+其中，after和tick通道比较常用：
+\begin{code-block}{rust}
+fn test_crossbeam_time_channel() {
+    let start = time::Instant::now();
+    let ticker = crossbeam_channel::tick(time::Duration::from_millis(50));
+    let after__ = crossbeam_channel::after(time::Duration::from_secs(5));
+
+    loop {
+        crossbeam_channel::select! {
+            // 接收定时通道的消息
+            recv(ticker) -> _ => println!("Now elapsed :{:?}", start.elapsed()),
+            // 接收after通道的消息
+            recv(after__) -> _ => {
+                println!("Now is time out");
+                break;
+            },
+        }
+    }
+}
+\end{code-block}
+
+而never通道比较特殊，经常用于错误处理的场合（比如放在unwrap当中）：
+\begin{code-block}{rust}
+fn test_crossbeam_never_channel() {
+    let (sender, recevier) = crossbeam_channel::unbounded();
+    thread::spawn(move || {
+        thread::sleep(time::Duration::from_secs(1));
+        sender.send(100).unwrap();
+    });
+
+    let duration = Some(time::Duration::from_millis(50));
+    let timeout = duration
+        // 通过after通道发送信息
+        .map(|d| crossbeam_channel::after(d))
+        // 如果发送失败，则使用never通道，即永远也不发送
+        .unwrap_or(crossbeam_channel::never());
+
+    crossbeam_channel::select! {
+        recv(recevier) -> msg => println!("The result is {:?}", msg),
+        recv(timeout) -> _ => println!("Time out"),
+    }
+}
+\end{code-block}
+
+除上述三种时间通道之外，还有一种比较特殊的时间通道：at，用于指定在特定的时间执行
+特定的动作：
+\begin{code-block}{rust}
+fn test_crossbeam_at_channel() {
+    let (sender, recevier) = crossbeam_channel::unbounded();
+
+    // 从当前时间开始5秒之后
+    let do_action = time::Instant::now() + time::Duration::from_secs(5);
+    thread::spawn(move || {
+        thread::sleep(time::Duration::from_secs(10));
+        sender.send(100).unwrap();
+    });
+
+    crossbeam_channel::select! {
+        // 接收特定时间段的通道消息
+        recv(crossbeam_channel::at(do_action)) -> _ => println!("time out"),
+        recv(recevier) -> msg => println!("The message is {:?}", msg),
+    }
+}
+\end{code-block}
+
+\subsection{select宏与Select结构体}
+Crossbeam的通道有多种使用方式，同样的，\codeinline{rust}{select!}宏也有多种应用方式。
+在实际的使用当中，\codeinline{rust}{select!}宏的使用方式大致如下：
+\begin{code-block}{rust}
+crossbeam_channel::select! {
+    // 从接收端接收通道的消息
+    recv(recevier) -> msg => do_something,
+    // 作为发送端，send的第二个参数为向通道当中发送的消息
+    send(sender, 20) -> res => do_something,
+    // 默认操作，即无法满足之前的所有分支条件
+    default => do_something
+}
+\end{code-block}
+
+上述伪代码当中，\codeinline{rust}{recv}和\codeinline{rust}{send}都是\codeinline{rust}{Select}
+结构体的方法。同样的，\codeinline{rust}{default}同样是结构体的方法，但是，该方法
+或者说该分支比较特殊，可以如同上面一样，只是作为标识符使用，也可以当作函数使用，
+可以接收参数：
+\begin{code-block}{rust}
+select! {
+    recv(r1) -> msg => panic!(),
+    recv(r2) -> msg => panic!(),
+    default(Duration::from_millis(100)) => println!("timed out"),
+}
+\end{code-block}
+
+不管\codeinline{rust}{select!}宏的使用方法如何变化，其本质上，还是对\codeinline{rust}{Select}结构体
+的一种封装。该结构体允许定义一组通道操作，等待其中任何一个操作准备就绪，并最终执行它；
+如果多个操作同时准备好，则随机选择其中的一个。与该结构体相比，\codeinline{rust}{select!}
+宏无法动态的创建通道列表。\codeinline{rust}{Select}结构体的使用大致如下：
+\begin{code-block}{rust}
+fn test_crossbeam_select_struct() {
+    let (sender, receiver) = crossbeam_channel::unbounded::<u8>();
+    let mut sel = crossbeam_channel::Select::new();
+    let idx = sel.send(&sender);
+    // 完成select操作
+    let oper = sel.select();
+    // 利用操作者完成真正的业务
+    oper.send(&sender, 12).unwrap();
+
+    let idx_r = sel.recv(&receiver);
+    let oper = sel.select();
+    let res = oper.recv(&receiver).unwrap();
+
+    println!("The idx is {}, {}, ={}", idx, idx_r, res);
+}
+\end{code-block}
+
+但是很明显，上述的代码并没有如同\codeinline{rust}{select!}宏一般的优雅便于使用，
+而事实上，上述代码也只是对宏的一种拙劣模仿，真正的实现则如同下面代码所示：
+\begin{code-block}{rust}
+fn test_crossbeam_select_implement() {
+    let (sender, receiver) = crossbeam_channel::unbounded();
+    let (sender_2, receiver_2) = crossbeam_channel::unbounded();
+
+    thread::spawn(move || {
+        thread::sleep(time::Duration::from_secs(1));
+        sender.send(10).unwrap();
+    });
+
+    thread::spawn(move || {
+        sender_2.send(20).unwrap();
+    });
+
+    let mut sel = crossbeam_channel::Select::new();
+
+    // 创建2个操作通道分支
+    let operator1 = sel.recv(&receiver);
+    let operator2 = sel.recv(&receiver_2);
+
+    // 启动select操作
+    let operation = sel.select();
+
+    // 等待通道返回结果
+    match operation.index() {
+        // 根据通道索引进行对应的操作
+        idx if idx == operator2 => println!(
+            "The recevier second  received {:?}",
+            operation.recv(&receiver_2)
+        ),
+        idx if idx == operator1 => {
+            println!("The recevier received {:?}", operation.recv(&receiver))
+        }
+        _ => unreachable!(),
+    }
+}
+\end{code-block}
+
+如果select操作的时间太长，还可以如同宏一样，添加超时等待机制：
+\begin{code-block}{rust}
+...
+// 设定select的操作时间为500ms
+let oper = sel.select_timeout(Duration::from_millis(500));
+match oper {
+    // select操作超时
+    Err(_) => panic!("should not have timed out"),
+    Ok(oper) => match oper.index() {
+        i if i == oper1 => assert_eq!(oper.recv(&r1), Ok(10)),
+        i if i == oper2 => assert_eq!(oper.recv(&r2), Ok(20)),
+        _ => unreachable!(),
+    }
+}
+...
+\end{code-block}
+
+当然，还可以要求select操作在指定时间之前完成，否则也当作超时处理：
+\begin{code-block}{rust}
+...
+// 设置具体的时间点，表示从现在开始后的500ms
+let deadline = Instant::now() + Duration::from_millis(500);
+// 设置select的超时时间
+let oper = sel.select_deadline(deadline);
+match oper {
+    // select操作超时
+    Err(_) => panic!("should not have timed out"),
+    // select操作正常完成
+    Ok(oper) => match oper.index() {
+        i if i == oper1 => assert_eq!(oper.recv(&r1), Ok(10)),
+        i if i == oper2 => assert_eq!(oper.recv(&r2), Ok(20)),
+        _ => unreachable!(),
+    }
+}
+...
+\end{code-block}
+
+在实际的操作当中，除了使用\codeinline{rust}{Select}结构体的\codeinline{rust}{select}
+函数之外，同样可以使用\codeinline{rust}{ready}系列函数。比如上述的示例代码，可以通过
+该系列函数进行改写：
+\begin{code-block}{rust}
+
+// 通常的用法，阻塞模式
+...
+let mut sel = crossbeam_channel::Select::new();
+let operator1 = sel.recv(&receiver);
+let operator2 = sel.recv(&receiver_2);
+
+match sel.ready() {
+    idx if idx == operator1 => assert_eq!(receiver.recv(), Ok(10)),
+    idx if idx == operator2 => assert_eq!(receiver_2.try_recv(), Ok(20)),
+    _ => unreachable!(),
+}
+...
+
+// 通常的用法，非阻塞模式
+...
+match sel.try_ready() {
+    Err(_) => panic!("both operations should be ready"),
+    Ok(i) if i == oper1 => assert_eq!(r1.try_recv(), Ok(10)),
+    Ok(i) if i == oper2 => assert_eq!(r2.try_recv(), Ok(20)),
+    Ok(_) => unreachable!(),
+}
+...
+
+// 超时设置
+...
+match sel.ready_timeout(Duration::from_millis(500)) {
+    Err(_) => panic!("should not have timed out"),
+    Ok(i) if i == oper1 => assert_eq!(r1.try_recv(), Ok(10)),
+    Ok(i) if i == oper2 => assert_eq!(r2.try_recv(), Ok(20)),
+    Ok(_) => unreachable!(),
+}
+...
+
+// 定时执行超时
+...
+let deadline = Instant::now() + Duration::from_millis(500);
+match sel.ready_deadline(deadline) {
+    Err(_) => panic!("should not have timed out"),
+    Ok(i) if i == oper1 => assert_eq!(r1.try_recv(), Ok(10)),
+    Ok(i) if i == oper2 => assert_eq!(r2.try_recv(), Ok(20)),
+    Ok(_) => unreachable!(),
+}
+...
+\end{code-block}
+
 \section{超越Unsafe}
 Rust屏蔽了一系列的不安全操作来换取应用程序的稳定性和可靠性，但是，可以通过关键字
 unsafe，切换到不安全的运行环境当中，并且在unsafe的代码块当中运行。常见的不安全操作

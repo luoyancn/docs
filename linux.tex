@@ -163,6 +163,13 @@ git review -s
 
 # 获取当前分支对应的tag，如果没有，则使用pre-release代替
 git describe --abbrev=0 --tags 2>/dev/null || echo 'pre-release'
+
+# 使用镜像站加速下载
+# 使用hub.fastgit.org替换github.com即可
+git clone https://hub.fastgit.org/ryanoasis/nerd-fonts.git
+
+# 更改git仓库的repo
+git remote set-url origin https://github.com/ryanoasis/nerd-fonts.git
 \end{code-block}
 
 \section{Git使用submodule}
