@@ -19,8 +19,7 @@ systemctl enable rc-local.service
 
 \section{设置ssh的kownhosts}
 \begin{code-block}{bash}
-cd ~/.ssh
-cat>config<<EOF
+cat>~/.ssh/config<<EOF
 Host *
     StrictHostKeyChecking no
     UserKnownHostsFile=/dev/null
@@ -32,10 +31,7 @@ EOF
 tahoma.ttf，verdana.ttf，verdanab.ttf，verdanaz.ttf，tahomabd.ttf，
 verdanai.ttf，MSY*等文件复制到新建的目录中，并修改权限为755。
 \begin{code-block}{bash}
-cd /usr/share/fonts/zh_CN
-mkfontscale
-mkfontdir
-fc-cache -fv
+cd /usr/share/fonts/zh_CN && mkfontscale && mkfontdir && fc-cache -fv
 \end{code-block}
 
 \section{Sphinx制作中文的pdf}
@@ -140,6 +136,12 @@ tikz提供了一些其他的简笔画，可以直接使用，使用方式如下�
 其他的简笔画可查看\url{texmf-dist/doc/latex/comprehensive/source/symbols.tex}
 当中的内容。
 
+特别注意，如果需要使用特殊的字体，则字体文件推荐使用ttf格式，而非otf，otf的字体
+有可能在Adobe上显示不正常。而将otf转换成ttf的字体，则需要如下进行操作：
+\begin{code-block}{bash}
+fontforge -lang=ff -c 'Open($1); Generate($2); Close();' font.otf font.ttf
+\end{code-block}
+
 \section{OpenStack社区的git设置}
 由于各种原因，如果使用ssh的方式，社区的gerrit是无法正常连接的。但是，社区的gerrit
 提供了https的连接方式，可以使用这种方式绕开相关的限制。首先，需要登录review.openstack.org，
@@ -152,7 +154,10 @@ git config gitreview.scheme https
 git config gitreview.port 443
 git remote add gerrit https://zhangjl:******@review.openstack.org/openstack/nova.git
 git review -s
+\end{code-block}
 
+对于版本管理系统，GIT可谓集大成者。其使用方式方法，也有非常多的秘诀和要领。
+\begin{code-block}{bash}
 # 如果需要通过代理
 # git config --global http.proxy http://localhost:8123
 # git config --global http.sslVerify false
@@ -170,6 +175,18 @@ git clone https://hub.fastgit.org/ryanoasis/nerd-fonts.git
 
 # 更改git仓库的repo
 git remote set-url origin https://github.com/ryanoasis/nerd-fonts.git
+
+# 修改提交的用户信息
+git commit --amend --reset-author
+
+# 查看diff的总结（不查看详情）
+git diff --summary
+
+# 忽略内容没有任何修改，只是文件权限发生了变更的更改
+git diff -G"."
+
+# 也可以直接从配置上忽略文件权限
+git config <--global> core.filemode false
 \end{code-block}
 
 \section{Git使用submodule}
@@ -899,6 +916,7 @@ tmux ls
 
 # 从会话当中分离（直接在当前的会话窗口执行）
 tmux detach -s rust
+# 或者快捷键 ctrl+b d
 
 # 恢复会话
 tmux attach -t rust
@@ -938,6 +956,9 @@ ctrl+b %
 
 # 窗格切换
 ctrl+b 方向键
+
+# 退出当前的session（放到后台执行）
+ctrl+b d
 \end{code-block}
 
 \1 查看文件实际占用的磁盘空间大小

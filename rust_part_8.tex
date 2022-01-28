@@ -1025,7 +1025,7 @@ let msg = format!(
 文件的\codeinline{toml}{[dependencies]}引入了需要的依赖关系，build.rs仍然无法识别
 相关的依赖包。如果需要在build.rs当中使用第三方的开发库，则需要修改工程的Cargo.toml
 文件，添加如下的内容：
-\begin{code-block}{rust}
+\begin{code-block}{toml}
 # 表示给build.rs使用的依赖库
 [build-dependencies]
 chrono = "0.4.19"
@@ -1035,6 +1035,46 @@ chrono = "0.4.19"
 的依赖库是相互独立不影响的。如果build.rs当中的执行结果和预期的不一致，则可以直接
 使用\codeinline{rust}{println!}进行输出打印，但是，这些信息不会在控制台上显示出来，
 而是在\codeinline{bash}{target/xxx/build/yyy/output}当中，可以直接进行查看。
+
+\subsection{性能优化与编码习惯}
+Rust本身是一种高性能的编程语言，但是良好的编程习惯可以充分的发挥其高性能的特点，
+一些习惯性的操作，也可以明显的提升代码的性能，性能优化是永恒的主题。最常见的优化
+手段就是在编译代码的时候，使用\codeinline{bash}{--release}参数，release版的运行速度
+通常比调试版快很多。
+
+此外，链接时间优化（LTO）是一种整体的程序优化技术，通常可以将运行时性能提高10-20%
+甚至更多，但代价是增加构建时间，不过这是值得的。启用LTO需要修改\codeinline{bash}{Cargo.toml}，
+具体改动如下：
+\begin{code-block}{toml}
+[profile.release]
+lto = true
+\end{code-block}
+
+使用上述的配置参数，Rust会尝试对所有的crate进行优化（包括依赖关系），即所谓的“胖优化（fat）”。
+如果不需要这么“激进”的优化策略，则可以设置\codeinline{toml}{lto = "thin"}。
+
+在代码的编译过程当中，Rust编译器会将crate分割为多个代码生成单元（codegen units），
+从而实现并行化编译，加快速度。但这个行为有可能会导致忽略一些潜在的优化。因此，如果
+有必要，可以将分割的数目变少，以此来加大优化的程度：
+\begin{code-block}{toml}
+[profile.release]
+codegen-units = 1
+\end{code-block}
+但codegen的数目如果比较小，会导致编译过程变长，也有一定的可能导致程序运行变慢。因此
+该方式的使用需要进行综合权衡。
+
+如果不需要考虑生成二进制文件的可移植性，则可以考虑充分利用当前运行环境的CPU特性，
+自动选择最佳的CPU指令，从而极大程度上提升程序的性能：
+\begin{code-block}{bash}
+RUSTFLAGS="-C target-cpu=native" cargo build --release
+\end{code-block}
+
+更多的优化措施和策略，则需要靠开发人员自己进行实现。通常情况下，可以使用\codeinline{bash}{clippy}
+工具，对代码进行分析，找出代码当中的不合理地方，然后加以修正：
+\begin{code-block}{bash}
+cargo clippy
+\end{code-block}
+该工具可以作为Rust代码风格的重要参考和指导，同样的，它也能针对代码编写的性能提出建议。
 
 \section{常见错误处理方法}
 由于很多代码都是第三方的，而Rust本身也在不断的发展，有可能出现版本不兼容或者特性
