@@ -50,7 +50,7 @@
 \usepackage[inkscapearea=page]{svg}
 
 % 页面水印的一种实现方式，但与新版本的(>=2021)的latex不兼容
-%\usepackage[printwatermark]{xwatermark}
+\usepackage[printwatermark]{xwatermark}
 \usepackage{pagecolor}
 
 % 设置页面颜色
@@ -216,17 +216,17 @@
 %]{\usebox\mybox}
 
 % 适用于xwatermark的水印方式
-%\newsavebox\bbbox
-%\savebox\bbbox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.08]{bb.png}};}
-%
-%\newsavebox\nerobox
-%\savebox\nerobox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.2]{nero.png}};}
-%
-%\newsavebox\scathachbox
-%\savebox\scathachbox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.011]{scathach.png}};}
-%
-%\newsavebox\yuibox
-%\savebox\yuibox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.1]{takamura_yui.png}};}
+\newsavebox\bbbox
+\savebox\bbbox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.08]{bb.png}};}
+
+\newsavebox\nerobox
+\savebox\nerobox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.05]{nero.png}};}
+
+\newsavebox\scathachbox
+\savebox\scathachbox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.011]{scathach.png}};}
+
+\newsavebox\yuibox
+\savebox\yuibox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.012]{takamura_yui.png}};}
 
 %\pagestyle{fancy}
 %\fancyhf{}
@@ -542,64 +542,64 @@
 %\let\cleardoublepage\clearpage
 
 % xwatermark实现水印的方式
-%\newwatermark*[oddpages,scale=6,xpos=60,ypos=-80]{\usebox\bbbox}
-%\newwatermark*[oddpages,scale=6,xpos=-60,ypos=-88]{\usebox\yuibox}
-%
-%\newwatermark*[evenpages,scale=5,xpos=-52,ypos=-86]{\usebox\nerobox}
-%\newwatermark*[evenpages,scale=5,xpos=50,ypos=-86]{\usebox\scathachbox}
+\newwatermark*[oddpages,scale=8,xpos=60,ypos=-72]{\usebox\bbbox}
+\newwatermark*[oddpages,scale=7,xpos=-60,ypos=-78]{\usebox\yuibox}
+
+\newwatermark*[evenpages,scale=7,xpos=-52,ypos=-76]{\usebox\nerobox}
+\newwatermark*[evenpages,scale=7,xpos=60,ypos=-76]{\usebox\scathachbox}
 
 % 使用eso-pic实现水印的方式，与多数版本的latex兼容
-\AddToShipoutPictureFG{%
-  \put(\LenToUnit{-0.2cm},0){
-    \begin{tikzpicture}
-    \node [opacity=0.5]{
-      \ifodd\value{page}
-        \includegraphics[scale=0.08]{yui.png}
-      \fi
-    };
-    \end{tikzpicture}
-  }
-}
-
-\AddToShipoutPictureFG{%
-  \put(\LenToUnit{0.6cm},0){
-    \begin{tikzpicture}
-    \node [opacity=0.5]{
-      \ifodd\value{page}
-      \else
-        \includegraphics[scale=0.3]{nero.png}
-      \fi
-    };
-    \end{tikzpicture}
-  }
-}
-
-\AddToShipoutPictureFG{
-  \put(\LenToUnit{\dimexpr \paperwidth-6cm},0)
-  {
-    \begin{tikzpicture}
-    \node [opacity=0.5]{
-      \ifodd\value{page}
-        \includegraphics[scale=0.58]{bb.png}
-      \fi
-    };
-    \end{tikzpicture}
-  }
-}
-
-\AddToShipoutPictureFG{
-  \put(\LenToUnit{\dimexpr \paperwidth-5cm},0)
-  {
-    \begin{tikzpicture}
-    \node [opacity=0.5]{
-      \ifodd\value{page}
-      \else
-        \includegraphics[scale=0.07]{scathach.png}
-      \fi
-    };
-    \end{tikzpicture}
-  }
-}
+%\AddToShipoutPictureFG{%
+%  \put(\LenToUnit{-0.2cm},0){
+%    \begin{tikzpicture}
+%    \node [opacity=0.5]{
+%      \ifodd\value{page}
+%        \includegraphics[scale=0.08]{yui.png}
+%      \fi
+%    };
+%    \end{tikzpicture}
+%  }
+%}
+%
+%\AddToShipoutPictureFG{%
+%  \put(\LenToUnit{0.6cm},0){
+%    \begin{tikzpicture}
+%    \node [opacity=0.5]{
+%      \ifodd\value{page}
+%      \else
+%        \includegraphics[scale=0.3]{nero.png}
+%      \fi
+%    };
+%    \end{tikzpicture}
+%  }
+%}
+%
+%\AddToShipoutPictureFG{
+%  \put(\LenToUnit{\dimexpr \paperwidth-6cm},0)
+%  {
+%    \begin{tikzpicture}
+%    \node [opacity=0.5]{
+%      \ifodd\value{page}
+%        \includegraphics[scale=0.58]{bb.png}
+%      \fi
+%    };
+%    \end{tikzpicture}
+%  }
+%}
+%
+%\AddToShipoutPictureFG{
+%  \put(\LenToUnit{\dimexpr \paperwidth-5cm},0)
+%  {
+%    \begin{tikzpicture}
+%    \node [opacity=0.5]{
+%      \ifodd\value{page}
+%      \else
+%        \includegraphics[scale=0.07]{scathach.png}
+%      \fi
+%    };
+%    \end{tikzpicture}
+%  }
+%}
 
 \frontmatter
 {
