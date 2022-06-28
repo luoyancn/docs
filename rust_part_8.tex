@@ -1053,6 +1053,31 @@ lto = true
 使用上述的配置参数，Rust会尝试对所有的crate进行优化（包括依赖关系），即所谓的“胖优化（fat）”。
 如果不需要这么“激进”的优化策略，则可以设置\codeinline{toml}{lto = "thin"}。
 
+从Rust1.60（2022-04-07）开始，Cargo的配置文件toml新增了一个项，专门用于对生成的二进制
+文件进行文件缩小（strip）操作：
+\begin{code-block}{toml}
+[profile.release]
+strip = true
+\end{code-block}
+如果是使用之前的版本，则该配置项等价于如下的命令：
+\begin{code-block}{bash}
+RUSTFLAGS='-C link-arg=-s' cargo build --release
+\end{code-block}
+
+如果需要去除生成的二进制文件当中的debug信息，默认情况下，不需要对配置文件做任何修改，
+其等价于如下的命令：
+\begin{code-block}{bash}
+# 主要是-C debuginfo=0
+RUSTFLAGS='-C link-arg=-s -C debuginfo=0' cargo build --release
+\end{code-block}
+
+如果需要在二进制文件当中包含debug信息，则可以将上述命令当中的debuginfo修改为其他
+值，包括1和2。当然，也可以修改配置文件：
+\begin{code-block}{toml}
+[profile.release]
+debug = true
+\end{code-block}
+
 在代码的编译过程当中，Rust编译器会将crate分割为多个代码生成单元（codegen units），
 从而实现并行化编译，加快速度。但这个行为有可能会导致忽略一些潜在的优化。因此，如果
 有必要，可以将分割的数目变少，以此来加大优化的程度：
@@ -1075,6 +1100,14 @@ RUSTFLAGS="-C target-cpu=native" cargo build --release
 cargo clippy
 \end{code-block}
 该工具可以作为Rust代码风格的重要参考和指导，同样的，它也能针对代码编写的性能提出建议。
+
+但是，rust的release以及优化选项可能会对程序的功能造成影响，比如，slog的debug/trace
+级别的日志就会因为release的原因被优化，从而无法正常输出。遇到这种情况只能是具体
+问题具体分析。比如slog的解决方法就是在Cargo.toml当中添加特殊的配置项：
+
+\begin{code-block}{toml}
+slog = {version = "2.7.0", features = ["max_level_trace", "release_max_level_trace"]}
+\end{code-block}
 
 \section{常见错误处理方法}
 由于很多代码都是第三方的，而Rust本身也在不断的发展，有可能出现版本不兼容或者特性

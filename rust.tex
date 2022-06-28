@@ -22,6 +22,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 \begin{code-block}{bash}
 rustup toolchain add nightly
 rustup component add rust-src rls rust-analysis
+cargo install cargo-expand
 cargo +nightly install racer
 \end{code-block}
 
@@ -136,12 +137,29 @@ cargo build --release --target=aarch64-unknown-linux-musl
 \end{code-block}
 \end{enumerate}
 
+\begin{note}
+静态编译并不意味着生成的一定是static的，而是默认优先static。如果代码的依赖
+关系中存在动态链接的，则生成的文件同样也只会是动态链接的（dynamically linked）。
+由于x86\_64与x86\_64-musl的类库绝大部分是相同的，因此，如果出现只能动态链接的
+情况时，默认是无法编译的，需要添加特定参数：
+\begin{code-block}{bash}
+PKG_CONFIG_ALLOW_CROSS=1 cargo build --release --target=x86_64-unknown-linux-musl
+\end{code-block}
+
+但是必须注意，gcc与musl-gcc的版本必须相同，否则编译仍然会失败。
+真实原因在于，指定PKG\_CONFIG\_ALLOW\_CROSS=1时，没有指定交叉编译的target的pkg-config路径，
+rust就使用直接了系统(host) 的pkg-config path了，如/usr/lib/pkgconfig或/usr/share/pkgconfig，
+那么凡是这里能找到的库，它都不会再进行编译了。如果真的要在交叉编译时启用pkg-config，则应该
+指定环境变量PKG\_CONFIG或PKG\_CONFIG\_PATH。环境变量PKG\_CONFIG\_PATH是用来设置.pc文件的
+搜索路径的，pkg-config按照设置路径的先后顺序进行搜索，直到找到指定的.pc文件为止。
+
+同样的，arm以及aarch的编译也会有上述问题。
+\end{note}
+
 \section{Rust的控制流}
 Rust的控制流和其他语言相同，都包含了判断和循环。Rust的判断流通过if/else以及
 else if实现，但是并不包含switch语句。当if-else的结构过多，则会导致代码比较
-杂乱，因此Rust还提供了另外一种语法格式：match来解决这些问题。
-
-Rust的if/else可以用在普通的判断场景，但判断条件必须是bool类型的数据，不允许
+杂乱，因此Rust还提供了另外一种语法格式：match来解决这些问题。 Rust的if/else可以用在普通的判断场景，但判断条件必须是bool类型的数据，不允许
 使用其他类型作为判断的依据，所以，下列的代码是错误的：
 \begin{code-block}{rust}
 let a = 10;
@@ -326,6 +344,22 @@ Vector数据需要注意的是遍历操作。默认情况下，使用for-in结�
 for ele in &ips {
     println!("{}", ele);
 }
+\end{code-block}
+
+但是，并不是所有的对vector的访问操作都会引起移动，比如下方代码：
+\begin{code-block}{rust}
+let mut v_str = vec!["hello", "world", "nice"];
+let third = v_str[2];
+let four = v_str[3];
+// 2018及其之前的版本中，上述两行执行之后，v_str的2/3位数据发生了移动，
+// 因此，下面的代码会出错。
+// 2021版本则不会再有该问题
+trace!(
+    "The read_only_vec is {:?} and third is {}, four is {}",
+    v_str, third, four);
+// 将不变的slice追加到可变的vec当中
+let read_only_vec = vec!["lucifer", "garuda", "titans"];
+v_str.extend_from_slice(&read_only_vec);
 \end{code-block}
 
 字符串是常用的数据类型，针对字符串，也有一些需要注意。默认的情况下，所有的

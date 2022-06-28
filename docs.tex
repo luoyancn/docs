@@ -1,3 +1,4 @@
+%\RequirePackage[2020-02-02]{latexrelease}
 % openany可以去除章节之间的空白页
 %\documentclass[b5paper,openany,twoside]{book}
 
@@ -48,7 +49,8 @@
 % 直接使用svg图片
 \usepackage[inkscapearea=page]{svg}
 
-\usepackage[printwatermark]{xwatermark}
+% 页面水印的一种实现方式，但与新版本的(>=2021)的latex不兼容
+%\usepackage[printwatermark]{xwatermark}
 \usepackage{pagecolor}
 
 % 设置页面颜色
@@ -213,11 +215,18 @@
 %  ypos=15
 %]{\usebox\mybox}
 
-\newsavebox\bbbox
-\savebox\bbbox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.08]{bb.png}};}
-
-\newsavebox\nerobox
-\savebox\nerobox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.05]{nero.png}};}
+% 适用于xwatermark的水印方式
+%\newsavebox\bbbox
+%\savebox\bbbox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.08]{bb.png}};}
+%
+%\newsavebox\nerobox
+%\savebox\nerobox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.2]{nero.png}};}
+%
+%\newsavebox\scathachbox
+%\savebox\scathachbox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.011]{scathach.png}};}
+%
+%\newsavebox\yuibox
+%\savebox\yuibox{\tikz[opacity=0.5]\node{\includegraphics[scale=0.1]{takamura_yui.png}};}
 
 %\pagestyle{fancy}
 %\fancyhf{}
@@ -476,7 +485,6 @@
 %    \vspace{80mm}
 %\end{titlepage}
 
-
 % 设置封面
 \begin{titlepage}
   % 单独设置封面的页面布局（页边距）
@@ -533,8 +541,65 @@
 % 去除目录前后的空白页
 %\let\cleardoublepage\clearpage
 
-\newwatermark*[oddpages,scale=6,xpos=60,ypos=-80]{\usebox\bbbox}
-\newwatermark*[evenpages,scale=5,xpos=-52,ypos=-86]{\usebox\nerobox}
+% xwatermark实现水印的方式
+%\newwatermark*[oddpages,scale=6,xpos=60,ypos=-80]{\usebox\bbbox}
+%\newwatermark*[oddpages,scale=6,xpos=-60,ypos=-88]{\usebox\yuibox}
+%
+%\newwatermark*[evenpages,scale=5,xpos=-52,ypos=-86]{\usebox\nerobox}
+%\newwatermark*[evenpages,scale=5,xpos=50,ypos=-86]{\usebox\scathachbox}
+
+% 使用eso-pic实现水印的方式，与多数版本的latex兼容
+\AddToShipoutPictureFG{%
+  \put(\LenToUnit{-0.2cm},0){
+    \begin{tikzpicture}
+    \node [opacity=0.5]{
+      \ifodd\value{page}
+        \includegraphics[scale=0.08]{yui.png}
+      \fi
+    };
+    \end{tikzpicture}
+  }
+}
+
+\AddToShipoutPictureFG{%
+  \put(\LenToUnit{0.6cm},0){
+    \begin{tikzpicture}
+    \node [opacity=0.5]{
+      \ifodd\value{page}
+      \else
+        \includegraphics[scale=0.3]{nero.png}
+      \fi
+    };
+    \end{tikzpicture}
+  }
+}
+
+\AddToShipoutPictureFG{
+  \put(\LenToUnit{\dimexpr \paperwidth-6cm},0)
+  {
+    \begin{tikzpicture}
+    \node [opacity=0.5]{
+      \ifodd\value{page}
+        \includegraphics[scale=0.58]{bb.png}
+      \fi
+    };
+    \end{tikzpicture}
+  }
+}
+
+\AddToShipoutPictureFG{
+  \put(\LenToUnit{\dimexpr \paperwidth-5cm},0)
+  {
+    \begin{tikzpicture}
+    \node [opacity=0.5]{
+      \ifodd\value{page}
+      \else
+        \includegraphics[scale=0.07]{scathach.png}
+      \fi
+    };
+    \end{tikzpicture}
+  }
+}
 
 \frontmatter
 {
@@ -609,6 +674,7 @@
 \include{arm}
 \include{rustos}
 \include{network}
+\include{windows}
 \part{消息队列}
 \include{zmq}
 \part{存储篇}

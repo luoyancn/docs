@@ -142,6 +142,18 @@ tikz提供了一些其他的简笔画，可以直接使用，使用方式如下�
 fontforge -lang=ff -c 'Open($1); Generate($2); Close();' font.otf font.ttf
 \end{code-block}
 
+\section{Latex Beamer的部分设置}
+
+设置beamer为16:9的，并且全局从右至左换页
+
+\begin{code-block}{latex}
+% 设置16:9
+\documentclass[aspectratio=169]{beamer}
+
+% 从右至左推进，180表示角度，默认0（左右）
+\addtobeamertemplate{background canvas}{\transpush[direction=180]}{}
+\end{code-block}
+
 \section{OpenStack社区的git设置}
 由于各种原因，如果使用ssh的方式，社区的gerrit是无法正常连接的。但是，社区的gerrit
 提供了https的连接方式，可以使用这种方式绕开相关的限制。首先，需要登录review.openstack.org，
@@ -187,6 +199,12 @@ git diff -G"."
 
 # 也可以直接从配置上忽略文件权限
 git config <--global> core.filemode false
+
+# 删除本地的tracking分支
+git branch -D --remotes origin/features/serial-part-1
+
+# 修改branch名称
+git branch -m features/sync-data-with-serial-mcu features/sync-serial-update-mcuversion
 \end{code-block}
 
 \section{Git使用submodule}
@@ -215,7 +233,85 @@ git tag -a v1.4 -m "my version 1.4"
 git push origin --tags
 # 推送指定tag
 git push origin v1.5
+
+# 删除tag
+git push origin :v1.5
+# 删除远程分支
+git push origin :<branch>
 \end{code-block}
+
+除了基本的操作之外，github/gitlab也允许发布release，包括二进制文件，其具体步骤如下：
+\begin{enumerate}
+  \item 生成token
+\par\begin{minipage}{\linewidth}
+\centering
+\includegraphics[width=\linewidth]{token.png}
+\captionof{figure}{生成token}
+\label{fig:token}
+\end{minipage}
+
+  \item 创建tag，并推送到上游
+
+\begin{code-block}{bash}
+git tag -a MY_TAG_NAME 30728cab
+git push REMOTE_REPO_NAME REMOTE_BRANCH_NAME MY_TAG_NAME
+\end{code-block}
+
+  \item 上传二进制文件
+
+该步只能通过api进行操作，并且需要使用之前生成的token，具体如下：
+\begin{code-block}{bash}
+curl --request POST --header "Private-Token: YOUR_PRIVATE_TOKEN" \
+    --form "file=@/PATH/TO/THE/FILE/file.txt" \
+    "https://MY_GITLAB_HOSTING.COM/api/v4/projects/MY_PROJECT_ID/uploads"
+# 操作例子如下：
+curl --request POST --header "Private-Token: n7UJZ_Wus9ovNsyrRStL" \
+    --form "file=@bin/linux_arm/fpgagent" \
+    "http://gitlab.corp.awcloud.com/api/v4/projects/3203/uploads"
+\end{code-block}
+上述操作的结果大致如下：
+\begin{code-block}{json}
+{
+    "alt":"fpgagent",
+    "url":"/uploads/4c72f7e1293aeb80470bb3059158a4dd/fpgagent",
+    "full_path":"/fpga-cloud/fpgacloudv4/uploads/4c72f7e1293aeb80470bb3059158a4dd/fpgagent",
+    "markdown":"[fpgagent](/uploads/4c72f7e1293aeb80470bb3059158a4dd/fpgagent)"
+}
+\end{code-block}
+发布过程中需要使用到的是上面的url和markdown元素。
+
+  \item 发布release，并附加二进制文件
+
+\par\begin{minipage}{\linewidth}
+\centering
+\includegraphics[width=\linewidth]{gitrelease.png}
+\captionof{figure}{发布release}
+\label{fig:gitrelease}
+\end{minipage}
+同样，也可以使用api进行操作：
+\begin{code-block}{bash}
+curl --request POST --header 'Content-Type: application/json' \
+    --header "Private-Token: YOUR_PRIVATE_TOKEN" \
+    --data '{"name": "MY_RELEASE_NAME", "tag_name": "MY_TAG_NAME", \
+             "description": "Release with the binary LINK_TO_YOUR_BINARY"}' \
+    "https://MY_GITLAB_HOSTING.COM/api/v4/projects/MY_PROJECT_ID/releases"
+# 操作例子如下：
+curl --request POST --header "Private-Token: n7UJZ_Wus9ovNsyrRStL" \
+    --data '{"name": "MY_RELEASE_NAME", "tag_name": "MY_TAG_NAME", \
+    "description": "AIEPV4的第一个版本\n\nServer端（NUC/x86服务器）：\
+    [fpgaserver](/uploads/112d129a09c08ef017f7e1f4148625b0/fpgaserver))\
+    \n\nClient端（FPGA/GPU/ARM开发板）：\
+    [fpgagent](/uploads/4c72f7e1293aeb80470bb3059158a4dd/fpgagent)"}' \
+    "http://gitlab.corp.awcloud.com/api/v4/projects/3203/releases"
+\end{code-block}
+最终，在github/gitlab的项目release页，可以看到大致如下的情形：
+\par\begin{minipage}{\linewidth}
+\centering
+\includegraphics[scale=0.8]{release_bin.png}
+\captionof{figure}{release版本}
+\label{fig:release_bin}
+\end{minipage}
+\end{enumerate}
 
 \section{禁用ipv6}
 \begin{code-block}{bash}
@@ -972,6 +1068,89 @@ du file
 
 # 或者给ls添加参数
 ls -s --block-size=1 file
+\end{code-block}
+
+\1 标准/错误输出重定向到文件
+
+\begin{code-block}{bash}
+ls -l > log 2>&1
+\end{code-block}
+
+\1 解压带密码的rar文件
+
+\begin{code-block}{bash}
+unrar -p<password> /home/file.rar
+\end{code-block}
+
+\1 文件扩展名批量替换
+
+\begin{code-block}{bash}
+for id in `ls`;do echo $id ${id.%}.webp;done
+\end{code-block}
+
+\1 编译deb包
+
+Deb包有很多方式生成，这里只介绍一种方式：
+\begin{code-block}{bash}
+# dsc文件是deb的控文件，类似rpm的spec文件
+# 与其配套的必须包括debian.tar.xz和.orig.tar.xz
+# 其中debian为源代码，orig为补丁
+dpkg-source -x  vim_8.2.4659-1.dsc
+cd vim-8.2.4659
+dpkg-buildpackage -us -uc -nc
+\end{code-block}
+
+则生成的文件在上级目录
+
+
+\1 ffmpeg的常见操作
+
+\2 转换为webp图片
+
+\begin{code-block}{bash}
+# -codec libwebp表示转换为webp格式
+# -lossless 0 表示无损压缩
+# -quality 100 表示控制压缩比，100表示不压缩，0表示最大化压缩
+# -vf scale=iw/2:ih/2 表示控制图片的长宽比，但是缩小为原有的1/2
+
+# 关于libwebp/webp格式的文件，如果是有损压缩，则-quality 75是最佳方案
+ffmpeg -i 1.jpg  -vf scale=iw/2:ih/2 -codec libwebp -lossless 0 -quality 100 1.webp
+\end{code-block}
+
+\2 查看编码器/解码器的参数选项
+
+\begin{code-block}{bash}
+# 比如查看webp编解码器的参数选项
+ffmpeg -h encoder=libwebp
+\end{code-block}
+
+\1 下载youtube视频
+
+\begin{code-block}{bash}
+# 查看视频信息
+yt-dlp -F https://www.bilibili.com/video/BV1V4411R7Cv
+# 通过代理
+yt-dlp --proxy http://127.0.0.1:8589 -F https://www.youtube.com/watch\?v\=QeOEvXpKq4A
+
+# 使用外部下载器
+yt-dlp --proxy http://127.0.0.1:8589 -f 247+251 --downloader aria2c \
+  --extractor-args "-x:16" https://www.youtube.com/watch\?v\=QeOEvXpKq4A
+
+# 下载需要帐号信息的视频
+# 需要使用firefox插件（https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/）
+# 将youtube的cookies导出成Netscape格式的文件
+yt-dlp --proxy http://127.0.0.1:8589 --cookies /mnt/d/cookies.txt \
+  -F https://www.youtube.com/watch\?v\=PXl7vCTszmI
+\end{code-block}
+
+\ 1 find的使用
+
+\begin{code-block}{bash}
+# 查找空文件夹
+find . -empty -type d
+
+# 排除目录
+find src/vendor/ -path src/vendor/periph.io -prune -o -name "*.go"
 \end{code-block}
 
 \end{outline}

@@ -598,6 +598,28 @@ fn main() {
 }
 \end{code-block}
 
+同样的，函数也可以作为宏的参数进行使用：
+\begin{code-block}{rust}
+// 如果下面的*修改为+，则表示wait这个宏至少需要1个参数
+#[macro_export]
+macro_rules! wait {
+    // ident表示变量名或函数名，path则表示路径，类似std::fmt
+    //($($function_no_args: ident),*) => {{
+    ($($function_no_args: path),*) => {{
+        $($function_no_args();)*
+    }};
+}
+fn hello(){...}
+fn bye(){...}
+fn main() {
+    wait!(hello,bye);
+    // 如果使用ident，下面的代码会报错
+    // no rules expected the token `::`: when calling this macro
+    // 因此实际使用中，最好使用path替代ident：
+    wait!(datastructure::vec_usage);
+}
+\end{code-block}
+
 \subsection{宏导出}
 除了在当前的crate当中使用宏之外，
 宏还可以导出，宏之间也可以相互调用。宏的导出通常使用macro\_export关键字，比如：
