@@ -1862,6 +1862,128 @@ fn main() {
 }
 \end{code-block}
 
+在之前的trait和泛型示例当中，我们可以看到他们的结合使用，比如如下的代码：
+\begin{code-block}{rust}
+pub trait Vegetable {
+    fn name<'a>(&self) -> &'a str;
+}
+
+pub struct Cabege {}
+impl Vegetable for Cabege {
+    fn name<'a>(&self) -> &'a str {
+        stringify!(Cabege)
+    }
+}
+
+pub struct Apple {}
+impl Vegetable for Apple {
+    fn name<'a>(&self) -> &'a str {
+        stringify!(Apple)
+    }
+}
+
+pub struct Salad<V: Vegetable> {
+    veggies: Vec<V>,
+}
+\end{code-block}
+
+上述代码是可以正常使用的，不过，当我们尝试如下使用时，会直接出现错误：
+\begin{code-block}{rust}
+let mut salad = ...
+salad.add(Apple {});
+salad.add(Cabege {});
+salad.show();
+\end{code-block}
+虽然Cabege和Apple都实现了Vegetable这个trait，但是，由于\codeinline{rust}{Salad<V: Vegetable>}的
+存在，导致Salad这个结构体同一时间只能容纳一种具体的实现，即要么是Apple，要么是Cabege。如果需要
+同时容纳，则应当如下进行修改：
+\begin{code-block}{rust}
+pub struct Salad{
+    veggies: Vec<Box<dyn Vegetable>>,
+}
+\end{code-block}
+
+Trait也可以返回具体实现的实例，只是此时需要用到一个特殊的关键字：Self，注意不是小写的self。
+\begin{code-block}{rust}
+pub trait Spliceable {
+    fn clone(&self) -> Self;
+    fn splice(&self, other: &Self) -> Self;
+}
+\end{code-block}
+同样的，即使上述Trait同时有多个实现，但是每一个的具体实例所对应的Self都只是自己，
+不能映射到其他的实现，即self和other的类型必须完全一致，因此下列的代码是错误的：
+\begin{code-block}{rust}
+pub trait Spliceable {
+    fn clone(&self) -> Self;
+    fn splice(&self, other: &Self) -> Self;
+    fn splice_mega(&self: &Spliceable, other: &dyn Spliceable);
+}
+\end{code-block}
+在包含了Self关键字的Trait当中使用当前Trait的引用是非法的，因为Rust无法判断self
+和other是否为同一类型。但在当前Trait当中使用当前Trait的引用这个需求，却并不是不
+合理的，只是需要换一种实现方式：
+\begin{code-block}{rust}
+pub trait Spliceable {
+    fn clone(&self) -> Self;
+    fn splice(&self, other: &Self) -> Self;
+}
+
+// 在当前Trait当中使用当前Trait的引用，self和other可以不相同
+pub trait MegaSpliceable {
+    fn splice(&self, other: &dyn MegaSpliceable) -> Box<dyn MegaSpliceable>;
+}
+\end{code-block}
+
+继续深入查看一个比较复杂的例子：
+\begin{code-block}{rust}
+trait Adder<RHS = Self> {
+    type Output;
+    fn show(self, rhs: RHS) -> Self::Output;
+}
+
+struct Private<T> {
+    name: T,
+    age: T,
+}
+
+impl<L, R, O> Adder<Private<R>> for Private<L>
+where
+    L: Adder<R, Output = O>,
+{
+    type Output = Private<R>;
+    fn show(self, rhs: Private<R>) -> Self::Output {
+        Private {
+            name: rhs.name,
+            age: rhs.age,
+        }
+    }
+}
+\end{code-block}
+上述例子当中，Trait包含了一个关联类型，而结构体也是一个泛型，而最复杂的，则是下面的
+\codeinline{rust}{impl<L, R, O> Adder<Private<R>> for Private<L> where L: Adder<R, Output = O>}。
+在这里，我们将其展开进行讲解：
+\begin{itemize}
+  \item \codeinline{rust}{Private<L>}表示左操作数
+  \item L、R都是泛型T的别名，O表示Trait Adder的关联数据类型，在本例当中，O指向了\codeinline{rust}{Private<T>}
+  \item \codeinline{rust}{L: Adder<R, Output = O>,}表示L是Adder的一种具体实现，其类型与R相同，对应的关联类型为O，如果没有
+这个限定的绑定，则实际使用当中就会出现错误。
+\end{itemize}
+
+利用Trait与绑定以及泛型，可以实现函数的重载，比如：
+\begin{code-block}{rust}
+pub fn ping<A>(address: A)
+where
+    A: Into<Ipv4Addr>,
+{
+    ...
+}
+
+ping(Ipv4Addr::new(23, 21, 219, 98));
+ping([66, 146, 219, 98]);
+\end{code-block}
+Ping这个函数接收参数address，该参数只需要实现了到Ipv4Addr的转换（即实现了\codeinline{rust}{Into<Ipv4Addr}）即可。
+在例子当中，恰好[u8]也实现了这个Trait，因此，可以直接将[u8]当成ip地址参数传递给函数。
+
 \subsection{常见的设计模式}
 建造者模式是Rust当中最常用的设计模式之一，其主旨思想在于将可变和不可变进行分离，
 一种基本的示例如下：
