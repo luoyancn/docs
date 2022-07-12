@@ -717,7 +717,7 @@ fdisk -l /opt/c5_tb_awc.img
 \begin{code-block}{bash}
 # -r 表示只读，-o offset表示实际的偏移量（起始地址）
 # 可以根据偏移量进行挂载
-mount -r -o offset=2097152 /opt/c5_tb_awc.img /srv/
+mount -r -o offset=`expr 512 * 2097152` /opt/c5_tb_awc.img /srv/
 \end{code-block}
 
 挂载成功之后，得到的结果与之前guestmount有区别：
@@ -846,7 +846,7 @@ dd if=u-boot.img of=/dev/loop0 bs=1 seek=262144
 
 然后将映射断开，建立第二分区的loop映射：
 \begin{code-block}{bash}
-loseup -d /dev/loop0
+losetup -d /dev/loop0
 # -o 表示偏移量，即分区大小×分区的起始地址，--sizelimit 表示当前分区的大小
 losetup  --show -f -o `expr 512 * 4096` --sizelimit `expr 500 * 1024 * 1024` /tmp/u18.img
 \end{code-block}
