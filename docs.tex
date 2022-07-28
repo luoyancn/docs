@@ -550,11 +550,11 @@
 
 % 使用eso-pic实现水印的方式，与多数版本的latex兼容
 \AddToShipoutPictureFG{%
-  \put(\LenToUnit{-0.2cm},-3.3){
+  \put(\LenToUnit{-0.08cm},-3.3){
     \begin{tikzpicture}
     \node [opacity=0.5]{
       \ifodd\value{page}
-        \includegraphics[scale=0.08]{yui.png}
+        \includegraphics[scale=0.108]{yui.png}
       \fi
     };
     \end{tikzpicture}
@@ -567,7 +567,7 @@
     \node [opacity=0.5]{
       \ifodd\value{page}
       \else
-        \includegraphics[scale=0.3]{nero.png}
+        \includegraphics[scale=0.35]{nero.png}
       \fi
     };
     \end{tikzpicture}
@@ -575,12 +575,12 @@
 }
 
 \AddToShipoutPictureFG{
-  \put(\LenToUnit{\dimexpr \paperwidth-6cm},0)
+  \put(\LenToUnit{\dimexpr \paperwidth-6.5cm},0)
   {
     \begin{tikzpicture}
     \node [opacity=0.5]{
       \ifodd\value{page}
-        \includegraphics[scale=0.58]{bb.png}
+        \includegraphics[scale=0.64]{bb.png}
       \fi
     };
     \end{tikzpicture}
@@ -594,7 +594,7 @@
     \node [opacity=0.5]{
       \ifodd\value{page}
       \else
-        \includegraphics[scale=0.07]{scathach.png}
+        \includegraphics[scale=0.08]{scathach.png}
       \fi
     };
     \end{tikzpicture}
