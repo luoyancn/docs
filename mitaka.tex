@@ -574,6 +574,7 @@ openstack-config --set /etc/nova/nova.conf DEFAULT scheduler_default_filters \
     ServerGroupAntiAffinityFilter,ServerGroupAffinityFilter,AggregateMultiTenancyIsolation,\
     AggregateInstanceExtraSpecsFilter,AggregateCoreFilter,AggregateRamFilter
 openstack-config --set /etc/nova/nova.conf DEFAULT reclaim_instance_interval 7200
+openstack-config --set /etc/nova/nova.conf DEFAULT update_resources_interval 120
 openstack-config --set /etc/nova/nova.conf DEFAULT resize_confirm_window 1
 openstack-config --set /etc/nova/nova.conf DEFAULT flat_injected True
 openstack-config --set /etc/nova/nova.conf DEFAULT injected_network_template \
