@@ -91,3 +91,57 @@ int main(int argc, char * argv[])
         return 0;
 }
 \end{code-block}
+
+\section{异常TCP ESTABLISHED链接积压}
+常见的TCP/IP应用当中，C/S模式下，通常情况下，如果client主动断开连接，server会接收
+到对应的通知，但是，如果是异常断开，server在默认情况下是不会收到的，此时，在server
+端，会出现大量的标记为ESTABLISHED但实际早已断开的连接。如果不及时处理，则会出现
+这些连接不会主动释放并消耗文件句柄（fd）的情况，从而导致server无法正常工作。
+这种问题则可以通过追加server/client的保活机制来处理。server端可以在服务器上进行
+设置：
+\begin{code-block}{bash}
+// 每次探测的时间间隔为75s
+net.ipv4.tcp_keepalive_intvl = 75
+// 表示如果检测失败，会一直探测 9 次
+net.ipv4.tcp_keepalive_probes = 9
+// 表示多长时间后，开始检测TCP链接是否有效，默认300s
+net.ipv4.tcp_keepalive_time = 300
+\end{code-block}
+但上述设置，只有当应用程序本身支持keepalive才可行。如果应用程序本身没有保活，则可能
+对其进行修改，以golang的tcp应用为例：
+\begin{code-block}{golang}
+var err error
+_address, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", config.GOOGLE_GRPC_LISTEN_ADDR, config.GOOGLE_GRPC_LISTEN_PORT))
+if nil != err {
+        logging.LOG.Panicf("Cannot listen on %s:%d because of :%v", config.GOOGLE_GRPC_LISTEN_ADDR, config.GOOGLE_GRPC_LISTEN_PORT, err)
+}
+
+tcp_address, err = net.ListenTCP("tcp", _address)
+if nil != err {
+        logging.LOG.Panicf("Cannot listen on %s:%d because of :%v", config.GOOGLE_GRPC_LISTEN_ADDR, config.GOOGLE_GRPC_LISTEN_PORT, err)
+}
+defer tcp_address.Close()
+for {
+        conn, err := tcp_address.AcceptTCP()
+        if nil != err {
+                logging.LOG.Warningf("Cannot create connection :%v\n", err)
+                continue
+        }
+        // 设置tcp连接启用保活
+        conn.SetKeepAlive(true)
+        // 设置保活的探测间隔为1s
+        conn.SetKeepAlivePeriod(time.Second * 1)
+        go handler(conn)
+}
+\end{code-block}
+当应用程序设置保活之后，可以直接查看：
+\begin{code-block}{bash}
+ss -aoen|grep 169.254.169.254
+\end{code-block}
+如果出现如下的输出，可以认为保活设置成功：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{keepalive.png}
+  \caption{keepalive}
+  \label{fig:keepalive}
+\end{figure}
