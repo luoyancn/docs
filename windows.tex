@@ -61,3 +61,25 @@ Icacls $Key
 Remove-Variable -Name Key
 \end{code-block}
 
+\section{Windows WSL的权限}
+\begin{code-block}{bash}
+cat >>~/.bashrc<<EOF
+if [[ "$(umask)" == '000' ]]; then
+    umask 022
+fi
+EOF
+
+cat > /etc/wsl.conf<<EOF
+[automount]
+enabled = true
+root = /mnt/
+options = "metadata,dmask=022,fmask=133"
+mountFsTab = false
+EOF
+\end{code-block}
+
+然后重启windows即可。同时，也可以实现在wsl下挂载iso/windows磁盘的功能：
+\begin{code-block}{bash}
+# 将windows的E盘/虚拟光驱挂载到/srv下
+mount -t drvfs E: /srv
+\end{code-block}
