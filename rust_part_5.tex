@@ -1221,6 +1221,7 @@ fn generate_builder_function(
             fill_result.push(quote!(#__ident__: self.#__ident__.clone()));
         }
     }
+
     let final_token = quote! {
         pub fn build(&mut self) -> std::result::Result<#origin_struct_ident, std::boxed::Box<dyn std::error::Error>>{
             #(#check_pieces)*
@@ -1229,6 +1230,7 @@ fn generate_builder_function(
             })
         }
     };
+
     Ok(final_token)
 }
 \end{code-block}
@@ -1322,10 +1324,13 @@ fn generate_builder_function(
 #[derive(Debug, BuilderEach)]
 pub struct CommandEach {
     executable: String,
+
     #[builder(each = "arg")]
     args: Vec<String>,
+
     #[builder(each = "env")]
     env: Vec<String>,
+
     others: Vec<String>,
     current_dir: Option<String>,
 }
@@ -1340,6 +1345,7 @@ fn main() {
         .build()
         .unwrap();
     info!("{:#?}", builder);
+
     let builder = CommandEach::builder()
         .executable("lucifer".to_owned())
         .others(vec![])

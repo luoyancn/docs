@@ -352,24 +352,10 @@ cat>>/etc/security/limits.conf<<EOF
 *               soft    core            unlimited
 *               hard    core            unlimited
 EOF
-
 cat>>/etc/security/limits.d/20-nproc.conf<<EOF
 *          soft    nproc     65535
 root       soft    nproc     unlimited
 EOF
-\end{code-block}
-
-\section{google-chrome-stable}
-\begin{code-block}{bash}
-cat << EOF > /etc/yum.repos.d/google-chrome.repo
-[google-chrome]
-name=google-chrome - \$basearch
-baseurl=http://dl.google.com/linux/chrome/rpm/stable/\$basearch
-enabled=1
-gpgcheck=1
-gpgkey=https://dl-ssl.google.com/linux/linux_signing_key.pub
-EOF
-dnf install google-chrome-stable -y
 \end{code-block}
 
 \section{kdump调试分析}
@@ -456,7 +442,6 @@ mv clientkey.pem /etc/pki/libvirt/private;
 \begin{code-block}{bash}
 vi /etc/sysconfig/libvirtd
 LIBVIRTD_ARGS="--listen"
-
 vi /etc/libvirt/libvirtd.conf
 listen_tls = 1
 tls_port = "16514"
@@ -470,12 +455,10 @@ tls_no_verify_certificate = 1
 \begin{code-block}{bash}
 /etc/init.d/libvirtd restart
 \end{code-block}
-
 如果出现16514，则说明libvirt配置成功。执行操作
 \begin{code-block}{bash}
 virsh -c qemu+tls://<hostname>/system
 \end{code-block}
-
 如果能够连接成功，说明libvirt的tls连接配置正确。
 
 \section{kvm嵌套虚拟化}
@@ -502,12 +485,10 @@ net.ipv4.conf.all.rp_filter = 0
 EOF
 # 然后重启服务器
 reboot
-
 # 检查嵌套虚拟化是否生效
 systool -m kvm_intel -v   | grep -i nested
 cat /sys/module/kvm_intel/parameters/nested
 # 如果都显示Y，则说明成功
-
 # 创建支持嵌套虚拟化的虚拟机
 #可以使用这种
   <cpu mode='custom' match='exact'>
@@ -515,7 +496,6 @@ cat /sys/module/kvm_intel/parameters/nested
     <feature policy='require' name='vmx'/>
   </cpu>
 #这种方式为虚拟机定义需要模拟的CPU类型"core2duo",并且为虚拟机添加"vmx"特性
-
 #也可以使用这种
   <cpu mode='host-model'>
     <model fallback='allow'/>
@@ -556,6 +536,33 @@ echo 'ACTION=="add|change", SUBSYSTEM=="block", ENV{UDISKS_IGNORE}="1"' > /etc/u
 \1 禁止usb存储
 \begin{code-block}{bash}
 echo 'install usb-storage /bin/true' > /etc/modprobe.d/block_usb.conf
+\end{code-block}
+
+\1 固定串口名称
+
+\2 获得ttyusb设备的路径信息
+\begin{code-block}{bash}
+udevadm info -a -n /dev/ttyUSB0
+\end{code-block}
+得到的结果大致如下：
+\par\begin{minipage}{\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{ttyusb_info.png}
+  \captionof{figure}{ttyusb设备信息}
+  \label{fig:ttyusb_info}
+\end{minipage}
+
+\2 新建自定义规则
+\begin{code-block}{bash}
+cat >/etc/udev/rules.d/70-usb.rules<<EOF
+SUBSYSTEMS=="usb",ATTRS{idVendor}=="10c4",ATTRS{idProduct}=="ea60",MODE="0666"
+DRIVERS=="cp210x",SUBSYSTEMS=="usb",ATTRS{bInterfaceNumber}=="00",MODE:="0666",SYMLINK+="ttyUSBAwcloud"
+EOF
+\end{code-block}
+
+\2 启用自定义规则
+\begin{code-block}{bash}
+udevadm control --reload-rules && udevadm trigger
 \end{code-block}
 
 \1 解压ramdisk文件
@@ -991,6 +998,33 @@ grub2-set-default 'CentOS Linux (3.10.0-514.26.2.el7.x86_64) 7 (Core)'
 grub2-editenv list
 \end{code-block}
 
+\1 启用nvidia显卡驱动（已安装驱动）
+
+安装必要的软件
+\begin{code-block}{bash}
+# 仅适用于Reahat/CentOS/Fedora，不适于Ubuntu
+yum -y install epel-release
+yum install dkms kernel-devel-$(uname -r)
+\end{code-block}
+
+修改grub配置，在\codeinline{bash}{/etc/default/grub}的\codeinline{bash}{GRUB_CMDLINE_LINUX}
+选项末尾添加如下内容：
+\begin{code-block}{bash}
+rd.driver.blacklist=nouveau nouveau.modeset=0
+\end{code-block}
+
+修改设备黑名单：
+\begin{code-block}{bash}
+echo "blacklist nouveau" >> /etc/modprobe.d/blacklist.conf
+\end{code-block}
+
+重新生成grub：
+\begin{code-block}{bash}
+grub2-mkconfig -o /boot/grub2/grub.cfg
+\end{code-block}
+
+最后重启服务器即可
+
 \1 tmux的基本使用
 
 Tmux的默认配置文件是\codeinline{bash}{~/.tmux.conf}，可以在此处设置tmux的各种个性化的设置，默认启动
@@ -1101,7 +1135,6 @@ dpkg-buildpackage -us -uc -nc
 \end{code-block}
 
 则生成的文件在上级目录
-
 
 \1 ffmpeg的常见操作
 

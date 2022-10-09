@@ -23,7 +23,7 @@ fn longest(x: &str, y: &str) -> &str {
 即，返回2个字符串当中最长的。如果对这样的代码进行编译，则会出现错误：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.2]{rust_strref_err.png}
+  \includegraphics[width=\linewidth]{rust_strref_err.png}
   \caption{试图返回多个引用当中的某一个}
   \label{fig:rust_strref_err}
 \end{figure}
@@ -155,11 +155,9 @@ impl<'a> ImportantExcerpt<'a> {
     fn show(&self) {
         println!("{}", self.part);
     }
-
     fn reset(&mut self, other: &'a str) {
         self.part = other;
     }
-
     fn get(&self) -> &str {
         return self.part;
     }
@@ -170,11 +168,9 @@ impl ImportantExcerpt<'static> {
     fn show(&self) {
         println!("{}", self.part);
     }
-
     fn reset(&mut self, other: &'static str) {
         self.part = other;
     }
-
     fn get(&self) -> &str {
         return self.part;
     }
@@ -339,9 +335,7 @@ let res = expensive_closure(10);
 其中两个||表示定义一个闭包，中间的num表示闭包的参数。如果闭包需要处理多个参数，则
 应该改写为：
 \begin{code-block}{rust}
-let expensive_closure = |num1, num2| {
-    num1 * num2
-};
+let expensive_closure = |num1, num2| { num1 * num2 };
 \end{code-block}
 
 从实际的使用当中可以看到，Rust的闭包实际上就是一个匿名函数，在Rust当中，函数都有
@@ -371,14 +365,10 @@ let n = example_closure(5);
 let live_closure = |num: i32| -> (i32, i32) {
     println!("calculating slowly...");
     thread::sleep(Duration::from_secs(2));
-    (num * 10, num * 20)
-    // 或者修改为return语句
-    // return (num*10, num*20);
+    (num * 10, num * 20) // 或者修改为return语句 return (num*10, num*20);
 };
 // 如果不需要返回值，则闭包的写法需要注意一下：
-let other = |x| {
-    println!("{}", x);
-};
+let other = |x| { println!("{}", x); };
 \end{code-block}
 
 \subsection{特殊的闭包}
@@ -401,8 +391,7 @@ Fn(u32) -> u32
 一个包含闭包的结构体示例如下：
 \begin{code-block}{rust}
 struct Cacher<T>
-where
-    T: Fn(u32) -> u32,
+where T: Fn(u32) -> u32,
 {
     calculation: T,
     value: Option<u32>,
@@ -414,8 +403,7 @@ where
 实现如下：
 \begin{code-block}{rust}
 impl<T> Cacher<T>
-where
-    T: Fn(u32) -> u32,
+where T: Fn(u32) -> u32,
 {
     pub fn new(calculation: T) -> Cacher<T> {
         Cacher {
@@ -451,16 +439,14 @@ println!("The val of cacher second time is {}", val);
 可能的解决方法如下：
 \begin{code-block}{rust}
 struct Cacher<T>
-where
-    T: Fn(u32) -> u32,
+where T: Fn(u32) -> u32,
 {
     calculation: T,
     value: BTreeMap<u32, Option<u32>>,
 }
 
 impl<T> Cacher<T>
-where
-    T: Fn(u32) -> u32,
+where T: Fn(u32) -> u32,
 {
     pub fn new(calculation: T) -> Cacher<T> {
         Cacher {
