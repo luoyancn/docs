@@ -111,14 +111,20 @@ net.ipv4.tcp_keepalive_time = 300
 对其进行修改，以golang的tcp应用为例：
 \begin{code-block}{golang}
 var err error
-_address, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", config.GOOGLE_GRPC_LISTEN_ADDR, config.GOOGLE_GRPC_LISTEN_PORT))
+_address, err := net.ResolveTCPAddr("tcp",
+    fmt.Sprintf("%s:%d", config.GOOGLE_GRPC_LISTEN_ADDR,
+        config.GOOGLE_GRPC_LISTEN_PORT))
 if nil != err {
-        logging.LOG.Panicf("Cannot listen on %s:%d because of :%v", config.GOOGLE_GRPC_LISTEN_ADDR, config.GOOGLE_GRPC_LISTEN_PORT, err)
+        logging.LOG.Panicf("Cannot listen on %s:%d because of :%v",
+            config.GOOGLE_GRPC_LISTEN_ADDR,
+            config.GOOGLE_GRPC_LISTEN_PORT, err)
 }
 
 tcp_address, err = net.ListenTCP("tcp", _address)
 if nil != err {
-        logging.LOG.Panicf("Cannot listen on %s:%d because of :%v", config.GOOGLE_GRPC_LISTEN_ADDR, config.GOOGLE_GRPC_LISTEN_PORT, err)
+        logging.LOG.Panicf("Cannot listen on %s:%d because of :%v",
+            config.GOOGLE_GRPC_LISTEN_ADDR,
+            config.GOOGLE_GRPC_LISTEN_PORT, err)
 }
 defer tcp_address.Close()
 for {

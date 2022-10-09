@@ -3,27 +3,23 @@
 \section{安装和配置}
 默认情况下，Rust及其工具集Cargo都会被安装到/root/.rust和/root/.cargo，或者
 是C:$\backslash\backslash$Users$\backslash\backslash$zhangjl$\backslash\backslash$AppData下，
-只针对当前用户有效。有的时候，我们需要针对所有用户有效，因此，需要更改安装
-路径。Rust提供了2个环境变量，进行安装路径的修改，其使用如下：
+但Rust提供了2个环境变量，可用于安装路径的修改，其使用如下：
 \begin{code-block}{bash}
 export CARGO_HOME=/opt/cargo
 export RUSTUP_HOME=/opt/rustup
 export PATH=/opt/cargo/bin:$PATH
 \end{code-block}
-
 Windows，则是修改系统的环境变量，将CARGO\_HOME和RUSTUP\_HOME指向合适的
 位置即可。然后再执行安装程序即可（windows执行可执行程序）：
 \begin{code-block}{bash}
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 \end{code-block}
 
-安装完毕之后，通常需要进行一些安装和配置，方便其他的代码编辑器可以使用代码
-补全。操作如下（Linux/Windows通用）：
+安装完毕之后，通常需要进行一些安装和配置，操作如下（Linux/Windows通用）：
 \begin{code-block}{bash}
 rustup toolchain add nightly
 rustup component add rust-src rls rust-analysis
 cargo install cargo-expand
-cargo +nightly install racer
 \end{code-block}
 
 如果需要对Rust和相关的工具进行升级，则操作如下：
@@ -42,9 +38,8 @@ rustup update
 # 针对单独的项目，指定stable版本（https://github.com/rust-lang/rust/blob/master/RELEASES.md）
 echo 'stable-2021-10-21' > rust-toolchain
 echo 'nightly' > rust-toolchain
-# 或者进行全局切换
+# 或者进行全局切换 rustup override set nightly
 rustup default stable
-#rustup override set nightly
 \end{code-block}
 
 \section{Rust的交叉编译}
@@ -58,17 +53,16 @@ rustup target list
 其结果大致如下图\colorunderlineref{fig:rust_target}所示。
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.5]{rust_target.png}
+  %\includegraphics[scale=0.5]{rust_target.png}
+  \includegraphics[width=\linewidth]{rust_target.png}
   \caption{Rust支持的目标文件架构}
   \label{fig:rust_target}
 \end{figure}
 
 需要编译对应架构的目标文件，则需要添加对应架构的工具链
 \begin{code-block}{bash}
-# 针对ARM V7架构的工具链
 rustup target add armv7-unknown-linux-gnueabihf
 rustup target add armv7-unknown-linux-musleabihf
-# 针对ARM X64架构的工具链
 rustup target add aarch64-unknown-linux-gnu
 rustup target add aarch64-unknown-linux-musl
 rustup target add x86_64-unknown-linux-musl
@@ -830,7 +824,8 @@ use crate::compute::driver;
 形式如下：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.6]{rust_mod_file.png}
+  %\includegraphics[scale=0.6]{rust_mod_file.png}
+  \includegraphics[width=\linewidth]{rust_mod_file.png}
   \caption{同名文件形式}
   \label{fig:rust_mod_file}
 \end{figure}
@@ -840,9 +835,7 @@ use crate::compute::driver;
 // common.rs
 pub mod calc; // 将calc.rs当中的内容进行导出
 use crate::logging;
-fn common() {
-    logging::logging();
-}
+fn common() { logging::logging(); }
 \end{code-block}
 
 将上述的概念和技术进行整合，整体的工程文件内容大致如下：
@@ -850,48 +843,32 @@ fn common() {
 // common.rs
 pub mod calc;
 use crate::logging;
-fn common() {
-    logging::logging();
-}
+fn common() { logging::logging(); }
 // common/calc.rs
-pub fn add() {
-    println!("This is the add function");
-}
+pub fn add() { println!("This is the add function"); }
 // compute/driver.rs
-pub fn call() {
-    println!("This is the driver::call function");
-}
+pub fn call() { println!("This is the driver::call function"); }
 // compute/nova.rs
 use crate::compute::driver;
 use crate::logging;
 use crate::utils::tools;
-pub fn nova() {
-    println!("This is the nova function");
-}
+pub fn nova() { println!("This is the nova function"); }
 pub fn use_parent() {
-    println!("Use the logging function in child mod");
     logging::logging();
 }
 pub fn use_other() {
     println!("Use the logging function in child mod");
     tools::execute();
 }
-pub fn deive() {
-    driver::call();
-}
+pub fn deive() { driver::call(); }
 // compute/mod.rs
 pub mod driver;
 pub mod nova;
 // logging.rs
-pub fn logging() {
-    println!("This is the logging function");
-}
+pub fn logging() { println!("This is the logging function"); }
 // utils/tools.rs
 use crate::logging as log;
-pub fn execute() {
-    println!("This is the execute function");
-    log::logging();
-}
+pub fn execute() { log::logging(); }
 pub mod tools;
 // main.rs
 mod common;
@@ -913,10 +890,8 @@ fn main() {
 \end{code-block}
 
 \subsection{Crate管理模式}
-Crate管理模式通常用于在自己的Rust代码当中引用别人的代码或者类库。和Python以及
-Golang的直接import方式不同，Rust的mod模式并不能直接使用别人的代码（除了标准库），
-只能通过Crate的方式。Crate方式可以管理其他人的公开代码，也可以管理自己编写的
-类库代码。
+Crate管理模式通常用于在自己的Rust代码当中引用别人的代码或者类库，可以管理其他人的公开代码，
+也可以管理自己编写的类库代码。
 
 \subsubsection{使用第三方代码}
 一般方式下，需要修改Rust工程的Cargo.toml文件，在dependencies段当中加入需要使用
@@ -943,12 +918,11 @@ Cargo.toml文件，类似如下：
 my_rust_lib_1={package="my_lib_1",git="ssh://git@github.com/lpxxn/my_rust_lib_1.git",tag="v0.0.2"}
 my_rust_lib_2={package="my_lib_1",git="https://github.com/lpxxn/my_rust_lib_2.git",branch="master"}
 \end{code-block}
-运行cargo build指令时，同样会去github等代码管理仓库下载指定的依赖代码。
-
-Crate模式不仅可以管理外部第三方依赖代码，同样可以用于管理本地的代码。
+运行cargo build指令时，同样会去github等代码管理仓库下载指定的依赖代码。Crate模式不仅可以管理外部第三方依赖代码，
+同样可以用于管理本地的代码。
 
 \subsubsection{Crate管理本地代码}
-在使用这种方式之前，先了解一下crate的一些概念。
+在使用这种方式之前，先了解一下crate的一些概念\footnote{来源：\url{https://www.cnblogs.com/li-peng/p/13587910.html}}。
 \begin{itemize}
   \item 包是cargo的一个功能，当执行cargo new xxxx的时候就是创建了一个包。
   \item crate是二进制或者库项目。rust约定在Cargo.toml的同级目录下包含src目录
@@ -972,13 +946,34 @@ crate，任意多个二进制crate。
   \label{fig:rust_more_bin}
 \end{figure}
 对这个项目进行编译，将会得到2个二进制文件：first和second，而不再是之前的和
-根路径同名，得到的结果类似下面：
+根路径同名，得到的结果类似下面。但是需要注意可能出现的问题\footnote{错误描述：\url{https://rustcc.cn/article?id=dcc947c4-21a9-4ba0-ba59-43f6b580aae6}} ：
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{rust_more_bin_res.png}
   \caption{多个二进制编译结果}
   \label{fig:rust_more_bin_res}
 \end{figure}
+\begin{warn}
+在使用多个binary的模式时，要特别注意，如果bin目录当中的代码需要使用src目录（即顶层目录当中）
+当中的代码，则有可能出现错误。解决的方法比较讨巧：所有的binary源代码文件不放在bin目录当中，
+而是直接放在src下，然后通过toml文件的bin段进行指定，如下：
+\begin{code-block}{toml}
+[[bin]]
+name = "server"
+path = "src/server_bin.rs"
+[[bin]]
+name = "tools"
+path = "src/tools_bin.rs"
+\end{code-block}
+
+整个的目录结构大致如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_multi_bin.png}
+  \caption{多个二进制编译}
+  \label{fig:rust_multi_bin}
+\end{figure}
+\end{warn}
 
 创建一个包含lib的Rust项目，则稍微有些区别，首先创建一个二进制的crate：
 \begin{code-block}{bash}
@@ -992,7 +987,7 @@ cargo new --lib first
 同样的，可以在这个二进制的crate当中，创建多个lib，最后的文件结构大致如下：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.5]{rust_lib.png}
+  \includegraphics[width=\linewidth]{rust_lib.png}
   \caption{Lib形式的crate}
   \label{fig:rust_lib}
 \end{figure}
@@ -1268,14 +1263,6 @@ println!("{number:>width$}", number = 100, width = 6);
 // 设置数据的显示宽度为6，向右对齐，不足的部分显示为0
 println!("{number:>0width$}", number = 100, width = 6);
 \end{code-block}
-上述代码的执行结果大致如下图\colorunderlineref{fig:rust_format}所示。
-\begin{figure}[H]
-  \centering
-  \includegraphics[scale=0.6]{rust_format.png}
-  \caption{格式化输出}
-  \label{fig:rust_format}
-\end{figure}
-
 \section{错误处理}
 Rust的错误有多种，有可恢复的和不可恢复的。同样的，其处理机制也有多种，包含了panic
 和Result模式。在默认的情况下，panic模式会打印程序的堆栈信息，并且清理堆栈数据，
@@ -1296,7 +1283,7 @@ RUST_BACKTRACE=full cargo run
 则得到的效果可能如下：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.2]{rust_err_panic_trace.png}
+  \includegraphics[width=\linewidth]{rust_err_panic_trace.png}
   \caption{错误堆栈}
   \label{fig:rust_err_panic_trace}
 \end{figure}
@@ -1315,10 +1302,8 @@ enum Result<T, E> {
 比如常见的打开文件操作，就可以使用Result进行错误处理：
 \begin{code-block}{rust}
 use std::fs::File;
-
 fn main() {
     let f = File::open("hello.txt");
-
     let f = match f {
         Ok(file) => file,
         Err(error) => {
@@ -1333,7 +1318,6 @@ fn main() {
 \begin{code-block}{rust}
 use std::fs::File;
 use std::io::ErrorKind;
-
 fn main() {
     let fr = File::open("hello.txt");
     let f = match fr {
@@ -1357,7 +1341,6 @@ fn main() {
 一种简化的方式，同样的，功能会相对较弱一些：
 \begin{code-block}{rust}
 use std::fs::File;
-
 fn main() {
     // 如果文件不存在，则直接panic，并输出堆栈信息
     let fr = File::open("hello.txt").unwrap();
@@ -1371,13 +1354,11 @@ fn main() {
 \begin{code-block}{rust}
 use std::fs::File;
 use std::io::{Error, ErrorKind, Read};
-
 fn main() {
     match read_file() {
        Ok(s) => println!("The content of file is {}", s),
        Err(error) => panic!("{:?}", error),
     };
-
     // 或者使用变量进行接收
     let res = match read_file() {
         Ok(s) => s,
@@ -1387,7 +1368,6 @@ fn main() {
         }
     };
 }
-
 // 如果该函数执行成功，调用者会受到一个Ok(String)，
 // 否则，会接收到错误值
 fn read_file() -> Result<String, Error> {
@@ -1395,13 +1375,11 @@ fn read_file() -> Result<String, Error> {
         Ok(file) => file,
         Err(error) => return Err(error),
     };
-
     let mut s = String::new();
     let res = match f.read_to_string(&mut s) {
         Ok(_) => Ok(s),
         Err(err) => Err(err),
     };
-
     return res;
 }
 \end{code-block}
@@ -1463,7 +1441,6 @@ struct Point<T> {
     x: T,
     y: T,
 }
-
 impl<T> Point<T> {
     fn x(&self) -> &T {
         &self.x
@@ -1477,7 +1454,6 @@ struct Points<T, U> {
     x: T,
     y: U,
 }
-
 impl<T, U> Points<T, U> {
     fn mixup<V, W>(self, other: Points<V, W>) -> Points<T, W> {
         return Points {
@@ -1494,7 +1470,6 @@ impl<T, U> Points<T, U> {
 struct S<T = u8> {
     data: T,
 }
-
 fn main() {
     let v1 = S { data: 128 };
     // 设置T类型为String
@@ -1502,7 +1477,6 @@ fn main() {
         data: "lucifer".to_string(),
     };
     let v3 = S::<&str> { data: "lucifer" };
-
     info!("{}, {}, {}", v1.data, v2.data, v3.data);
 }
 \end{code-block}
@@ -1530,7 +1504,6 @@ pub struct User {
     email: String,
     activate: bool,
 }
-
 impl Summary for User {
     fn summarize(&self) -> String {
         return format!(
@@ -1545,7 +1518,6 @@ impl Summary for User {
 \begin{code-block}{rust}
 use objects::User;
 use traitlib::Summary;
-
 fn main() {
     let u = User::create("zhangjl", 33, "zhangjl@awcloud.com", true);
     println!("The trait of user object :{}", u.summarize());
@@ -1567,7 +1539,6 @@ pub trait Summary {
 如果在实现某个类型的trait时，需要使用原始Trait的默认方法，则可以如下进行操作：
 \begin{code-block}{rust}
 pub struct Empty {}
-
 impl Summary for Empty {}
 \end{code-block}
 同样的，Empty的实例可以无碍的调用summarize方法，只不过，输出的结果是默认输出而已。
@@ -1596,7 +1567,6 @@ Rust还允许使用下面的一种方式来实现这种需求：即Trait有多�
 \begin{code-block}{rust}
 pub trait Summary {
     fn summarize_author(&self) -> String;
-
     fn summarize(&self) -> String {
         format!("(Read more from {}...)", self.summarize_author())
     }
@@ -1650,7 +1620,7 @@ pub fn notify<T: Summary>(item1: T, item2: T) {
 否则，在代码进行编译的过程中，就会出现错误：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.3]{rust_trait_bound.png}
+  \includegraphics[width=\linewidth]{rust_trait_bound.png}
   \caption{不同的Trait bound}
   \label{fig:rust_trait_bound}
 \end{figure}
@@ -1662,7 +1632,6 @@ pub fn notify_multi_trait(item: &(impl Summary + Display)) {
     println!("{}", item);
     item.work();
 }
-
 // 也可以使用Trait bound
 pub fn notify<T: (Summary + Display)>(item: T) {
     println!("{}", item);
@@ -1707,7 +1676,7 @@ pub fn NewSummary(swith: bool) -> impl Summary {
 很不幸的是，上述代码错误的，错误信息如下：
 \begin{figure}[H]
   \centering
-  \includegraphics[scale=0.3]{rust_trait_return.png}
+  \includegraphics[width=\linewidth]{rust_trait_return.png}
   \caption{试图返回不同的Trait实现类型}
   \label{fig:rust_trait_return}
 \end{figure}
