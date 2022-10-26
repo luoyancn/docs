@@ -1,0 +1,339 @@
+\section{Gerrit安装}
+Gerrit可以通过两种方式进行安装：docker和普通方式。Docker方式简单，普通方式
+则相对比较复杂——需要安装ldap等相关依赖。
+
+\subsection{Docker方式}
+
+\begin{enumerate}
+  \item 拉取必要镜像
+
+  \begin{code-block}{bash}
+  docker pull gerritcodereview/gerrit osixia/phpldapadmin osixia/openldap
+  \end{code-block}
+
+  \item 创建必要路径
+
+  \begin{code-block}{bash}
+  cd /gerrit
+  mkdir cache db etc git index ldap/etc ldap/var -p
+  \end{code-block}
+
+  \item 修改gerrit配置文件
+
+  \begin{code-block}{bash}
+  cat >/gerrit/etc/gerrit.config<<EOF
+  [gerrit]
+    basePath = git
+
+  [index]
+    type = LUCENE
+
+  [auth]
+    type = ldap
+    gitBasicAuth = true
+
+  [ldap]
+    server = ldap://ldap
+    username=cn=admin,dc=example,dc=org
+    accountBase = dc=example,dc=org
+    accountPattern = (&(objectClass=person)(uid=${username}))
+    accountFullName = displayName
+    accountEmailAddress = mail
+
+  [sendemail]
+    smtpServer = localhost
+    # 如果需要邮件通知，则如下配置，以qq邮箱为例
+    # enable = true
+    # smtpServer = smtp.exmail.qq.com
+    # smtpServerPort = 465
+    # smtpEncryption = SSL
+    # sslVerify = true
+    # smtpUser = *****
+    # from = *****
+    # smtpPass = *****
+
+  [sshd]
+    listenAddress = *:29418
+
+  [httpd]
+    listenUrl = http://*:8080/
+
+  [cache]
+    directory = cache
+
+  [container]
+    user = root
+  EOF
+  \end{code-block}
+
+  \item 修改gerrit的ldap配置文件，并修改路径的权限
+
+  \begin{code-block}{bash}
+  cat /gerrit/etc/secure.config<<EOF
+  [ldap]
+    password = secret
+  EOF
+
+  # 目前必须为777，否则无法启动
+  chmod -R 777 /gerrit
+  \end{code-block}
+
+  \item 编写docker-compose文件
+
+  \begin{code-block}{yml}
+  version: '3'
+
+  services:
+    gerrit:
+      image: gerritcodereview/gerrit
+      ports:
+        - "29418:29418"
+        - "80:8080"
+      depends_on:
+        - ldap
+      volumes:
+        - /gerrit/etc:/var/gerrit/etc
+        - /gerrit/git:/var/gerrit/git
+        - /gerrit/db:/var/gerrit/db
+        - /gerrit/index:/var/gerrit/index
+        - /gerrit/cache:/var/gerrit/cache
+      environment:
+        # 修改成有效的ip地址，使用localhost/127.0.0.1将造成其他ip无法访问
+        - CANONICAL_WEB_URL=http://<ip address >
+      # 初始化操作时，需要打开下面的注释
+      # command: init
+
+    ldap:
+      image: osixia/openldap
+      ports:
+        - "389:389"
+        - "636:636"
+      environment:
+        - LDAP_ADMIN_PASSWORD=secret
+      volumes:
+        - /gerrit/ldap/var:/var/lib/ldap
+        - /gerrit/ldap/etc:/etc/ldap/slapd.d
+
+    ldap-admin:
+      image: osixia/phpldapadmin
+      ports:
+        - "6443:443"
+      environment:
+        - PHPLDAPADMIN_LDAP_HOSTS=ldap
+  \end{code-block}
+
+  \item 初始化环境
+
+  修改上述的docker-compose.yml文件，打开init，然后执行
+  \begin{code-block}{bash}
+  docker-compose up gerrit
+  \end{code-block}
+  当上述指令成功退出（exit\_code为0），则说明初始化成功。此时，再次将上述的
+  docker-compose.yml文件修改，注释掉init，然后启动：
+  \begin{code-block}{bash}
+  docker-compose up -d
+  \end{code-block}
+  当gerrit容器的日志显示Ready之后，说明整体环境运行正常，可以使用了。
+
+  \item ldap用户管理
+
+  登陆\codeinline{bash}{https://<ip address（服务器ip）>:6443}，用户名为\codeinline{bash}{cn=admin,dc=example,dc=org}，
+  密码为\codeinline{secret}，登陆成功之后，按照ldap的规则创建用户即可。ldap的用户
+  就是gerrit的用户。注意，第一个登陆的用户会被当成表成gerrit的管理员。
+
+\end{enumerate}
+
+
+\subsection{普通方式}
+
+\subsubsection{安装openldap服务}
+\begin{enumerate}
+
+  \item 安装ldap相关软件
+
+  \begin{code-block}{bash}
+  yum install openldap-servers openldap-clients -y
+  \end{code-block}
+
+  \item 启动ldap服务
+
+  \begin{code-block}{bash}
+  cp /usr/share/openldap-servers/DB_CONFIG.example /var/lib/ldap/DB_CONFIG
+  chown -R ldap:ldap  /var/lib/ldap/
+  systemctl start slapd
+  \end{code-block}
+
+  \item 修改ldap密码
+
+  \begin{code-block}{bash}
+  # 生成ldap的新密码，默认会生成类似{SSHA}unxPSArS17ggMRVDQElbH243CK5Gy5bc的输出
+  slappasswd -s password
+
+  # 编写修改的ldap脚本，注意，olcRootPW的值，即是上面的输出
+  cat >chrootpw.ldif<<EOF
+  dn: olcDatabase={0}config,cn=config
+  changetype: modify
+  add: olcRootPW
+  olcRootPW: {SSHA}b/fmgl5zYUIag/NKjeYj/Sm3/ymCtLeb
+  EOF
+
+  # 执行修改命令
+  ldapadd -Y EXTERNAL -H ldapi:/// -f chrootpw.ldif
+  \end{code-block}
+
+  \item 导入ldap的基本模式
+
+  \begin{code-block}{bash}
+  ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
+  ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif
+  ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
+  \end{code-block}
+
+
+  \item 配置ldap的domain信息
+
+  \begin{code-block}{bash}
+  cat > chdomain.ldif<<EOF
+  dn: olcDatabase={1}monitor,cn=config
+  changetype: modify
+  replace: olcAccess
+  olcAccess: {0}to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" read by dn.base="cn=admin,dc=polaris,dc=com" read by * none
+
+  dn: olcDatabase={2}hdb,cn=config
+  changetype: modify
+  replace: olcSuffix
+  olcSuffix: dc=polaris,dc=com
+
+  dn: olcDatabase={2}hdb,cn=config
+  changetype: modify
+  replace: olcRootDN
+  olcRootDN: cn=admin,dc=polaris,dc=com
+
+  dn: olcDatabase={2}hdb,cn=config
+  changetype: modify
+  add: olcRootPW
+  # 注意，密码同上
+  olcRootPW: {SSHA}b/fmgl5zYUIag/NKjeYj/Sm3/ymCtLeb
+
+  dn: olcDatabase={2}hdb,cn=config
+  changetype: modify
+  add: olcAccess
+  olcAccess: {0}to attrs=userPassword,shadowLastChange by dn="cn=admin,dc=polaris,dc=com" write by anonymous auth by self write by * none
+  olcAccess: {1}to dn.base="" by * read
+  olcAccess: {2}to * by dn="cn=admin,dc=polaris,dc=com" write by * read
+  EOF
+
+  ldapmodify -Y EXTERNAL -H ldapi:/// -f chdomain.ldif
+  \end{code-block}
+
+  \item 设置ldap的基本信息
+
+  \begin{code-block}{bash}
+  cat > basedomain.ldif<<EOF
+  dn: dc=polaris,dc=com
+  objectClass: top
+  objectClass: dcObject
+  objectclass: organization
+  o: polaris
+  dc: polaris
+  EOF
+
+  # -w passwd即上面的密码
+  ldapadd -x -D cn=admin,dc=polaris,dc=com -W -f basedomain.ldif -w passwd
+  \end{code-block}
+
+  \item 安装ldap的web管理
+  \begin{code-block}{bash}
+  yum install -y httpd php php-mbstring php-pear phpldapadmin
+
+  # 修改http配置/etc/httpd/conf/httpd.conf
+  # www.example.com行下新增如下内容
+  ServerName www.polaris.com
+
+  # 151行处修改为如下
+  AllowOverride All
+
+  # 164行处修改如下
+  DirectoryIndex index.html index.php index.cgi
+
+  # 文件末尾增加如下内容
+  ServerTokens Prod
+  KeepAlive On
+
+  # 修改phpldapadmin /etc/phpldapadmin/config.php
+  # 397行取消注释，398行注释掉，如下
+  # $servers->setValue('login','attr','dn');
+  # $servers->setValue('login','attr','uid');
+
+  # 修改/etc/httpd/conf.d/phpldapadmin.conf，如下
+  # <IfModule mod_authz_core.c>
+  #   Require local
+  #   Require ip 172.16.0.0/16
+  # </IfModule>
+
+  # 启动httpd
+  systemctl start httpd
+  systemctl enable httpd
+
+  # 使用浏览器访问http://<ip>/ldapadmin，用户名/密码cn=admin,dc=polaris,dc=com/passwd
+  \end{code-block}
+
+  \item 使用命令行添加用户
+  \begin{code-block}{bash}
+  cat > newuser.ldif<<EOF
+  dn: cn=sys,cn=developer,ou=gerrit,dc=polaris,dc=com
+  cn: sys
+  gidNumber: 501
+  givenName: sys
+  homeDirectory: /home/users/sys
+  loginShell: /bin/bash
+  mail: sys@awcloud.com
+  objectClass: inetOrgPerson
+  objectClass: posixAccount
+  objectClass: top
+  sn: sys
+  uid: sys
+  uidNumber: 1005
+  userPassword: {MD5}js1AV54zKRLnQEV9kc3Qiw==
+  EOF
+
+  ldapadd -x -D cn=admin,dc=polaris,dc=com -W -f newuser.ldif
+  \end{code-block}
+
+
+\end{enumerate}
+
+\subsubsection{安装gerrit服务}
+安装gerrit需要java>=11.0.16.1，并且需要使用gerrit用户，因此需要新建用户，并切换成gerrit用户：
+\begin{code-block}{bash}
+useradd -d /home/gerrit  -p gerrit  gerrit
+su - gerrit
+\end{code-block}
+
+然后使用gerrit用户进行操作
+\begin{code-block}{bash}
+java -jar gerrit-3.6.2.war init -d gerrit-review
+# 注意，参数最好保持一致
+# Authentication method          [openid/?]: ldap
+# Git/HTTP authentication        [http/?]: ldap
+# LDAP server                    [ldap://localhost]:
+# LDAP username                  : cn=admin,dc=polaris,dc=com
+# Account BaseDN                 : dc=polaris,dc=com
+# Group BaseDN                   [dc=polaris,dc=com]:
+# Canonical URL                  [http://localhost:8080/]: http://10.1.1.105:8080
+# Install plugin hooks version v3.6.2 [y/N]? y
+# Install plugin webhooks version v3.6.2 [y/N]? y
+\end{code-block}
+
+安装成功之后，即可使用ldap当中的用户登陆gerrit（\url{ http://10.1.1.105:8080/#/admin/projects/}）进行操作了。
+启动gerrit服务如下：
+\begin{code-block}{bash}
+gerrit-review/bin/gerrit.sh start
+\end{code-block}
+
+随后，ldap的用户即可使用ssh协议拉取代码了：
+\begin{code-block}{bash}
+git clone "ssh://admin@10.1.1.42:29418/demo" && scp -p -P 29418 admin@10.1.1.42:hooks/commit-msg "demo/.git/hooks/"
+# 新版本的gerrit与sftp协议存在部分兼容的问题，上述指令可能出错，则换成下面的指令：
+git clone "ssh://admin@10.1.1.42:29418/demo" && scp -O -P 29418 admin@10.1.1.42:hooks/commit-msg "demo/.git/hooks/"
+\end{code-block}
