@@ -137,12 +137,11 @@ Gerrit可以通过两种方式进行安装：docker和普通方式。Docker方�
 
   \item ldap用户管理
 
-  登陆\codeinline{bash}{https://<ip address（服务器ip）>:6443}，用户名为\codeinline{bash}{cn=admin,dc=example,dc=org}，
-  密码为\codeinline{secret}，登陆成功之后，按照ldap的规则创建用户即可。ldap的用户
+  登陆\url{https://serverip:6443}，用户名为“cn=admin,dc=example,dc=org”，
+  密码为secret，登陆成功之后，按照ldap的规则创建用户即可。ldap的用户
   就是gerrit的用户。注意，第一个登陆的用户会被当成表成gerrit的管理员。
 
 \end{enumerate}
-
 
 \subsection{普通方式}
 
@@ -320,9 +319,11 @@ java -jar gerrit-3.6.2.war init -d gerrit-review
 # LDAP username                  : cn=admin,dc=polaris,dc=com
 # Account BaseDN                 : dc=polaris,dc=com
 # Group BaseDN                   [dc=polaris,dc=com]:
+# Install Verified label         [y/N]?
 # Canonical URL                  [http://localhost:8080/]: http://10.1.1.105:8080
 # Install plugin hooks version v3.6.2 [y/N]? y
 # Install plugin webhooks version v3.6.2 [y/N]? y
+# Install plugin replication version v3.6.2 [y/N]? y
 \end{code-block}
 
 安装成功之后，即可使用ldap当中的用户登陆gerrit（\url{ http://10.1.1.105:8080/#/admin/projects/}）进行操作了。
@@ -337,3 +338,95 @@ git clone "ssh://admin@10.1.1.42:29418/demo" && scp -p -P 29418 admin@10.1.1.42:
 # 新版本的gerrit与sftp协议存在部分兼容的问题，上述指令可能出错，则换成下面的指令：
 git clone "ssh://admin@10.1.1.42:29418/demo" && scp -O -P 29418 admin@10.1.1.42:hooks/commit-msg "demo/.git/hooks/"
 \end{code-block}
+
+如果需要开启gerrit的管理功能，则需要修改gerrit的配置：
+\begin{code-block}{bash}
+cat >>gerrit-review/etc/gerrit.config<<EOF
+[plugins]
+        allowRemoteAdmin = true
+EOF
+\end{code-block}
+并修改gerrit.sh脚本：
+\begin{code-block}{bash}
+vi gerrit-review/bin/gerrit.sh +37
+# 加入如下内容
+# export GERRIT_SITE=/home/gerrit/gerrit-review
+# 对所有用户开放权限
+ln -s /home/gerrit/gerrit-review/bin/gerrit.sh /usr/bin/gerrit
+\end{code-block}
+
+此时，即可以对gerrit进行命令行的管理了：
+\begin{code-block}{bash}
+# 查看gerrit的插件
+ssh -p 29418 gerrit@localhost gerrit plugin ls
+# 重载插件
+ssh -p 29418 gerrit@localhost gerrit plugin reload replication
+\end{code-block}
+
+\subsection{集成GitLab}
+Gerrit本身可以存放git代码，也可以集成GitLab，将代码放置在GitLab当中。比较简单的
+做法是Gerrit和GitLab都放置一份，只是Gerrit定期向GitLab同步即可。下面就主要讲解
+这种方式的做法。
+
+\begin{enumerate}
+  \item 生成gerrit用户的ssh-key（gerrit服务器），并上传到gerrit页面上，以及GitLab页面上
+  \item GitLab创建项目（mirror），并初始化
+  \item 在Gerrit上创建同名的项目（mirror），然后进入gerrit服务器
+
+  \begin{code-block}{bash}
+  rm -rf gerrit-review/git/mirror.git
+  # 之后直接从GitLab克隆同名的项目
+  git clone --bare git@gitlab.corp.awcloud.com:awcloudhardware/mirror.git
+  \end{code-block}
+
+  \item 创建gerrit的同步配置文件
+
+  \begin{code-block}{bash}
+  cat >gerrit-review/etc/replication.config<<EOF
+  [remote "mirror"]
+  url =  git@gitlab.corp.awcloud.com:awcloudhardware/mirror.git
+  push = +refs/heads/*:refs/heads/*
+  push = +refs/tags/*:refs/tags/*
+  push = +refs/changes/*:refs/changes/*
+  threads = 3
+  timeout = 30
+  projects = "mirror"
+  EOF
+  \end{code-block}
+
+  注意，remote当中的名称需要和projects当中的保持一致。如果需要同步多个项目，
+ 则直接添加多个remote配置即可，也可以如下进行配置：
+  \begin{code-block}{bash}
+  cat >gerrit-review/etc/replication.config<<EOF
+  [remote "mirror"]
+  url =  git@gitlab.corp.awcloud.com:awcloudhardware/mirror.git
+  projects = "mirror"
+
+  [remote "abc"]
+  url =  git@gitlab.corp.awcloud.com:awcloudhardware/abc.git
+  projects = "abc"
+
+  [remote "gitlab"]
+  url =  git@gitlab.corp.awcloud.com:awcloudhardware/${name}.git
+  push = +refs/heads/*:refs/heads/*
+  push = +refs/tags/*:refs/tags/*
+  push = +refs/changes/*:refs/changes/*
+  threads = 3
+  timeout = 30
+  EOF
+  \end{code-block}
+  \item 重启Gerrit服务即可，或者重载replication插件
+
+  \begin{code-block}{bash}
+  ssh -p 29418 gerrit@localhost gerrit plugin reload replication
+  \end{code-block}
+\end{enumerate}
+
+\subsection{参考资料}
+\url{https://cloud.tencent.com/developer/article/1026081}
+
+\url{https://www.cnblogs.com/yinzhengjie/p/11057383.html}
+
+\url{https://summerandwinter.github.io/mac-gerrit-gitlab.html}
+
+\url{https://notes.lzwang.ltd/Docker/deploy/docker_deploy_gerrit/#docker-composeyaml}
