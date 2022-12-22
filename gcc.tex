@@ -300,8 +300,8 @@ __must_be_array(e); // 同样是编译提示错误
 
 \section{Makefile}
 Makefile当中包含了一些特殊的系统变量，这些特定的系统变量如表\colorunderlineref{tab:macro_of_makefile}所示
-\begin{center}
-  \captionof{table}{GCC的特定系统变量}
+\begin{table}[H]
+  \caption{GCC的特定系统变量}
   \label{tab:macro_of_makefile}
   \rowcolors{2}{green!80!yellow!50}{green!70!yellow!40}
   \begin{tabularx}{\textwidth}{|X|X|}
@@ -313,7 +313,7 @@ Makefile当中包含了一些特殊的系统变量，这些特定的系统变量
   \centering \$@ & 目标文件完整名称\\
   \centering \$\^{} & 所有不重复的依赖文件\\ \hline
   \end{tabularx}
-\end{center}
+\end{table}
 
 比如有如下的一段代码
 \begin{code-block}{make}

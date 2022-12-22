@@ -252,8 +252,9 @@ class RootController(rest.RestController):
 
 与\colorunderlineref{chap:start}章节不一样的是，在使用RestController的时候，Pecan提供了默认的路由信息。具体的
 路由对照如下表
-\begin{center}
-  \captionof{table}{Pecan默认路由表}
+\begin{table}[H]
+  %\captionof{table}{Pecan默认路由表}
+  \caption{Pecan默认路由表}
   \label{tab:Pecan_URL_Mapping}
   \rowcolors{2}{green!80!yellow!50}{green!70!yellow!40}
   \begin{tabularx}{\textwidth}{|X|X|X|}
@@ -265,7 +266,7 @@ class RootController(rest.RestController):
   put & Update an existing record & PUT /nodes/1 \\
   delete & Delete an existing record & DELETE /nodes/1 \\ \hline
   \end{tabularx}
-\end{center}
+\end{table}
 
 但很显然的是，以上的路由映射，并不能完全满足生产环境的需要。因此，Pecan提供了自定义
 路由的机制。
