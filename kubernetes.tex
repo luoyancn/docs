@@ -5,8 +5,8 @@ Kubernetes是Google开源的容器集群管理软件，可以方便的管理容�
 Kubernetes可以使用单节点部署，但这种模式一般只用于测试环境。而在实际的生产环境中，
 必须使用多节点的方式安装。Kubernetes的最小集群需要4台节点：1个monitor，3个nodes。
 每个节点的具体作用如下表。
-\begin{center}
-  \captionof{table}{K8S节点功能}
+\begin{table}
+  \caption{K8S节点功能}
   \label{tab:k8s_service_mapping}
   \rowcolors{2}{green!80!yellow!50}{green!70!yellow!40}
   \begin{tabularx}{\textwidth}{|l|l|X|}
@@ -18,7 +18,7 @@ Kubernetes可以使用单节点部署，但这种模式一般只用于测试环�
   172.16.1.157 & k8s3 & kube-proxy, kubelet, flanneld, docker \\
   \hline
   \end{tabularx}
-\end{center}
+\end{table}
 
 \section{通用安装}
 
