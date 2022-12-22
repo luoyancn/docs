@@ -83,3 +83,11 @@ EOF
 # 将windows的E盘/虚拟光驱挂载到/srv下
 mount -t drvfs E: /srv
 \end{code-block}
+
+\section{禁用windows cortana的联网搜索}
+修改注册表（如果没有就新建）：
+\begin{code-block}{bat}
+#计算机\HKEY_CURRENT_USER\SOFTWARE\Policies\Microsoft\Windows\Explorer
+DisableSearchBoxSuggestions = 1
+\end{code-block}
+同时，禁用windows search服务，将不再对文件进行搜索。然后重启电脑即可

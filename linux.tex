@@ -1157,6 +1157,14 @@ ffmpeg -i 1.jpg  -vf scale=iw/2:ih/2 -codec libwebp -lossless 0 -quality 100 1.w
 ffmpeg -h encoder=libwebp
 \end{code-block}
 
+\2 视频截取
+\begin{code-block}{bash}
+# -c copy表示不改变编码
+# -ss 表示从时间点开始
+# -t 表示截止时间点
+ffmpeg -i old.mp4 -c copy -ss 00:00:00 -t 01:43:29 new.mp4
+\end{code-block}
+
 \1 下载youtube视频
 
 \begin{code-block}{bash}
