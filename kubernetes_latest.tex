@@ -142,9 +142,10 @@ WantedBy=multi-user.target
 需要的二进制文件主要包含了网络（calico:\url{https://docs.projectcalico.org/v3.1/releases/}），
 安全（cfssl），kubernetes以及其他插件。相关的软件（除kubernetes之外）最好都是最新版本。
 \par\parshape0 \linewidth\textwidth
-\begin{table}
+  \captionof{table}{二进制文件}
+  \label{tab:k8s_binary_files}
   \rowcolors{2}{green!80!yellow!50}{green!70!yellow!40}
-  \begin{tabularx}{\textwidth}{|l|X|}
+  \begin{xltabular}{\textwidth}{|l|X|}
   \hline
   Binary & Download URL\\ \hline
   calico & \url{https://github.com/projectcalico/cni-plugin/releases/download/v2.0.0/calico}\\
@@ -156,11 +157,9 @@ WantedBy=multi-user.target
   kubernetes & \url{https://github.com/kubernetes} \\
   cfssl & \url{https://pkg.cfssl.org/} \\
   \hline
-  \end{tabularx}
-  \label{tab:k8s_binary_files}
-  \caption{二进制文件}
-\end{table}
+  \end{xltabular}
 将以上所有二进制文件拷贝到主机的/usr/local/bin目录下即可。
+
 注意，该配置默认使用集群模式，需要相关节点做ssh互信。ssh互信的配置不再赘述。
 
   \1 设置安全证书

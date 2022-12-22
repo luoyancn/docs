@@ -172,6 +172,7 @@ Gerrit可以通过两种方式进行安装：docker和普通方式。Docker方�
   cat >chrootpw.ldif<<EOF
   dn: olcDatabase={0}config,cn=config
   changetype: modify
+  # 如果出现错误，可尝试使用replace替换下面的add
   add: olcRootPW
   olcRootPW: {SSHA}b/fmgl5zYUIag/NKjeYj/Sm3/ymCtLeb
   EOF
@@ -268,6 +269,8 @@ Gerrit可以通过两种方式进行安装：docker和普通方式。Docker方�
   # <IfModule mod_authz_core.c>
   #   Require local
   #   Require ip 172.16.0.0/16
+  # 允许所有地址访问
+  #   Require all granted
   # </IfModule>
 
   # 启动httpd
