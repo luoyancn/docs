@@ -13,6 +13,8 @@
 \usepackage{indentfirst}
 \usepackage{fancyhdr}
 \usepackage{float}
+% pifont的特殊符号
+\usepackage{dingbat}
 \usepackage{pifont}
 \usepackage{geometry}
 % hyperref之前
@@ -52,9 +54,9 @@
 
 % 页面水印的一种实现方式，但与新版本的(>=2021)的latex不兼容
 %\usepackage[printwatermark]{xwatermark}
-\usepackage{pagecolor}
 
 % 设置页面颜色
+\usepackage{pagecolor}
 \pagecolor{yellow!8!white}
 
 % 每页的脚注重新编号
@@ -67,9 +69,13 @@
                 decorations.pathmorphing,backgrounds,
                 positioning,petri,automata}
 %\tikzset{font=\tiny}
+
 \definecolor{yellow1}{rgb}{1,0.8,0.2}
 \DeclareGraphicsRule{.mps}{eps}{.mps}{}
 \definecolor{lbcolor}{rgb}{0.9,0.9,0.9}
+\definecolor{codecolor}{RGB}{251,241,199}
+
+% 设置minted的样式
 % \usemintedstyle{tango}
 % 设置minted字体
 \setmonofont{CodeNewRoman Nerd Font Mono}
@@ -101,7 +107,9 @@
 \newcommand{\colorunderline}[1]{\CJKunderline[thickness=0.5ex, format=\color{WildStrawberry},skip=false]{#1}}
 % nameref颜色的单独设置，可以与目录区的linkcolor区分开
 \newcommand{\colorunderlineref}[1]{\hypersetup{linkcolor=RedOrange}\nameref{#1}\hypersetup{linkcolor=black}}
+\newcommand{\coloref}[1]{\hypersetup{linkcolor=RedOrange}\ref{#1}\hypersetup{linkcolor=black}}
 
+% 设置背景图片
 \newcommand\BackgroundPic{%
 \put(0,0){%
 \parbox[b][\paperheight]{\paperwidth}{%
@@ -111,7 +119,7 @@
 \vfill
 }}}
 
-% 设置字体
+% 设置正文英文字体
 \setmainfont{Times New Roman}
 %\setmainfont{CodeNewRoman Nerd Font Mono}
 %宋体
@@ -119,6 +127,7 @@
 % 华文新楷
 %\setCJKmainfont{STXINGKA.TTF}
 %\setCJKmainfont{方正硬笔行书简体.ttf}
+% 设置正文中文字体
 \setCJKmainfont{方正北魏楷书简体.ttf}
 % 设置页边距
 %\geometry{left=2.5cm,right=2.5cm,top=2.4cm,bottom=2.4cm}
@@ -264,7 +273,53 @@
 % 另一种删除由于错误代码所引起的红色边框，影响范围较大，可用于minted，inputminted，mintedline等
 \renewcommand{\fcolorbox}[4][]{#4}
 
-\newtcblisting{code-block}[1]
+\makeatletter
+\def\namedlabel#1#2{\begingroup#2\def\@currentlabel{#2}\phantomsection\label{#1}\endgroup}
+\makeatother
+
+% 改造code-block的实现，使其支持可选参数，可以根据需要添加minted的各项参数
+% 比如增加逃逸代码等，需要注意，escapeinside表示逃逸代码的标记符成对出现，
+% mathescape表示数学公式也启用逃逸。但是，escapeinside与mathescape会影响
+% 到$符号的正常显示与输出，并且会提示错误，因此，如果需要使用$符号，应当如下：
+% \begin{code-block}[escapeinside=~~,mathescape]{python}
+% macro_rules! create_function {
+%     // ~\mbox{\textdollar}~ident
+%     (~\mbox{\textdollar}~func_name: ident) => {
+%         fn ~\mbox{\textdollar}~func_name() {
+%             info!("You called the {}()", stringify!(~\mbox{\textdollar}~func_name));
+%         }
+%     };
+% }
+% \end{code-block}
+%
+% 如果要创建minted代码当中指定行的引用，并能够跳转，则需要如下使用：
+%
+% \begin{code-block}[escapeinside=~~,mathescape]{python}
+% def f(x):
+%     """Square the given values.
+%        x is an integer
+%        returns x squared.
+%     """
+%     关键点就在那个\phantomsection指令上，否则会出现跳转有误的情况
+%     y = ~\colorbox{green}{x**2}\phantomsection\label{m:pow}~
+%     return y
+% \end{code-block}
+% minted的代码引用目前只能是根据行进行展示，只能使用\ref，不能使用\nameref
+% see the line of \ref{m:pow}
+% 如果定义了上述的namedlabel命令，则可以如下使用：
+% \begin{code-block}[escapeinside=~~,mathescape]{python}
+% def f(x):
+%     """Square the given values.
+%        x is an integer
+%        returns x squared.
+%     """
+%     y = ~\colorbox{green}{x**2}\namedlabel{code}{\ding{202}}~
+%     return y
+% \end{code-block}
+% minted的代码引用目前只能是根据行进行展示，只能使用\ref，但可以使用上面namelabel
+% 所标记的名称
+% see the line of \ref{code}
+\newtcblisting{code-block}[2][]
 {beamer,colback=yellow!8!white,colframe=black,listing only,breakable, width=\linewidth,
  %underlay={\begin{tcbclipinterior}
  %\shade[inner color=black!80!white,outer color=yellow!10!white]
@@ -272,9 +327,29 @@
  %\draw[help lines,step=1cm,yellow!40!black,shift={(interior.north west)}]
  %(interior.south west) grid (interior.north east);
  %\end{tcbclipinterior}},
- listing engine=minted, minted language={#1},
+ listing engine=minted, minted language={#2},
  minted options={fontsize=\scriptsize,linenos=false,breaklines=true,
- breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,}}
+ breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,#1}}
+
+% 从文件中读取代码的实现
+% 使用方式：\codefile{rust}{new.rs}
+\newtcbinputlisting{codefile}[2]
+{beamer, colback=gray!20!white, colframe=gray!35!white,
+ listing only,breakable,width=\linewidth,
+ listing engine=minted,
+ minted language={#1},
+ listing file={#2},
+ minted options={
+    fontsize=\scriptsize,breaklines=true,
+    breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,}
+    % 在tcolorbox当中显示行号，也可用于上面定义的code-block
+    %numbersep=2mm,linenos,},
+    %overlay={
+    %  \begin{tcbclipinterior}
+    %      \fill[gray!25] (frame.south west) rectangle ([xshift=4mm]frame.north west);
+    %  \end{tcbclipinterior}
+    %}
+}
 
 % 设置单行代码样式，当页面宽度不够时，bgcolor参数将影响换行操作
 \newcommand{\codeinlinebg}[1]{\mintinline[bgcolor=lbcolor,]{#1}}

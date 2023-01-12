@@ -35,11 +35,11 @@ Rust当中，针对引用和借用，有一个特殊的机制：借用检查器�
 \begin{code-block}{rust}
 {
     let r;                      // ---------+-- 'a
-    {                            //          |
-        let x = 5;             // -+-- 'b  |
+    {                           //          |
+        let x = 5;              // -+-- 'b  |
         r = &x;                 //  |       |
-    }                            // -+       |
-    println!("r: {}", r); // ---------+
+    }                           // -+       |
+    println!("r: {}", r);       // ---------+
 }
 \end{code-block}
 
@@ -201,8 +201,7 @@ fn longest_with_an_announcement<'a, T>(x: &'a str, y: &'a str, ann: T) -> &'a st
 当存在多个生命周期需求的时候，为了表示生命周期长短，则需要使用冒号：
 \begin{code-block}{rust}
 fn test<'a, 'b>(arg: &'a T) -> &'b i32
-// 表示a的生命周期必须比b要长
-where 'a:'b
+where 'a:'b// 表示a的生命周期必须比b要长
 {
     &arg.member
 }
@@ -318,6 +317,258 @@ EOF
 \end{code-block}
 然后执行测试即可。
 \end{outline}
+
+\section{泛型}
+Rust当中使用<>操作符进行泛型的定义。泛型不仅可以用于函数和方法，也可以用于结构体。
+\subsection{泛型结构体}
+泛型结构体可以包含一种类型，也可以包含多种类型：
+\begin{code-block}{rust}
+struct Point<T> { x: T, y: T, }
+\end{code-block}
+上述结构体由于只使用了一种类型T，因此x和y只能是相同的数据类型。如果要求x和y是不同
+类型，则需要修改这个结构体的泛型定义：
+\begin{code-block}{rust}
+struct Point<T,U> { x: T, y: U, }
+\end{code-block}
+
+泛型结构体的方法定义，则和之前的普通结构体有区别：
+\begin{code-block}{rust}
+struct Point<T> { x: T, y: T, }
+impl<T> Point<T> {
+    fn x(&self) -> &T {
+        &self.x
+    }
+}
+\end{code-block}
+
+而不同数据类型的泛型的结构体方法则基本如下：
+\begin{code-block}{rust}
+struct Points<T, U> { x: T, y: U, }
+impl<T, U> Points<T, U> {
+    fn mixup<V, W>(self, other: Points<V, W>) -> Points<T, W> {
+        return Points {
+            x: self.x,
+            y: other.y,
+        };
+    }
+}
+\end{code-block}
+
+另外需要注意的是，泛型允许拥有默认值：
+\begin{code-block}{rust}
+// T为泛型，T=u8则表示：如果不进行T类型的指定，默认情况下，T的类型是u8
+struct S<T = u8> { data: T, }
+fn main() {
+    let v1 = S { data: 128 };
+    // 设置T类型为String
+    let v2 = S::<String> {
+        data: "lucifer".to_string(),
+    };
+    let v3 = S::<&str> { data: "lucifer" };
+    info!("{}, {}, {}", v1.data, v2.data, v3.data);
+}
+\end{code-block}
+
+\subsection{Trait的基本使用}
+Trait告诉Rust编译器某个特定类型拥有可能与其他类型共享的功能。通过trait可以以一种
+抽象的方式定义共享的行为，也可以使用trait bounds指定泛型是任何拥有特定行为的类型。
+整体上，Trait比较类似于Golang/Java当中的接口（interface）。
+
+Trait的定义如同其他语言当中的接口，都比较类似，如下：
+\begin{code-block}{rust}
+// 定义trait的名称为Summary
+pub trait Summary {
+    // 定义trait所必须包含的方法，每一个方法使用分号分隔
+    fn summarize(&self) -> String;
+}
+\end{code-block}
+
+每一个实现Trait的类型，都必须实现trait当中要求实现的所有方法。比如一个可能的trait的实现
+如下：
+\begin{code-block}{rust}
+pub struct User {
+    name: String,
+    age: u8,
+    email: String,
+    activate: bool,
+}
+impl Summary for User {
+    fn summarize(&self) -> String {
+        return format!(
+            "Name:{}, Age: {}, Email: {}, Activate: {}",
+            self.name, self.age, self.email, self.activate
+        );
+    }
+}
+\end{code-block}
+
+一旦类型实现了一个Trait，对应的trait方法就可以如同原本类型的方法一样的使用：
+\begin{code-block}{rust}
+use objects::User;
+use traitlib::Summary;
+fn main() {
+    let u = User::create("zhangjl", 33, "zhangjl@awcloud.com", true);
+    println!("The trait of user object :{}", u.summarize());
+}
+\end{code-block}
+需要注意，如果trait和main并不在相同的文件或者模块当中，则在使用的时候，必须显式
+的引入trait，否则无法正常运行。
+
+Trait的每个方法都可以有默认的实现：
+\begin{code-block}{rust}
+pub trait Summary {
+    // 定义trait方法的默认实现
+    fn summarize(&self) -> String {
+        return "(Trait Default summarize method)...".to_string();
+    }
+}
+\end{code-block}
+
+如果在实现某个类型的trait时，需要使用原始Trait的默认方法，则可以如下进行操作：
+\begin{code-block}{rust}
+pub struct Empty {}
+impl Summary for Empty {}
+\end{code-block}
+同样的，Empty的实例可以无碍的调用summarize方法，只不过，输出的结果是默认输出而已。
+
+如果Trait有多个方法，而且多个方法都有默认实现，如下：
+\begin{code-block}{rust}
+// 包含多个默认方法实现的Trait
+pub trait Summary {
+    fn summarize(&self) -> String {
+        return "(Trait Default summarize method)...".to_string();
+    }
+    fn work(&self) {
+        println!("(Default work method)...")
+    }
+}
+\end{code-block}
+
+上述代码当中的User和Empty都可以调用summarize和work方法，只不过结果存在区别：
+User的summarize调用的是自己的实现（impl），只有work调用默认的Trait实现；而empty
+则全部调用的是默认的Trait实现。使用这种方式，可以解决这样的一个需求：有一个类型，
+只想实现Trait的一部分方法。
+
+Rust的Trait还存在一个特点：Trait的方法之间可以进行相互的调用，因此，除了上述的方式，
+Rust还允许使用下面的一种方式来实现这种需求：即Trait有多个方法，但需求只需要实现
+其中的一个或者多个：
+\begin{code-block}{rust}
+pub trait Summary {
+    fn summarize_author(&self) -> String;
+    fn summarize(&self) -> String {
+        format!("(Read more from {}...)", self.summarize_author())
+    }
+}
+\end{code-block}
+在实现该trait时，通常情况下，只需要实现summarize\_author方法即可，如下：
+\begin{code-block}{rust}
+impl Summary for User {
+    fn summarize_author(&self) -> String {
+        return format!(
+            "Name:{}, Age: {}, Email: {}, Activate: {}",
+            self.name, self.age, self.email, self.activate
+        );
+    }
+}
+\end{code-block}
+
+\subsection{使用Trait作为函数参数和返回值}
+相比于接口，Rust的Trait更类似于一个C当中的指针，因此，也同样可以作为函数参数以及
+返回值。
+
+使用Trait作为函数参数，定义一个普通的函数，其示例基本如下：
+\begin{code-block}{rust}
+pub fn notify(item: impl Summary) {
+    println!("Breaking news! {}", item.summarize());
+}
+\end{code-block}
+
+在实质上，上述代码在内部实现实际上如下：
+\begin{code-block}{rust}
+pub fn notify<T: Summary>(item: T) {
+    println!("Breaking news! {}", item.summarize());
+}
+\end{code-block}
+这种方式称之为Trait bound。Trait bound的使用也是非常灵活的。对比如下的代码：
+\begin{code-block}{rust}
+pub fn notify(item1: impl Summary, item2: impl Summary) {
+    println!("Breaking news! {}", item1.summarize());
+    println!("Breaking news! {}", item2.summarize());
+}
+\end{code-block}
+上述代码，item1和item2可以是不同的Trait实现，比如上述说道的User和Empty，都是合法
+的Trait实现。如果要求item1和item2是实现了Trait的相同实现类型，则上述的函数签名
+无法满足，就需要使用Trait bound的模式，其示例如下：
+\begin{code-block}{rust}
+pub fn notify<T: Summary>(item1: T, item2: T) {
+    println!("Breaking news! {}", item1.summarize());
+    println!("Breaking news! {}", item2.summarize());
+}
+\end{code-block}
+否则，在代码进行编译的过程中，就会出现错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_trait_bound.png}
+  \caption{不同的Trait bound}
+  \label{fig:rust_trait_bound}
+\end{figure}
+
+和Java/Golang一样，Rust也允许同一个类型实现多个Trait。同样的，多个Trait也可以作为
+函数的参数进行传递：
+\begin{code-block}{rust}
+pub fn notify_multi_trait(item: &(impl Summary + Display)) {
+    println!("{}", item);
+    item.work();
+}
+// 也可以使用Trait bound
+pub fn notify<T: (Summary + Display)>(item: T) {
+    println!("{}", item);
+    item.work();
+}
+\end{code-block}
+
+如果函数接收多个参数，但这些参数都是多个trait组合的实现类型，就会导致函数签名特别
+长，比如下方：
+\begin{code-block}{rust}
+fn some_function<T: Display + Clone, U: Clone + Debug>(t: T, u: U) -> i32 {
+    ...
+}
+\end{code-block}
+针对这种情况，就完全可以使用where模式进行简写：
+\begin{code-block}{rust}
+pub fn multi<T, U>(t: T, u: U) -> u8
+where
+    T: Summary + Display,
+    U: Summary,
+{
+    ...
+}
+\end{code-block}
+
+同样的，Trait也可作为函数/方法的返回值进行使用，如下：
+\begin{code-block}{rust}
+pub fn NewSummary() -> impl Summary {
+    return User::create("zhangzz", 4, "zhangzz@outlook.com", true);
+}
+\end{code-block}
+上述函数只能返回一个类型。如果需要返回不同的类型，我们编写的代码可能如下：
+\begin{code-block}{rust}
+pub fn NewSummary(swith: bool) -> impl Summary {
+    if swith {
+        return User::create("zhangzz", 4, "zhangzz@outlook.com", true);
+    } else {
+        return Empty{}
+    }
+}
+\end{code-block}
+很不幸的是，上述代码错误的，错误信息如下：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_trait_return.png}
+  \caption{试图返回不同的Trait实现类型}
+  \label{fig:rust_trait_return}
+\end{figure}
+而这种需求的实现，则需要另外的方式进行实现。
 
 \section{Rust的函数式编程}
 Rust同样支持函数式编程。相比于其他语言，Rust的函数式编程性能和效率更高。Rust常见的

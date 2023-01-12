@@ -138,7 +138,7 @@ gcc -o testmain testmain.c -L./ testlib.so
 
 最后执行文件
 \begin{code-block}{bash}
-# 由于Linux下，默认的so文件全部放在$LD_LIBRARY_PATH，即/usr/lib和/usr/lib64下，
+# 由于Linux下，默认的so文件全部放在LD_LIBRARY_PATH，即/usr/lib和/usr/lib64下，
 # 因此，链接到自己的so文件时，要么将这个so放到规定的路径下，要么使用环境变量的模式进行加载
 LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH ./testmain
 

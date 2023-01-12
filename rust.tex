@@ -542,7 +542,6 @@ enum Coin {
     Dime,
     Quarter,
 }
-
 fn value_in_cents(coin: Coin) -> u8 {
     match coin {
         Coin::Penny => 1,
@@ -561,7 +560,6 @@ enum IPADDR {
     V4(u8, u8, u8, u8),
     V6(String),
 }
-
 impl IPADDR {
     fn show(&self) {
         match self {
@@ -570,7 +568,6 @@ impl IPADDR {
             IPADDR::V6(v6) => println!("The V6 addr is ipv6 addr {}", v6),
         }
     }
-
     fn format(&self) -> String {
         match self {
             IPADDR::V4(a, b, c, d) => {
@@ -581,7 +578,6 @@ impl IPADDR {
         }
     }
 }
-
 impl fmt::Display for IPADDR {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -627,13 +623,10 @@ impl Message {
 \begin{code-block}{rust}
 let mut msg = Message::Quit;
 msg.call();
-
 msg = Message::Move { x: 100, y: 200 };
 msg.call();
-
 msg = Message::Write(String::from("zhangjl"));
 msg.call();
-
 msg = Message::ChangeColor(255, 0, 0);
 msg.call();
 \end{code-block}
@@ -663,10 +656,8 @@ fn plus(x: Option<u8>) -> Option<u8> {
        Some(i) => Some(i + 1),
     }
 }
-
 let six = plus(Some(5));
 let six_num = six.unwrap();
-
 let none_type = plus(None);
 let none_value = none_type.unwrap_or_default();
 \end{code-block}
@@ -675,7 +666,6 @@ Match可以匹配多个条件，但是，如果只需要匹配个别的情况，
 需要使用通配符进行处理，通配符为\_，其基本使用如下：
 \begin{code-block}{rust}
 let some_u8_value = 0u8;
-
 match some_u8_value {
     1 => println!("one"),
     3 => println!("three"),
@@ -690,9 +680,7 @@ match some_u8_value {
 if let Some(3) = some_u8_value {
     println!("three");
 }
-
 let mut count = 0;
-
 if let Coin::Quarter(state) = coin {
     println!("State quarter from {:?}!", state);
 } else {
@@ -703,16 +691,202 @@ if let Coin::Quarter(state) = coin {
 同样的，match也可以和其他的数据类型一起使用：
 \begin{code-block}{rust}
 let v = vec![1, 2, 3];
-
 // 从集合vector当中获取索引标记的数据
 let ele = match v.get(1) {
     // Some(&ref)，即some当中的参数永远是引用数据类型
     Some(val) => *val,
     None => 0,
 };
-
 println!("{}", ele);
 \end{code-block}
+
+关于match的用法，还有很多，并且多数和模式匹配有关，接下来可以看一些常见的match和模式匹配的使用方式。
+\begin{outline}[enumerate]
+\1 多种匹配模式
+
+在match表达式当中，可以用|匹配多个模式，表示或运算：
+\begin{code-block}{rust}
+let x = 1;
+match x {
+    1 | 2 => println!("one or two"),
+    3 => println!("three"),
+    _ => println!("anything"),
+}
+\end{code-block}
+
+\1 使用..=匹配范围
+
+..=语法允许匹配一个数值范围内的任意数据，常用于数值和字符：
+\begin{code-block}{rust}
+let x = 5;
+match x {
+    1..=5 => println!("one through five"),
+    _ => println!("something else"),
+}
+
+let y = 'c';
+match y {
+    'a'..='j' => println!("early ASCII letter"),
+    'k'..='z' => println!("late ASCII letter"),
+    _ => println!("something else"),
+}
+\end{code-block}
+
+\1 解构结构体
+
+Let模式可以将结构体当中的字段/元素进行解构，单独或者批量赋予其他元素：
+\begin{code-block}{rust}
+struct Point {
+    x: i32,
+    y: i32,
+}
+fn main() {
+    let p = Point { x: 0, y: 7 };
+    // 将p的x字段的值赋予a，y字段的值赋予b，a和b是整数类型，不是引用
+    let Point { x: a, y: b } = p;
+    // let Point {x: ref a, y: ref b} = p; 和上面类似，但是a和b是整数类型的引用
+    // let Point {x: a, y: _} = p; 表示只需要将x的值赋予a，但不需要对y进行解构
+    assert_eq!(0, a);
+    assert_eq!(7, b);
+    // let Point {x, y} = p; 将p的x字段的值赋予变量x，y字段的值赋予变量y
+}
+\end{code-block}
+
+\1 解构枚举类型
+
+Match本身就是应枚举而生的，因此天然的可以使用它对枚举进行解构：
+\begin{code-block}{rust}
+enum Message {
+    Quit,
+    Move { x: i32, y: i32 },
+    Write(String),
+    ChangeColor(i32, i32, i32),
+}
+fn main() {
+    let msg = Message::ChangeColor(0, 160, 255);
+    match msg {
+        Message::Quit => {
+            println!("The Quit variant has no data to destructure.")
+        }
+        Message::Move { x, y } => {
+            println!("Move in the x direction {} and in the y direction {}", x, y);
+        }
+        Message::Write(text) => println!("Text message: {}", text),
+        Message::ChangeColor(r, g, b) => {
+            println!("Change the color to red {}, green {}, and blue {}", r, g, b)
+        }
+    }
+}
+\end{code-block}
+
+同样的，如果枚举当中嵌套了枚举，仍然可以使用match进行解构：
+\begin{code-block}{rust}
+enum Color {
+    Rgb(i32, i32, i32),
+    Hsv(i32, i32, i32),
+}
+enum Message {
+    Quit,
+    Move { x: i32, y: i32 },
+    Write(String),
+    ChangeColor(Color),
+}
+fn main() {
+    let msg = Message::ChangeColor(Color::Hsv(0, 160, 255));
+    match msg {
+        Message::ChangeColor(Color::Rgb(r, g, b)) => {
+            println!("Change the color to red {}, green {}, and blue {}", r, g, b)
+        }
+        Message::ChangeColor(Color::Hsv(h, s, v)) => {
+            println!(
+                "Change the color to hue {}, saturation {}, and value {}",
+                h, s, v
+            )
+        }
+        _ => (),
+    }
+}
+\end{code-block}
+
+\1 解构复合数据
+
+用复杂的方式来混合、匹配和嵌套解构模式，解析出我们感兴趣的数据：
+\begin{code-block}{rust}
+let ((feet, inches), Point {x, y}) = ((3, 10), Point { x: 3, y: -10 });
+\end{code-block}
+
+\1 忽略不需要的元素
+
+在Rust的当中，默认可以使用\_对不必要的变量进行忽略，通常用在match的最后分支，但是，
+实际上也可以用去其他任意的模式，甚至是函数参数：
+\begin{code-block}{rust}
+// 需要传入2个参数，但是忽略第一个参数
+fn foo(_: i32, y: i32) {
+    println!("This code only uses the y parameter: {}", y);
+}
+fn main() {
+    foo(3, 4);
+}
+\end{code-block}
+
+除了使用\_进行忽略之外，还可以使用..语法糖进行忽略，但是针对结构体和元组存在区别：
+结构体当中，忽略的是没有被列出的字段；而元组忽略的则是范围：
+\begin{code-block}{rust}
+struct Point {
+    x: i32,
+    y: i32,
+    z: i32,
+}
+fn main() {
+    let origin = Point { x: 0, y: 0, z: 0 };
+    // 将point的y进行忽略
+    match origin {
+        Point { x,z, .. } => println!("x is {}, z is {}", x, z),
+    }
+    let numbers = (2, 4, 8, 16, 32);
+    match numbers {
+        // 忽略元组当中除第1、2和最后一项的所有元素
+        (first, second, .., last) => {
+            println!("Some numbers: {}, {}, {}, ", first, second, last);
+        }
+    }
+}
+\end{code-block}
+
+同样的，忽略操作也可以用于闭包当中：
+\begin{code-block}{rust}
+let player_scores = [("Jack", 20), ("Jane", 23), ("Jill", 18), ("John", 19)];
+// 对player_scores进行迭代，忽略其中第二个元素，_可以被替换为_score
+let players: Vec<_> = player_scores.iter().map(|&(player, _)| player).collect();
+// 输出的结果当中将只会有字符串数据
+println!("{:?}", players);
+\end{code-block}
+
+\1 @绑定
+
+运算符@允许我们在创建一个存放值的变量的同时测试其值是否匹配模式，比如测试字段是
+否位于指定范围内，同时也希望能将其值绑定到另外的变量中以便此分支相关联的代码可以
+使用它：
+\begin{code-block}{rust}
+enum Message {
+    Hello { id: i32 },
+}
+let msg = Message::Hello { id: 5 };
+match msg {
+    // 将变量id保存到另一个变量ip_variable当中
+    Message::Hello { id: id_variable @ 3..=7 } => {
+        println!("Found an id in range: {}", id_variable)
+    },
+    Message::Hello { id: 10..=12 } => {
+        println!("Found an id in another range")
+    },
+    Message::Hello { id } => {
+        println!("Found some other id: {}", id)
+    },
+}
+\end{code-block}
+\end{outline}
+
 
 \section{包/模块管理}
 在大型项目当中，Rust同样提供了代码的管理机制。和Python、Golang等不同，Rust的
@@ -1154,12 +1328,8 @@ use minigrep::Config;
 \begin{code-block}{rust}
 pub mod english {
     pub mod greetings {
-        pub fn hello() {
-            println!("Hello!")
-        }
-        pub fn hey_guies() {
-            println!("Hey, guies!")
-        }
+        pub fn hello() { ...  }
+        pub fn hey_guies() { ...  }
     }
 }
 \end{code-block}
@@ -1169,28 +1339,48 @@ english::greetings::hello();
 \end{code-block}
 如果想将hello方法的访问缩短路径，则需要对代码进行改动：
 \begin{code-block}{rust}
-// lib.rs
 pub mod english {
     pub mod greetings {
-        pub fn hello() {
-            println!("Hello!")
-        }
-        pub fn hey_guies() {
-            println!("Hey, guies!")
-        }
+        pub fn hello() {...}
+        pub fn hey_guies() {...}
     }
-    // 将hello提升到english::hello
-    pub use self::greetings::hello;
+    pub use self::greetings::hello; // 将hello提升到english::hello
 }
-
-// 将hello提升到lib::hello
-pub use english::greetings::hello;
+pub use english::greetings::hello; // 将hello提升到lib::hello
 \end{code-block}
 经过上述修改之后，使用的时候，可以按照下面的方式进行使用：
 \begin{code-block}{rust}
 lib::chinese::hello(); // 对应pub use self::greetings::hello
 lib::hello(); // 对应 pub use english::greetings::hello;
 \end{code-block}
+
+\1 examples的使用
+
+有的时候，Rust代码只是作为类库使用，并不需要自身包含bin文件，此时，在src目录下
+专门放一个bin目录作为测试是一种可行的方式，在代码文件当中编写test测试代码也是
+一种合理的方式，不过，还有另外的一种方式：examples。在目录结构上，Cargo的examples
+与src同级，一个简单的示例如下：
+\begin{center}
+  \includegraphics[width=\linewidth]{rust_cargo_examples.png}
+  \captionof{figure}{Examples的目录结构}
+  \label{fig:rust_cargo_examples}
+\end{center}
+
+Examples当中的代码可以直接将src所在的目录或者src所代表的package直接当做第三方
+的crate使用：
+\begin{center}
+  \includegraphics[width=\linewidth]{rust_cargo_examples_src.png}
+  \captionof{figure}{使用src做为examples的依赖}
+  \label{fig:rust_cargo_examples_src}
+\end{center}
+并且，可以使用src的\codeinline{toml}{[dependencies]}段当中的所有依赖库而无需重新声明，
+如果一些依赖库只是examples需要，则可以将这部分的依赖库放到\codeinline{toml}{[dev-dependencies]}
+这个段当中，如下：
+\begin{code-block}{toml}
+[dev-dependencies]
+env_logger = "0.5"
+\end{code-block}
+而编译examples的命令与之前有些类似，只是需要多加一些参数而已：\codeinlinebg{bash}{cargo build --examples --release}
 
 \end{outline}
 
@@ -1200,41 +1390,25 @@ lib::hello(); // 对应 pub use english::greetings::hello;
 则无法进行直接输出。为了直接输出这些数据，Rust提供了debug宏进行操作，允许直接
 对复合数据类型进行格式化输出，如下所示：
 \begin{code-block}{rust}
-// 使用注解，启用debug特性，使之可以利用:?进行输出
-#[derive(Debug)]
-struct Rectangle {
-    width: u32,
-    height: u32,
-}
-fn main() {
-    let rect1 = Rectangle { width: 30, height: 50 };
+#[derive(Debug)]// 使用注解，启用debug特性，使之可以利用:?进行输出
+struct Rectangle { width: u32, height: u32, }
+fn main() { let rect1 = Rectangle { width: 30, height: 50 };
     println!("rect1 is {:?}", rect1);
 }
 \end{code-block}
 
-但是debug的输出并不优雅，并且对于最终release版本的性能并不友好，因此，Rust
-也提供了另外的机制，针对复合数据类型进行格式化输出——即Display。复合数据类型
-需要实现一个Display方法，即可直接使用print语句进行输出。其示例如下：
+不过Rust提供了另外的格式化输出机制——即Trait Display。数据类型可通过实现该Trait，即可直接使用print语句进行输出。其示例如下：
 \begin{code-block}{rust}
 use std::fmt;
-struct User {
-    username: String,
-    age: u8,
-    email: String,
-    activate: bool,
-}
+struct User { username: String, age: u8, email: String, activate: bool }
 impl fmt::Display for User {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Name:{}, Age: {}, Email: {}, Activate: {}",
-            self.username, self.age, self.email, self.activate
-        )
+        write!( f, "Name:{}, Age: {}, Email: {}, Activate: {}",
+            self.username, self.age, self.email, self.activate)
     }
 }
 fn main() {
-    let new_user = User::create();
-    println!("User: {}", new_user);
+    let new_user = User::create(); println!("User: {}", new_user);
 }
 \end{code-block}
 
@@ -1246,29 +1420,20 @@ fn main() {
   \item eprint!：同print!，只是输出到标准的错误输出
   \item eprintln!：同eprint!，只是会追加换行操作
 \end{enumerate}
-常用的格式化输出函数，也用不同的用法，可以实现占位输出，命名输出，以及指定
-数据宽度填充等等。具体使用如下：
+具体使用如下：
 \begin{code-block}{rust}
-// 根据名称进行输出
-println!(
-    "The counter result is {counter} , and age is {age}",
-    age = 100,
-    counter = counter
-);
-// 根据位置进行输出
-println!("{0}, {1}", "zhangjl", 18);
-// 设置数据的显示宽度为6，向右对齐，不足的部分显示为空
-// 同理，<则表示向左对齐
+println!( "The counter result is {counter} , and age is {age}",
+    age = 100, counter = counter);// 根据名称进行输出
+println!("{0}, {1}", "zhangjl", 18);// 根据位置进行输出
+// 设置数据的显示宽度为6，向右对齐，不足的部分显示为空，同理，<则表示向左对齐
 println!("{number:>width$}", number = 100, width = 6);
 // 设置数据的显示宽度为6，向右对齐，不足的部分显示为0
 println!("{number:>0width$}", number = 100, width = 6);
 \end{code-block}
 \section{错误处理}
-Rust的错误有多种，有可恢复的和不可恢复的。同样的，其处理机制也有多种，包含了panic
-和Result模式。在默认的情况下，panic模式会打印程序的堆栈信息，并且清理堆栈数据，
-最后退出，这样会造成生成的二进制程序比较大。如果需要二进制程序比较小，可以使用
-abort终止堆栈信息的展开。比如，如果要禁止release模式的panic展开，可以修改Cargo.toml
-文件如下：
+Rust的错误主要分为可恢复的和不可恢复的，其处理机制也分为panic
+和Result模式。默认的情况下，panic模式会打印程序的堆栈信息，并且清理堆栈数据，
+这样会造成生成的二进制程序比较大。但可以使用abort终止堆栈信息的展开：
 \begin{code-block}{toml}
 [profile.release]
 panic = "abort"
@@ -1277,8 +1442,7 @@ panic = "abort"
 如果需要展开所有的堆栈信息，则可如下进行操作：
 \begin{code-block}{bash}
 RUST_BACKTRACE=1 cargo run
-// 全展开
-RUST_BACKTRACE=full cargo run
+RUST_BACKTRACE=full cargo run #全展开
 \end{code-block}
 则得到的效果可能如下：
 \begin{figure}[H]
@@ -1415,270 +1579,4 @@ fn main() {
     let f = File::open("hello.txt")?;
 }
 \end{code-block}
-
-\section{泛型}
-Rust当中使用<>操作符进行泛型的定义。泛型不仅可以用于函数和方法，也可以用于结构体。
-\subsection{泛型结构体}
-泛型结构体可以包含一种类型，也可以包含多种类型：
-\begin{code-block}{rust}
-struct Point<T> {
-    x: T,
-    y: T,
-}
-\end{code-block}
-上述结构体由于只使用了一种类型T，因此x和y只能是相同的数据类型。如果要求x和y是不同
-类型，则需要修改这个结构体的泛型定义：
-\begin{code-block}{rust}
-struct Point<T,U> {
-    x: T,
-    y: U,
-}
-\end{code-block}
-
-泛型结构体的方法定义，则和之前的普通结构体有区别：
-\begin{code-block}{rust}
-struct Point<T> {
-    x: T,
-    y: T,
-}
-impl<T> Point<T> {
-    fn x(&self) -> &T {
-        &self.x
-    }
-}
-\end{code-block}
-
-而不同数据类型的泛型的结构体方法则基本如下：
-\begin{code-block}{rust}
-struct Points<T, U> {
-    x: T,
-    y: U,
-}
-impl<T, U> Points<T, U> {
-    fn mixup<V, W>(self, other: Points<V, W>) -> Points<T, W> {
-        return Points {
-            x: self.x,
-            y: other.y,
-        };
-    }
-}
-\end{code-block}
-
-另外需要注意的是，泛型允许拥有默认值：
-\begin{code-block}{rust}
-// T为泛型，T=u8则表示：如果不进行T类型的指定，默认情况下，T的类型是u8
-struct S<T = u8> {
-    data: T,
-}
-fn main() {
-    let v1 = S { data: 128 };
-    // 设置T类型为String
-    let v2 = S::<String> {
-        data: "lucifer".to_string(),
-    };
-    let v3 = S::<&str> { data: "lucifer" };
-    info!("{}, {}, {}", v1.data, v2.data, v3.data);
-}
-\end{code-block}
-
-\subsection{Trait的基本使用}
-Trait告诉Rust编译器某个特定类型拥有可能与其他类型共享的功能。通过trait可以以一种
-抽象的方式定义共享的行为，也可以使用trait bounds指定泛型是任何拥有特定行为的类型。
-整体上，Trait比较类似于Golang/Java当中的接口（interface）。
-
-Trait的定义如同其他语言当中的接口，都比较类似，如下：
-\begin{code-block}{rust}
-// 定义trait的名称为Summary
-pub trait Summary {
-    // 定义trait所必须包含的方法，每一个方法使用分号分隔
-    fn summarize(&self) -> String;
-}
-\end{code-block}
-
-每一个实现Trait的类型，都必须实现trait当中的所有方法。比如一个可能的trait的实现
-如下：
-\begin{code-block}{rust}
-pub struct User {
-    name: String,
-    age: u8,
-    email: String,
-    activate: bool,
-}
-impl Summary for User {
-    fn summarize(&self) -> String {
-        return format!(
-            "Name:{}, Age: {}, Email: {}, Activate: {}",
-            self.name, self.age, self.email, self.activate
-        );
-    }
-}
-\end{code-block}
-
-一旦类型实现了一个Trait，对应的trait方法就可以如同原本类型的方法一样的使用：
-\begin{code-block}{rust}
-use objects::User;
-use traitlib::Summary;
-fn main() {
-    let u = User::create("zhangjl", 33, "zhangjl@awcloud.com", true);
-    println!("The trait of user object :{}", u.summarize());
-}
-\end{code-block}
-需要注意，如果trait和main并不在相同的文件或者模块当中，则在使用的时候，必须显式
-的引入trait，否则无法正常运行。
-
-Trait的每个方法都可以有默认的实现：
-\begin{code-block}{rust}
-pub trait Summary {
-    // 定义trait方法的默认实现
-    fn summarize(&self) -> String {
-        return "(Trait Default summarize method)...".to_string();
-    }
-}
-\end{code-block}
-
-如果在实现某个类型的trait时，需要使用原始Trait的默认方法，则可以如下进行操作：
-\begin{code-block}{rust}
-pub struct Empty {}
-impl Summary for Empty {}
-\end{code-block}
-同样的，Empty的实例可以无碍的调用summarize方法，只不过，输出的结果是默认输出而已。
-
-如果Trait有多个方法，而且多个方法都有默认实现，如下：
-\begin{code-block}{rust}
-// 包含多个默认方法实现的Trait
-pub trait Summary {
-    fn summarize(&self) -> String {
-        return "(Trait Default summarize method)...".to_string();
-    }
-    fn work(&self) {
-        println!("(Default work method)...")
-    }
-}
-\end{code-block}
-
-上述代码当中的User和Empty都可以调用summarize和work方法，只不过结果存在区别：
-User的summarize调用的是自己的实现（impl），只有work调用默认的Trait实现；而empty
-则全部调用的是默认的Trait实现。使用这种方式，可以解决这样的一个需求：有一个类型，
-只想实现Trait的一部分方法。
-
-Rust的Trait还存在一个特点：Trait的方法之间可以进行相互的调用，因此，除了上述的方式，
-Rust还允许使用下面的一种方式来实现这种需求：即Trait有多个方法，但需求只需要实现
-其中的一个或者多个：
-\begin{code-block}{rust}
-pub trait Summary {
-    fn summarize_author(&self) -> String;
-    fn summarize(&self) -> String {
-        format!("(Read more from {}...)", self.summarize_author())
-    }
-}
-\end{code-block}
-在实现该trait时，通常情况下，只需要实现summarize\_author方法即可，如下：
-\begin{code-block}{rust}
-impl Summary for User {
-    fn summarize_author(&self) -> String {
-        return format!(
-            "Name:{}, Age: {}, Email: {}, Activate: {}",
-            self.name, self.age, self.email, self.activate
-        );
-    }
-}
-\end{code-block}
-
-\subsection{使用Trait作为函数参数和返回值}
-相比于接口，Rust的Trait更类似于一个C当中的指针，因此，也同样可以作为函数参数以及
-返回值。
-
-使用Trait作为函数参数，定义一个普通的函数，其示例基本如下：
-\begin{code-block}{rust}
-pub fn notify(item: impl Summary) {
-    println!("Breaking news! {}", item.summarize());
-}
-\end{code-block}
-
-在实质上，上述代码在内部实现实际上如下：
-\begin{code-block}{rust}
-pub fn notify<T: Summary>(item: T) {
-    println!("Breaking news! {}", item.summarize());
-}
-\end{code-block}
-这种方式称之为Trait bound。Trait bound的使用也是非常灵活的。对比如下的代码：
-\begin{code-block}{rust}
-pub fn notify(item1: impl Summary, item2: impl Summary) {
-    println!("Breaking news! {}", item1.summarize());
-    println!("Breaking news! {}", item2.summarize());
-}
-\end{code-block}
-上述代码，item1和item2可以是不同的Trait实现，比如上述说道的User和Empty，都是合法
-的Trait实现。如果要求item1和item2是实现了Trait的相同实现类型，则上述的函数签名
-无法满足，就需要使用Trait bound的模式，其示例如下：
-\begin{code-block}{rust}
-pub fn notify<T: Summary>(item1: T, item2: T) {
-    println!("Breaking news! {}", item1.summarize());
-    println!("Breaking news! {}", item2.summarize());
-}
-\end{code-block}
-否则，在代码进行编译的过程中，就会出现错误：
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\linewidth]{rust_trait_bound.png}
-  \caption{不同的Trait bound}
-  \label{fig:rust_trait_bound}
-\end{figure}
-
-和Java/Golang一样，Rust也允许同一个类型实现多个Trait。同样的，多个Trait也可以作为
-函数的参数进行传递：
-\begin{code-block}{rust}
-pub fn notify_multi_trait(item: &(impl Summary + Display)) {
-    println!("{}", item);
-    item.work();
-}
-// 也可以使用Trait bound
-pub fn notify<T: (Summary + Display)>(item: T) {
-    println!("{}", item);
-    item.work();
-}
-\end{code-block}
-
-如果函数接收多个参数，但这些参数都是多个trait组合的实现类型，就会导致函数签名特别
-长，比如下方：
-\begin{code-block}{rust}
-fn some_function<T: Display + Clone, U: Clone + Debug>(t: T, u: U) -> i32 {
-    ...
-}
-\end{code-block}
-针对这种情况，就完全可以使用where模式进行简写：
-\begin{code-block}{rust}
-pub fn multi<T, U>(t: T, u: U) -> u8
-where
-    T: Summary + Display,
-    U: Summary,
-{
-    ...
-}
-\end{code-block}
-
-同样的，Trait也可作为函数/方法的返回值进行使用，如下：
-\begin{code-block}{rust}
-pub fn NewSummary() -> impl Summary {
-    return User::create("zhangzz", 4, "zhangzz@outlook.com", true);
-}
-\end{code-block}
-上述函数只能返回一个类型。如果需要返回不同的类型，我们编写的代码可能如下：
-\begin{code-block}{rust}
-pub fn NewSummary(swith: bool) -> impl Summary {
-    if swith {
-        return User::create("zhangzz", 4, "zhangzz@outlook.com", true);
-    } else {
-        return Empty{}
-    }
-}
-\end{code-block}
-很不幸的是，上述代码错误的，错误信息如下：
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\linewidth]{rust_trait_return.png}
-  \caption{试图返回不同的Trait实现类型}
-  \label{fig:rust_trait_return}
-\end{figure}
-而这种需求的实现，则需要另外的方式进行实现。
 \input{rust_part_2}
