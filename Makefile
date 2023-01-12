@@ -6,10 +6,10 @@ BASENAME      = $(notdir $(CURDIR))
 
 latexpdf:
 	@echo "Running LaTeX files through xelatex..."
-	xelatex -shell-escape $(BASENAME).tex
+	xelatex -shell-escape -8bit $(BASENAME).tex
 	-bibtex $(BASENAME).aux
-	xelatex -shell-escape $(BASENAME).tex
-	xelatex -shell-escape $(BASENAME).tex
+	xelatex -shell-escape -8bit $(BASENAME).tex
+	xelatex -shell-escape -8bit $(BASENAME).tex
 	@echo "xelatex finished; the PDF files are in $(BUILDDIR)/latex."
 
 echo:

@@ -1,192 +1,3 @@
-\section{Match与模式匹配}
-Match是Rust常用的语法糖，其用法不局限于之前所讲的范围。关于match的用法，还有很多，
-并且，多数和模式匹配有关，接下来可以看一些常见的match和模式匹配的使用方式。
-\begin{outline}[enumerate]
-\1 多种匹配模式
-
-在match表达式当中，可以用|匹配多个模式，表示或运算：
-\begin{code-block}{rust}
-let x = 1;
-match x {
-    1 | 2 => println!("one or two"),
-    3 => println!("three"),
-    _ => println!("anything"),
-}
-\end{code-block}
-
-\1 使用..=匹配范围
-
-..=语法允许匹配一个数值范围内的任意数据，常用于数值和字符：
-\begin{code-block}{rust}
-let x = 5;
-match x {
-    1..=5 => println!("one through five"),
-    _ => println!("something else"),
-}
-
-let y = 'c';
-match y {
-    'a'..='j' => println!("early ASCII letter"),
-    'k'..='z' => println!("late ASCII letter"),
-    _ => println!("something else"),
-}
-\end{code-block}
-
-\1 解构结构体
-
-Let模式可以将结构体当中的字段/元素进行解构，单独或者批量赋予其他元素：
-\begin{code-block}{rust}
-struct Point {
-    x: i32,
-    y: i32,
-}
-fn main() {
-    let p = Point { x: 0, y: 7 };
-    // 将p的x字段的值赋予a，y字段的值赋予b，a和b是整数类型，不是引用
-    let Point { x: a, y: b } = p;
-    // let Point {x: ref a, y: ref b} = p; 和上面类似，但是a和b是整数类型的引用
-    // let Point {x: a, y: _} = p; 表示只需要将x的值赋予a，但不需要对y进行解构
-    assert_eq!(0, a);
-    assert_eq!(7, b);
-    // let Point {x, y} = p; 将p的x字段的值赋予变量x，y字段的值赋予变量y
-}
-\end{code-block}
-
-\1 解构枚举类型
-
-Match本身就是应枚举而生的，因此天然的可以使用它对枚举进行解构：
-\begin{code-block}{rust}
-enum Message {
-    Quit,
-    Move { x: i32, y: i32 },
-    Write(String),
-    ChangeColor(i32, i32, i32),
-}
-fn main() {
-    let msg = Message::ChangeColor(0, 160, 255);
-    match msg {
-        Message::Quit => {
-            println!("The Quit variant has no data to destructure.")
-        }
-        Message::Move { x, y } => {
-            println!("Move in the x direction {} and in the y direction {}", x, y);
-        }
-        Message::Write(text) => println!("Text message: {}", text),
-        Message::ChangeColor(r, g, b) => {
-            println!("Change the color to red {}, green {}, and blue {}", r, g, b)
-        }
-    }
-}
-\end{code-block}
-
-同样的，如果枚举当中嵌套了枚举，仍然可以使用match进行解构：
-\begin{code-block}{rust}
-enum Color {
-    Rgb(i32, i32, i32),
-    Hsv(i32, i32, i32),
-}
-enum Message {
-    Quit,
-    Move { x: i32, y: i32 },
-    Write(String),
-    ChangeColor(Color),
-}
-fn main() {
-    let msg = Message::ChangeColor(Color::Hsv(0, 160, 255));
-    match msg {
-        Message::ChangeColor(Color::Rgb(r, g, b)) => {
-            println!("Change the color to red {}, green {}, and blue {}", r, g, b)
-        }
-        Message::ChangeColor(Color::Hsv(h, s, v)) => {
-            println!(
-                "Change the color to hue {}, saturation {}, and value {}",
-                h, s, v
-            )
-        }
-        _ => (),
-    }
-}
-\end{code-block}
-
-\1 解构复合数据
-
-用复杂的方式来混合、匹配和嵌套解构模式，解析出我们感兴趣的数据：
-\begin{code-block}{rust}
-let ((feet, inches), Point {x, y}) = ((3, 10), Point { x: 3, y: -10 });
-\end{code-block}
-
-\1 忽略不需要的元素
-
-在Rust的当中，默认可以使用\_对不必要的变量进行忽略，通常用在match的最后分支，但是，
-实际上也可以用去其他任意的模式，甚至是函数参数：
-\begin{code-block}{rust}
-// 需要传入2个参数，但是忽略第一个参数
-fn foo(_: i32, y: i32) {
-    println!("This code only uses the y parameter: {}", y);
-}
-fn main() {
-    foo(3, 4);
-}
-\end{code-block}
-
-除了使用\_进行忽略之外，还可以使用..语法糖进行忽略，但是针对结构体和元组存在区别：
-结构体当中，忽略的是没有被列出的字段；而元组忽略的则是范围：
-\begin{code-block}{rust}
-struct Point {
-    x: i32,
-    y: i32,
-    z: i32,
-}
-fn main() {
-    let origin = Point { x: 0, y: 0, z: 0 };
-    // 将point的y进行忽略
-    match origin {
-        Point { x,z, .. } => println!("x is {}, z is {}", x, z),
-    }
-    let numbers = (2, 4, 8, 16, 32);
-    match numbers {
-        // 忽略元组当中除第1、2和最后一项的所有元素
-        (first, second, .., last) => {
-            println!("Some numbers: {}, {}, {}, ", first, second, last);
-        }
-    }
-}
-\end{code-block}
-
-同样的，忽略操作也可以用于闭包当中：
-\begin{code-block}{rust}
-let player_scores = [("Jack", 20), ("Jane", 23), ("Jill", 18), ("John", 19)];
-// 对player_scores进行迭代，忽略其中第二个元素，_可以被替换为_score
-let players: Vec<_> = player_scores.iter().map(|&(player, _)| player).collect();
-// 输出的结果当中将只会有字符串数据
-println!("{:?}", players);
-\end{code-block}
-
-\1 @绑定
-
-运算符@允许我们在创建一个存放值的变量的同时测试其值是否匹配模式，比如测试字段是
-否位于指定范围内，同时也希望能将其值绑定到另外的变量中以便此分支相关联的代码可以
-使用它：
-\begin{code-block}{rust}
-enum Message {
-    Hello { id: i32 },
-}
-let msg = Message::Hello { id: 5 };
-match msg {
-    // 将变量id保存到另一个变量ip_variable当中
-    Message::Hello { id: id_variable @ 3..=7 } => {
-        println!("Found an id in range: {}", id_variable)
-    },
-    Message::Hello { id: 10..=12 } => {
-        println!("Found an id in another range")
-    },
-    Message::Hello { id } => {
-        println!("Found some other id: {}", id)
-    },
-}
-\end{code-block}
-\end{outline}
-
 \section{高级特征}
 Rust设计不仅仅是为了开发应用程序，其设计之初，就是为了解决内存安全的问题，并且可以
 广泛用于各种场景，包括C语言的专属领域：操作系统设计。在编写操作系统的过程当中，
@@ -323,18 +134,22 @@ Vec<String>上的，因此我们可以采用一种方式，在一个结构体当
 \begin{code-block}{rust}
 use std::fmt;
 use std::ops::{Deref, DerefMut};
+
 struct VecWrapper(Vec<String>);
+
 impl Deref for VecWrapper {
     type Target = Vec<String>;
     fn deref(&self) -> &Vec<String> {
         &self.0
     }
 }
+
 impl DerefMut for VecWrapper {
     fn deref_mut(&mut self) -> &mut Vec<String> {
         &mut self.0
     }
 }
+
 impl fmt::Display for VecWrapper {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[")?;
@@ -344,6 +159,7 @@ impl fmt::Display for VecWrapper {
         write!(f, "]")
     }
 }
+
 fn main() {
     let mut v = VecWrapper(vec![String::from("hello"), String::from("world")]);
     v.push("zhangjl".to_string());
@@ -370,13 +186,16 @@ Result类型，但是，如果write操作后面添加分号符，表示目前只
 同样的，上述的代码VecWrapper可以做成泛型，如下：
 \begin{code-block}{rust}
 use std::ops::{Deref, DerefMut};
+
 struct VecWrapper<T>(Vec<T>);
+
 impl<T> Deref for VecWrapper<T> {
     type Target = Vec<T>;
     fn deref(&self) -> &Vec<T> {
         &self.0
     }
 }
+
 impl<T> DerefMut for VecWrapper<T> {
     fn deref_mut(&mut self) -> &mut Vec<T> {
         &mut self.0
@@ -394,23 +213,29 @@ trait Pilot {
     fn fly(&self);
     fn name();
 }
+
 trait Wizard {
     fn fly(&self);
     fn name();
 }
+
 struct Empty;
+
 impl Pilot for Empty {
     fn fly(&self) {
         println!("This is the implement of Pilot fly method");
     }
+
     fn name() {
         println!("This is the name method of Pilot implement");
     }
 }
+
 impl Wizard for Empty {
     fn fly(&self) {
         println!("This is the implement of Wizard fly method");
     }
+
     fn name() {
         println!("This is the name method of Wizard implement");
     }
@@ -462,6 +287,530 @@ fn main() {
     <Empty as Wizard>::name(64);
 }
 \end{code-block}
+
+在之前的示例当中，Trait全部是在具体的类型上实现的，但是，Trait本身也可以在智能指针（Box）上实现，比如：
+\begin{code-block}{rust}
+trait Shape {
+    fn area(self: Box<Self>) -> f64;
+}
+struct Circle {
+    radius: f64,
+}
+impl Shape for Circle {
+    fn area(self: Box<Self>) -> f64 {
+        PI * self.radius * self.radius
+    }
+}
+fn main() {
+    let c = Box::new(Circle { radius: 4f64 });
+    info!("{}", c.area());
+    // 由于trait实现是在智能指针box上，因此，下面的使用是错误的
+    // let c = Circle { radius: 4f64 }
+    // c.area()
+}
+\end{code-block}
+甚至在Trait上实现Trait，比如下方：
+\begin{code-block}{rust}
+trait Shape {
+    fn area(&self) -> f64;
+}
+trait Round {
+    fn get_radius(&self) -> f64;
+}
+struct Circle {
+    radius: f64,
+}
+impl Round for Circle {
+    fn get_radius(&self) -> f64 {
+        self.radius
+    }
+}
+impl Shape for dyn Round {
+    fn area(&self) -> f64 {
+        let radius = self.get_radius();
+        PI * radius * radius
+    }
+}
+\end{code-block}
+Shape是一个Trait，Round同样也是一个Trait，Circle实现了Round，Round实现了Shape，
+但是，由于Round本身是一个Trait，拥有不确定性，因此，在实现Shape的时候，需要添加
+dyn关键字，提示这个Round不是普通的类型，而是一个Trait。上述代码当中，Circle间接
+的实现了Shape，但是，Circle的类型无法直接使用Shape的方法，只能通过智能指针的方
+式，将Circle转换成Round的类型，再进行使用，如下：
+\begin{code-block}{rust}
+fn main() {
+    let c: Box<dyn Round> = Box::new(Circle { radius: 4f64 });
+    info!("{}", c.area());
+}
+\end{code-block}
+如果再把这个例子改得复杂一些，让Circle和Sphere同时实现Round，则我们可以使用Round
+指针计算2个不同类型数据的结果：
+\begin{code-block}{rust}
+trait Shape {
+    fn area(&self) -> f64;
+}
+trait Round {
+    fn calc(&self) -> f64;
+}
+struct Circle {
+    radius: f64,
+}
+impl Round for Circle {
+    fn calc(&self) -> f64 {
+        PI * self.radius * self.radius
+    }
+}
+struct Sphere {
+    radius: f64,
+}
+impl Round for Sphere {
+    fn calc(&self) -> f64 {
+        4f64 * PI * self.radius * self.radius
+    }
+}
+impl Shape for dyn Round {
+    fn area(&self) -> f64 {
+        self.calc()
+    }
+}
+fn main() {
+    let circle: Box<dyn Round> = Box::new(Circle { radius: 4f64 });
+    info!("The Circle area is {}", circle.area());
+    let sphere: Box<dyn Round> = Box::new(Sphere { radius: 4f64 });
+    info!("The Sphere area is {}", sphere.area());
+}
+\end{code-block}
+
+Trait不仅仅用于实现类型，约束类型，还可以用于为其他现有的数据类型添加方法/函数，
+比如：
+\begin{code-block}{rust}
+impl Round for i32 {
+    fn calc(&self) -> f64 {
+        *self as f64
+    }
+}
+fn main() {
+    let i_struct = 4i32;
+    i_struct.calc();
+}
+\end{code-block}
+这种类型的函数/方法，则称之为扩展方法/函数。从上述例子当中，我们似乎可以使用Trait
+对任意类型进行函数/方法的扩展，但是，这个是存在前提的：
+\begin{itemize}
+  \item impl和trait的声明/定义在同一个crate当中
+  \item 或者，impl的实现需要和类型的声明在同一个crate当中
+\end{itemize}
+如果不满足上述条件，则容易出现bug和问题，也会违反Rust的规则。
+
+Rust的Trait支持多种特性，自然也支持继承，但是注意，Rust的结构体和enum数据类型并不
+存在继承的概念。Trait的继承方式如下：
+\begin{code-block}{rust}
+trait Base {}
+trait Derived : Base {}
+\end{code-block}
+当一个结构体实现了上述的Derived这个Trait，则必须同样实现Base这个Trait，否则就会
+出现语法错误：
+\begin{code-block}{rust}
+trait Base {}
+trait Derived : Base {}
+struct T;
+impl Derived for T {}
+impl Base for T {}
+\end{code-block}
+
+Rust的Trait不仅可以包括函数的定义，同样可以直接定义函数：
+\begin{code-block}{rust}
+trait Page {
+    fn set_page(&self) {
+        info!("Page Default: 1");
+    }
+}
+trait PerPage {
+    fn set_per_page(&self) {
+        info!("Per Page Default: 1");
+    }
+}
+struct Paginate {
+    page: u32,
+}
+impl Page for Paginate {}
+impl PerPage for Paginate {}
+fn main() {
+    let page = Paginate { page: 8 };
+    page.set_page();
+    page.set_per_page();
+    page.set_skip_page();
+}
+\end{code-block}
+
+甚至于，Trait可以直接给结构体提供更多的组合方法：
+\begin{code-block}{rust}
+trait PaginateMore: Page + PerPage {
+    fn set_skip_page(&self) {
+        info!("Skip the page");
+    }
+}
+fn main() {
+    ...
+    page.set_skip_page();
+}
+\end{code-block}
+结构体根本不用自行实现Trait PaginateMore，就可以直接使用该Trait当中的方法。
+
+Trait不仅仅可以用于接口实现，在Rust当中，更重要的则是类型限定，限定某些数据只能
+做某些事情。比如下方的代码：
+\begin{code-block}{rust}
+...
+fn static_dispatch<T>(t: &T) where T: Bar {
+    ...
+}
+fn dynamic_dispatch(t : &Bar) {
+    ...
+}
+\end{code-block}
+对于实现了Trait Bar的类型来说，上述2个函数，都可以被调用，但是，从语法上，static\_dispatch
+由于使用了where，表示参数必须限定在Trait Bar类型，在编译时就能够确定；而dynamic\_dispatch
+则从语法上表示，输入的参数必须是Bar的对象，即Trait Object。运行时，Trait Object会根据虚表
+指针从虚表当中查出正确的指针，再进行动态调用，属于在运行时确定。
+
+但是并不是每一个Trait都可以当着Trait Object使用，这个和类型大小是否确定有关系。每一个
+Trait的隐藏类型参数Self默认限定为?Sized，?Sized trait包括了所有动态大小类型以及所有
+可确定大小的类型。Rust当中大部分类型都是默认可确定大小的，即<T:Sized>。当trait对象
+在运行期进行动态分发时，也必须确定大小，否则无法分配内存。只有同时满足下列条件的
+trait，才可以当作Trait Object使用：
+\begin{itemize}
+  \item Trait的Self不能被限定为Sized
+  \item Trait当中的所有方法都必须是对象安全的
+\end{itemize}
+
+而所谓的对象安全，则必须满足如下的条件\colorblock{之一}：
+\begin{itemize}
+  \item 当Trait的Self被限定为Sized时，方法受Self:Sized约束
+  \item Trait的方法签名必须\colorblock{同时满足以下3点}
+  \begin{enumerate}
+    \item 不包含任何泛型参数（Self）
+    \item 第一个参数必须为Self类型或可解引用为Self类型
+    \item Self不能出现在除第一个参数之外的其他地方
+  \end{enumerate}
+  \item Trait当中不能包含关联常量
+\end{itemize}
+
+比如下面的代码，就属于标准的对象安全：
+\begin{code-block}{rust}
+trait Bar {
+    fn bax(self, x: u32);
+    fn bay(&self);
+    fn baz(&mut self);
+}
+\end{code-block}
+Trait Bar不受Sized限制，Trait的方法没有额外的Self类型参数，没有泛型参数，因此是安全的。
+相对应的，不安全的Trait如下：
+\begin{code-block}{rust}
+// 对象不安全
+trait Foo {
+    fn bad<T>(&self, x:T);
+    fn new() -> Self;
+}
+// 对象安全
+trait Foo {
+    fn bad<T>(&self, x: T);
+    fn new() -> Self
+    where
+        Self: Sized;
+}
+\end{code-block}
+
+当然，Sized约束也可以用于Trait定义当中。比如，自行实现一个类似any的Any Trait。
+\begin{code-block}{rust}
+use std::ops::Fn;
+trait CustomAny {
+    fn custom_any<F>(&self, f: F) -> bool
+    where
+        Self: Sized,
+        F: Fn(u32) -> bool;
+}
+impl CustomAny for Vec<u32> {
+    fn custom_any<F>(&self, f: F) -> bool
+    where
+        Self: Sized,
+        F: Fn(u32) -> bool,
+    {
+        for &x in self {
+            if f(x) {
+                return true;
+            }
+        }
+        false
+    }
+}
+fn main() {
+    let v: Vec<u32> = vec![1, 2, 3];
+    info!("{}", v.iter().any(|&x| x == 3));
+    info!("{}", v.custom_any(|x| x == 3));
+}
+\end{code-block}
+
+Trait当中不仅可以包含函数和方法，同样可以包含变量和常量，即所谓的关联变量以及关联
+常量。关联常量的使用稍微有些特殊，在Trait当中可以定义关联常量，但是，使用的时候，
+却是通过Trait的实现对象来使用这些关联常量的：
+\begin{code-block}{rust}
+trait Colorize {
+    // 定义关联常量
+    const FG_RED: &'static str = "31";
+    const BG_YELLOW: &'static str = "43";
+    fn red(self) -> ColoredString;
+    fn on_yellow(self) -> ColoredString;
+}
+impl Colorize for ColoredString {
+    fn red(self) -> ColoredString {
+        ColoredString {
+            // 使用关联常量，如果是Colorize::FG_RED，则会提示错误
+            fg_color: String::from(ColoredString::FG_RED),
+            ..self
+        }
+    }
+    fn on_yellow(self) -> ColoredString {
+        ColoredString {
+            bg_color: String::from(ColoredString::BG_YELLOW),
+            ..self
+        }
+    }
+}
+\end{code-block}
+
+Trait不仅仅可以实现泛型，泛型也不仅限于Trait和<T>，对于函数/方法，也可以使用在
+泛型、生命周期以及Trait当中，比如，显式的指定闭包的生命周期：
+\begin{code-block}{rust}
+// 将函数作为泛型参数
+struct Pick<F> {
+    data: (u32, u32),
+    func: F,
+}
+impl<F> Pick<F>
+where
+    // for<>只能用于标记生命周期
+    F: for<'f> Fn(&'f (u32, u32)) -> &'f u32,
+{
+    fn call(&self) -> &u32 {
+        (self.func)(&self.data)
+    }
+}
+
+fn max(data: &(u32, u32)) -> &u32 {
+    if data.0 > data.1 {
+        return &data.0;
+    }
+    &data.1
+}
+fn main() {
+    let pick = Pick {
+        data: (32, 34),
+        func: max,
+    };
+    info!("{}", pick.call());
+}
+\end{code-block}
+
+在之前的trait和泛型示例当中，我们可以看到他们的结合使用，比如如下的代码：
+\begin{code-block}{rust}
+pub trait Vegetable {
+    fn name<'a>(&self) -> &'a str;
+}
+
+pub struct Cabege {}
+impl Vegetable for Cabege {
+    fn name<'a>(&self) -> &'a str {
+        stringify!(Cabege)
+    }
+}
+
+pub struct Apple {}
+impl Vegetable for Apple {
+    fn name<'a>(&self) -> &'a str {
+        stringify!(Apple)
+    }
+}
+
+pub struct Salad<V: Vegetable> {
+    veggies: Vec<V>,
+}
+\end{code-block}
+
+上述代码是可以正常使用的，不过，当我们尝试如下使用时，会直接出现错误：
+\begin{code-block}{rust}
+let mut salad = ...
+salad.add(Apple {});
+salad.add(Cabege {});
+salad.show();
+\end{code-block}
+虽然Cabege和Apple都实现了Vegetable这个trait，但是，由于\codeinline{rust}{Salad<V: Vegetable>}的
+存在，导致Salad这个结构体同一时间只能容纳一种具体的实现，即要么是Apple，要么是Cabege。如果需要
+同时容纳，则应当如下进行修改：
+\begin{code-block}{rust}
+pub struct Salad{
+    veggies: Vec<Box<dyn Vegetable>>,
+}
+\end{code-block}
+
+Trait也可以返回具体实现的实例，只是此时需要用到一个特殊的关键字：Self，注意不是小写的self。
+\begin{code-block}{rust}
+pub trait Spliceable {
+    fn clone(&self) -> Self;
+    fn splice(&self, other: &Self) -> Self;
+}
+\end{code-block}
+
+同样的，即使上述Trait同时有多个实现，但是每一个的具体实例所对应的Self都只是自己，
+不能映射到其他的实现，即self和other的类型必须完全一致。再来思考这样的问题，代码如下：
+\begin{code-block}[escapeinside=~~,mathescape]{rust}
+pub trait Spliceable {
+    fn clone(&self) -> Self;
+    fn splice(&self, other: &Self) -> Self;
+}
+
+struct Apple;
+struct Cat;
+impl Spliceable for Apple{...}
+impl Spliceable for Cat{...}
+
+fn main(){
+    let apple = Apple();
+    let cat = Cat();
+    ~\colorbox{WildStrawberry}{apple.splice(cat) \namedlabel{line:error}{\rightpointleft}};~
+}
+\end{code-block}
+问题是，上述代码是否可以正常运行？如果不可以，应该如何修正？很明显是不可以的。
+虽然上述的apple和cat都实现了Spliceable，在实例之后，splice当中的Self参数在rust
+内部就发生了变化，成为的具体的类型，apple的Self指向了Apple类型，同理，cat的类型
+指向了Cat类型。因此，上面标红的代码\colorunderline{\coloref{line:error}}只能接收Apple
+类型的数据，所以上述代码无法编译。而改动非常简单：
+\begin{code-block}[escapeinside=~~,mathescape]{rust}
+pub trait Spliceable {
+    fn clone(&self) -> Self;
+    ~\colorbox{WildStrawberry}{fn splice(&self, other: &dyn Spliceable) -> Box<dyn Spliceable>}~;
+}
+\end{code-block}
+上述改动当中，other参数不再是Self类型，而是\codeinline{rust}{dyn Spliceable}，这
+意味着所有实现的Spliceable都可以作为参数，而这种使用Trait作为参数及返回值的做法
+就叫做\colorblock{动态分派}。
+
+现在来分析一段比较复杂的代码，如下：
+\begin{code-block}[escapeinside=~~,mathescape]{rust}
+#[derive(Clone, Copy, Debug)]
+pub struct Complex<T> {
+    real: T,
+    imaginary: T,
+}
+impl<T> Complex<T> {
+    pub fn new(real: T, imaginary: T) -> Complex<T> {
+        Complex {
+            real: real,
+            imaginary: imaginary,
+        }
+    }
+}
+impl~\colorbox{WildStrawberry}{<L, R, O> \ding{202}}~ Add<~\colorbox{WildStrawberry}{Complex<R> \ding{203}}~> for ~\colorbox{WildStrawberry}{Complex<L> \ding{204}}~
+where
+    ~\colorbox{WildStrawberry}{L: Add<R, Output = O> \ding{205}}~,
+{
+    type Output = ~\colorbox{WildStrawberry}{Complex<O> \ding{206}}~;
+    fn add(self, rhs: Complex<R>) -> Self::Output {
+        Complex {
+            real: self.real + rhs.real,
+            imaginary: self.imaginary + rhs.imaginary,
+        }
+    }
+}
+impl<T, O> Neg for Complex<T>
+where
+    T: Neg<Output = O>,
+{
+    type Output = Complex<O>;
+    fn neg(self) -> Self::Output {
+        Complex {
+            real: -self.real,
+            imaginary: -self.imaginary,
+        }
+    }
+}
+\end{code-block}
+上述代码当中定义了一个泛型结构体Complex，T为泛型参数，然后又为这个泛型结构体实现了
+Add和Neg（即取反操作）这两个Trait。但是，这个泛型结构的Trait实现异常的复杂。以Add
+为例，与普通的相比，多出多个泛型参数，并且是前面并没有出现过的，可以简单的分析一下：
+Add这个Trait实现的是c=a+b这样的操作，
+\begin{itemize}
+  \item \ding{202}当中的L表示上述的a，即左操作数，R表示上述的b，即右操作数，而O则表示c，即结果数
+  \item \ding{203}与\ding{204}实际上是相同的，只是为了区分左右操作数
+  \item \ding{205}则表示左操作数实际就是右操作数，但是，多加了一个限制条件，即+操作的结果必须是\ding{206}
+\end{itemize}
+
+但这样的写法对于初学者而言，显然是无法迅速理解的，因此，在新版本的rust当中，上述代码可
+以使用如下的方式替换：
+\begin{code-block}[escapeinside=~~,mathescape]{rust}
+// $\colorbox{WildStrawberry}{impl<T> Add for Complex<T>}$ 这种写法也可以
+impl<T> Add<Complex<T>> for Complex<T>
+where
+    T: Add<Output = T>,
+{
+    type Output = Complex<T>;
+    fn add(self, rhs: Self) -> Self::Output {
+        Complex {
+            real: self.real + rhs.real,
+            imaginary: self.imaginary + rhs.imaginary,
+        }
+    }
+}
+
+impl<T> Neg for Complex<T>
+where
+    T: Neg<Output = T>,
+{
+    type Output = Complex<T>;
+    fn neg(self) -> Self::Output {
+        Complex {
+            real: -self.real,
+            imaginary: -self.imaginary,
+        }
+    }
+}
+\end{code-block}
+但是，还是无法如同下方所示代码使用：
+\begin{code-block}{rust}
+impl<T> Add<Complex<T>> for Complex<T>
+// 注意，缺少了where限定子句
+{
+    type Output = Complex<T>;
+    fn add(self, rhs: Self) -> Self::Output {
+        Complex {
+            real: self.real + rhs.real,
+            imaginary: self.imaginary + rhs.imaginary,
+        }
+    }
+}
+\end{code-block}
+原因很简单：Rust编译器无法区分或者推断左右操作数的类型是否相同或者可操作，会提示
+如下的错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_add_trait_error_for_t.png}
+  \caption{无法区分泛型操作数的错误Trait实现}
+  \label{fig:rust_add_trait_error_for_t}
+\end{figure}
+
+利用Trait与绑定以及泛型，可以实现函数的重载，比如：
+\begin{code-block}{rust}
+pub fn ping<A>(address: A)
+where
+    A: Into<Ipv4Addr>,
+{
+    ...
+}
+
+ping(Ipv4Addr::new(23, 21, 219, 98));
+ping([66, 146, 219, 98]);
+\end{code-block}
+Ping这个函数接收参数address，该参数只需要实现了到Ipv4Addr的转换（即实现了\codeinline{rust}{Into<Ipv4Addr}）即可。
+在例子当中，恰好[u8]也实现了这个Trait，因此，可以直接将[u8]当成ip地址参数传递给函数。
 
 \subsection{高级函数和闭包}
 Rust的函数和闭包都有很多类似的地方，和C/C++的函数也类似，确切的说，是非常类似于
@@ -937,6 +1286,295 @@ fn main() {
 }
 \end{code-block}
 
+\subsection{深入类型}
+Rust的类型比较多，char，字符串，整数，浮点数等等。这些基础类型和其他语言比较类似，
+但是也包含了自己的特点：比如，char类型占据4个字节，可以存放任何一个unicode字符；
+对于ASCII字符，只需要一个字节即可，而一个字节的数据，则可以放在u8类型的数据当中，
+因此，对于ASCII类型的字符串/字符数组，可以使用u8类型（即单字节）的数组进行存放，
+这样，占用的资源空间会比char的数组小：
+\begin{code-block}{rust}
+fn main() {
+    // 字符串前面的b，表示将对应的字面量存放在u8类型当中
+    let s: &[u8] = b"hello";
+    info!("{:?}", s);
+}
+\end{code-block}
+同时，Rust支持的整数类型比较广泛，包括8bit，16bit，32bit，64bit，最大可以支持到
+128bit；而特殊的isize和usize，则是和平台相关。如果平台是32位的，则isize和usize为
+32位，如果是64位，则其数据宽度为64位。
+
+整个Rust的类型当中，只有空类型占据的空间是最小的，都是0。Rust的空类型包括单元类型
+（unit，即空元组）以及空结构体：
+\begin{code-block}{rust}
+// empty是空元组类型
+let empty : () = ();
+// 空结构体
+struct Empty();
+\end{code-block}
+为了查看类型所占用的空间，可以使用size\_of函数进行查看：
+\begin{code-block}{rust}
+use std::mem;
+struct Empty();
+fn main() {
+    info!("The Empty struct size is {}", mem::size_of::<Empty>());
+    // 查看空元组所占据的内存大小
+    info!("The none tuple size is {}", mem::size_of::<()>());
+}
+\end{code-block}
+
+在Rust当中，浮点类型是非常特殊的数据类型。浮点类型当中，存在一个特殊的值：NaN，
+即非法的浮点数值，因为该数据的存在，浮点数不具备全序关系（total order）。所谓的
+全序，偏序，Rust当中的定义如下：对于集合X当中的元素a，b，c
+\begin{itemize}
+  \item 如果a<b，则!(a>b)一定成立；反之，如果a>b，则!(a<b)一定成立，即反对称性
+  \item 如果a<b，b<c，则a<c，即传递性
+  \item 对于X当中的所有元素，都存在a<b，或者a>b，或者a==b，三者必居其一，即完全性
+\end{itemize}
+如果X集合只满足前面2条，则称之为偏序；具备上述所有特征，则为全序。由于浮点数的NaN
+不满足上述第3条规则，因此，Rust的浮点数属于偏序，而非全序，这回导致一个问题：浮点
+数无法排序——非NaN的数值无法与NaN进行比较：
+\begin{code-block}{rust}
+let nan = std::f32::NAN;
+let x = 0.4f32;
+// 下列结果全部为false
+info!("{}", nan > x);
+info!("{}", nan < x);
+info!("{}", nan == x);
+\end{code-block}
+为此，Rust设计了2个Trait表示全序与偏序：\codeinline{rust}{std::cmp::Ord}（全序）以及
+\codeinline{rust}{std::cmd::PartialOrd}（偏序）。
+PartialOrd这个Trait的partial\_cmp方法返回的是Option<Ordering>，而Ord返回的却是
+Ordering。Rust的f32和f64都只实现了PartialOrd，因此，浮点类型无法进行排序，也同样无法
+求取最值，如下列代码，则是无法运行的：
+\begin{code-block}{rust}
+let f_vec = vec![1f32, 2.0, 4.0, 0.0, -1.2];
+let bigest_f = f_vec.iter().max();
+\end{code-block}
+对上诉代码进行编译，会直接提示如下类似的错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_float_cmp_error.png}
+  \caption{浮点数的最值错误求解}
+  \label{fig:rust_float_cmp_error}
+\end{figure}
+浮点数的排序只能通过partial\_cmp（比较相等关系）进行变换处理，如下方代码：
+\label{float_sort}
+\begin{code-block}{rust}
+let mut f_vec = vec![1f32, 2.0, 4.0, 0.0, -1.2];
+// 升序排列
+f_vec.sort_by(|first, second| first.partial_cmp(second).unwrap());
+// 获取排序后的最后一位
+let max = f_vec.last().unwrap();
+// 或者如下进行
+// let max = f_vec.as_slice().last().unwrap();
+// 降序排列
+f_vec.sort_by(|first, second| second.partial_cmp(first).unwrap());
+\end{code-block}
+
+作为常用数据类型之一，Rust的数组也存在自己的特点，比如同类型的数组之间可以相互赋值：
+\begin{code-block}{rust}
+let mut array: [u32; 4] = [1, 23, 4, 5];
+let array_copy: [u32; 4] = [5, 6, 7, 8];
+array = array_copy;
+\end{code-block}
+支持数组之间的直接比较，只是数组当中的元素本身就可以进行比较才行：
+\begin{code-block}{rust}
+let array: [u32; 4] = [1, 23, 4, 5];
+let array_copy: [u32; 4] = [5, 6, 7, 8];
+info!("{:?}", array < array_copy);
+\end{code-block}
+
+Rust当中的函数也可以称之为类型的一种，并且，每个函数都有自己单独的类型，函数的类型
+是fn。但是，函数的参数列表会影响fn类型的判断和表达，比如下面的例子：
+\begin{code-block}{rust}
+fn add_tuple(t: (u32, u32)) -> u32 {
+    t.0 + t.1
+}
+fn add_two((x, y): (u32, u32)) -> u32 {
+    x + y
+}
+fn add_normal(x: u32, y: u32) -> u32 {
+    x + y
+}
+\end{code-block}
+实际上，add\_tuple和add\_two这2个函数被fn类型识别成为具有相同签名的类型，因此，
+在理论上，我们可以使用同一个变量，接收这2个函数的指针：
+\begin{code-block}{rust}
+fn main() {
+    let mut func = add_tuple;
+    func = add_two;
+    ...
+}
+\end{code-block}
+但是，上述代码却是错误的：虽然签名相同，但是，类型不同：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_func_type.png}
+  \caption{相同签名的不同函数类型}
+  \label{fig:rust_func_type}
+\end{figure}
+解决方法，则是将其转换成通用的fn类型：
+\begin{code-block}{rust}
+fn main() {
+    // 显示指定func的类型
+    let mut func: fn((u32, u32)) -> u32 = add_tuple;
+    // 使用as进行类型的转换
+    // let mut func = add_tuple as fn((u32, u32)) -> u32;
+    func = add_two;
+    ...
+}
+\end{code-block}
+但是，需要注意，add\_normal的功能看上去和前面两个函数的功能相同，但是，他们的
+函数签名完全不同，因此，不能将其转换成func。
+
+函数是Rust的头等公民，可以在函数/方法当中定义函数，也可以在函数/方法当中定义结构
+体，甚至于定义结构体的方法和实现，以及静态变量，常量等：
+\begin{code-block}{rust}
+fn func_as_first(x: u32, y: u32) -> (u32, u32) {
+    struct Point {
+        x: u32,
+        y: u32,
+    };
+    impl Point {
+        fn area(&self) -> u32 {
+            self.x * self.y
+        }
+        fn cycle(&self) -> u32 {
+            self.x + self.y
+        }
+    };
+    let p = Point { x: x, y: y };
+    (p.area(), p.cycle())
+}
+\end{code-block}
+
+常规的函数类型，都会存在返回值，这些返回值要么是特定的类型，要么就是()，即类似
+C/C++的返回void。如果需要什么都不返回，则可以使用!，这种函数称之为发散函数，比如
+在处理panic时，有时就需要使用发散函数：
+\begin{code-block}{rust}
+fn diverges() -> ! {
+    panic!("This function never returns!");
+}
+\end{code-block}
+Panic操作会直接导致软件栈展开，因此，后续的操作都不会执行，其返回的就是一个!。
+发散函数的最大特点，就是可以被转换成任意一个类型，虽然执行的时候最终还是会崩溃，
+如下：
+\begin{code-block}{rust}
+let x : i32 = diverges();
+let y : String = diverges();
+\end{code-block}
+但是，发散函数最大的作用，在于解决编译器的类型检查：
+\begin{code-block}{rust}
+let p = if x {
+    panic!("error");
+} else {
+    100
+};
+\end{code-block}
+对于let-if而言，if-else的每个分支都必须是相同的数据类型，通过发散函数的任意类型
+转换特性即!与任何类型兼容，所以上述代码才能编译通过。
+
+所有的Rust变量，函数都是类型的一种，都可以通过一定的手段和方式，获得类型的具体信息。
+常见的方式有两种，一种是使用错误信息进行推断，一种则是使用标准库函数进行获得。
+
+通过构造一个特殊的函数，然后调用该函数，则可以获得相关的类型信息：
+\begin{code-block}{rust}
+// 接收一个unit参数
+fn type_id(_: ()) {}
+
+fn main() {
+    let ref i = 5;
+    type_id(i);
+}
+\end{code-block}
+
+而另外的方式，则是使用标准库函数，不过，这个标准库函数在Rust的默认stable分支当中
+是不可用的，需要在nightly分支当中进行编译使用，并且，还需要启用一些特性：
+\begin{code-block}{rust}
+#![feature(core_intrinsics)]
+use std;
+// 使用泛型参数进行不同类型的数据接收
+fn print_type<T>(_arg: &T) {
+    println!(
+        "The type name of arg is {}",
+        std::intrinsics::type_name::<T>()
+    );
+}
+fn main() {
+    let ref x = 5;
+    print_type(&x);
+}
+\end{code-block}
+编译上述代码时，则需要对编译指令进行部分的调整：
+\codeinline{bash}{cargo +nightly build}，
+然后即可实现对参数类型的打印输出。
+
+在Rust当中，与Python不同，函数/方法并不存在默认参数，但是，结构体当中的字段，却可以
+有默认值，只是，这个默认值的实现，必须和Default Trait相结合，如下：
+\begin{code-block}{rust}
+struct ColoredString {
+    input: String,
+    fg_color: String,
+    bg_color: String,
+}
+impl Default for ColoredString {
+    fn default() -> Self {
+        ColoredString {
+            input: String::default(),
+            fg_color: String::default(),
+            bg_color: String::default(),
+        }
+    }
+}
+fn main() {
+    let color = ColoredString::default();
+}
+\end{code-block}
+从上述代码当中可以看出，实际上，并不是Rust的结构体字段赋予了初始值，而是通过一个
+名为default的方法，构造一个我们认为应该具有默认值的结构体。在Rust当中，常用的基本
+数据类型都实现了Default Trait，可以直接使用对应的default方法。
+
+在使用泛型时，可能由于理解的问题，有的时候会写出有问题的代码，比如如下：
+\begin{code-block}{rust}
+#[derive(Debug)]
+struct MyWriter<W> {
+    writer: W,
+}
+
+impl<W> MyWriter<W>
+where
+    W: Write,
+{
+    fn write(&mut self, buf: &str) -> std::io::Result<()> {
+       self.writer.write_all(buf.as_bytes())
+    }
+}
+
+impl<W> MyWriter<W> {
+    fn new() -> Self {
+       let stream = TcpStream::connect("127.0.0.1:8080").unwrap();
+       let mut writer = BufWriter::new(stream);
+       Self { writer }
+    }
+}
+\end{code-block}
+乍一看貌似没问题，但实际上，代码在编译阶段就会提示错误：
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{rust_type_error.png}
+  \caption{类型不匹配-泛型与特化}
+  \label{fig:rust_type_error}
+\end{figure}
+实际上，上述错误多半是由于泛型与泛型特化（实例化）的问题。函数new当中的struct需要的是一个
+泛型参数，但实际给出的却是一个特化的struct，因此就出现了上述的错误。修正上述的
+错误比较简单，示例如下：
+\begin{code-block}{rust}
+impl<W> MyWriter<W> {
+    fn new(writer:W ) -> Self {
+       Self { writer }
+    }
+}
+\end{code-block}
 
 \subsection{条件编译}
 C/C++经常使用宏定义实现条件编译，而Rust同样可以。Rust当中，主要有2种方式：通过属性
