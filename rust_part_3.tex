@@ -812,7 +812,7 @@ ping([66, 146, 219, 98]);
 Ping这个函数接收参数address，该参数只需要实现了到Ipv4Addr的转换（即实现了\codeinline{rust}{Into<Ipv4Addr}）即可。
 在例子当中，恰好[u8]也实现了这个Trait，因此，可以直接将[u8]当成ip地址参数传递给函数。
 
-\subsection{高级函数和闭包}
+\subsection{函数和闭包与Trait}
 Rust的函数和闭包都有很多类似的地方，和C/C++的函数也类似，确切的说，是非常类似于
 C/C++当中的函数指针，因此，Rust的函数和闭包，也可以作为函数的参数以及返回值。但是，
 函数作为参数和返回值与闭包有些区别，先看使用函数作为参数与返回值，如下：
@@ -897,7 +897,73 @@ fn main() {
 和上述的使用闭包的情形类似，使用Fn Trait的方式，不仅可以使用闭包作为返回值，同样
 可以使用函数作为返回值。
 
-\subsection{高级类型}
+在此之前，我们看到的Trait全部作用于结构体上，但实际上，Trait也可以作用于函数以及
+闭包上，因为Fn/FnMut/FnOnce本身也是特殊的类型。如下示例：
+\begin{code-block}[escapeinside=~~, mathescape]{rust}
+trait Executor { ~\namedlabel{define}{\ding{202}}~
+    fn execute(&self, cmd: &str) -> Result<String, &'static str>;
+}
+
+struct BashExecutor {
+    env: String,
+}
+
+impl Executor for BashExecutor { ~\namedlabel{struct}{\ding{203}}~
+    fn execute(&self, cmd: &str) -> Result<String, &'static str> {
+        Ok(format!(
+            "fake bash execute: env: {}, cmd: {}",
+            self.env, cmd
+        ))
+    }
+}
+
+impl<F> Executor for F ~\namedlabel{function}{\ding{204}}~
+where
+    F: Fn(&str) -> Result<String, &'static str>,
+{
+    fn execute(~\colorbox{WildStrawberry}{&self}\namedlabel{self}{\ding{205}}~, cmd: &str) -> Result<String, &'static str> {
+        self(cmd)
+    }
+}
+
+fn func(cmd: &str) -> Result<String, &'static str> {
+    Ok(format!("func as execute {}", cmd))
+}
+
+fn execute(cmd: &str, exec: impl Executor) -> Result<String, &'static str> {
+    exec.execute(cmd)
+}
+
+fn main() {
+    benetnasch::logger::setup_logger_with_cfg();
+    let env = "/usr/bin".to_string();
+    let cmd = "cat /etc/passwd";
+
+    let res = execute(cmd, BashExecutor { env: env.clone() });
+    info!("The result is {:?}", res);
+
+    let res = execute(cmd, |cmd: &str| {
+        Ok(format!("fake bash execute: env: {}, cmd: {}", env, cmd))
+    });
+
+    info!("The result is {:?}", res);
+
+    let res = beginer::datastructure::execute(cmd, func);
+    info!("The result is {:?}", res);
+}
+\end{code-block}
+
+上面的代码有几个关键点：
+\begin{itemize}
+  \renewcommand\labelitemi{\leftpointright}
+  \item \coloref{define} 是常见的Trait的定义方式
+  \item \coloref{struct} 是常见的Trait的实现方式，作用在struct上
+  \item \colorunderline{\coloref{function}} 为函数与闭包实现Trait
+  \item \colorunderline{\coloref{self}} self指向Fn/FnMut/FnOnce所指代的函数与闭包
+\end{itemize}
+另外需要说明的是，Fn/FnMut/FnOnce是被包含的关系，即前者被后者所包含。
+
+\subsection{高级类型与系统Trait}
 默认情况下，我们使用的Rust变量都是有类型的，而这些类型，默认情况下都需要书写完整。
 如果名称太长，则会导致阅读比较麻烦，因此，Rust提供了别名。注意，Rust的别名与Golang
 的别名不一样：Rust的类型别名拥有和原始类型相同的函数和方法，可以进行原始名称和
@@ -975,7 +1041,7 @@ let res2 = start_nev as u8
 
 但是，当转换的类型不是数值类型，而是复合数据类型，则需要使用From和Into这2个Trait。
 一般情况下，只要实现了From Trait，就默认的实现了Into Trait，比如下方代码：
-\begin{code-block}{rust}
+\begin{code-block}[escapeinside=~~,mathescape]{rust}
 use std::convert::From;
 struct Point {
     x: i32,
@@ -984,7 +1050,7 @@ struct Point {
 
 // 实现From trait，只能从(i32,i32)到结构体，不能反向
 // 同样的，Into也是只能从(i32,i32)到结构体，不能反向
-impl From<(i32, i32)> for Point {
+impl From<(i32, i32)> for Point { ~\namedlabel{fromtrait}{{\rightpointleft}From}~
     fn from(item: (i32, i32)) -> Self {
         Point {
             x: item.0,
@@ -1017,7 +1083,7 @@ fn main() {
 \end{code-block}
 
 如果复合数据类型进行转换，不能保证一定成功，则需要使用TryFrom以及TryInfo，如下：
-\begin{code-block}{rust}
+\begin{code-block}[escapeinside=~~,mathescape]{rust}
 use std::convert::TryFrom;
 
 struct Point {
@@ -1025,7 +1091,7 @@ struct Point {
     y: u8,
 }
 
-impl TryFrom<(u8, u8)> for Point {
+impl TryFrom<(u8, u8)> for Point { ~\namedlabel{tryfromtrait}{{\rightpointleft}TryFrom}~
     type Error = ();
     fn try_from(value: (u8, u8)) -> Result<Self, Self::Error> {
         if value.0 % 2 == 0 && value.1 % 2 == 0 {
@@ -1236,11 +1302,34 @@ fn main() {
     let r = one_foot + one_meter;
 }
 \end{code-block}
+同样的，虚类型也可以用于进行比较的限制：
+\begin{code-block}[escapeinside=~~, mathescape]{rust}
+use std::marker::PhantomData;
+
+#[derive(PartialEq, Eq, Default)]
+struct Identifier<T> {
+    inner: u64,
+    _tag: PhantomData<T>,
+}
+
+#[derive(PartialEq, Eq, Default)]
+struct User {
+    id: Identifier<Self>,
+}
+
+#[derive(PartialEq, Eq, Default)]
+struct Product {
+    id: Identifier<Self>,
+}
+\end{code-block}
+由于上述代码当中，使用了Self作为虚类型的参数，因此，即使是上面的id的实际内容都是
+u64类型的，但由于虚类型不同，因此，\codeinline{rust}{assert_eq(user.id,product.id)}
+无法编译通过。
 
 迭代器也是常用的数据类型，在之前的介绍当中已经有基本的介绍，在这里，将使用斐波那契
 数列来讲述可以无限计算下去的迭代器的实现方式，不管是有限或无限，迭代器都必须实现
 Iterator这个Trait：
-\begin{code-block}{rust}
+\begin{code-block}[escapeinside=~~, mathescape]{rust}
 
 // 实现结构体的clone
 #[derive(Clone)]
@@ -1249,7 +1338,7 @@ struct Fibonacci {
     nxt: u64,
 }
 
-impl Iterator for Fibonacci {
+impl Iterator for Fibonacci { ~\namedlabel{itertrait}{{\rightpointleft}Iterator}~
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1270,21 +1359,36 @@ fn main() {
     let logger = logger::initlogger(false, "", 0);
     let _guard = slog_scope::set_global_logger(logger);
     slog_stdlog::init().unwrap();
-
     let fib = Fibonacci::new();
     let fib_clone = fib.clone();
-
     // 忽略数列前10项，然后再取后续的8项
     for item in fib.skip(10).take(8) {
         info!("{}", item);
     }
-
     for item in fib_clone.skip(20).take(8) {
         info!("{}", item);
     }
-
 }
 \end{code-block}
+
+除了上面的所介绍的\colorunderline{\coloref{fromtrait}}、\colorunderline{\coloref{tryfromtrait}}、\colorunderline{\coloref{itertrait}}以及Display等之外，rust当中常用并且应当熟悉的还有如下的几个：
+\begin{itemize}
+  \renewcommand\labelitemi{\leftpointright}
+  \item 标记型
+    \begin{itemize}
+      \renewcommand\labelitemii{\ding{79}}
+      \item Sized/?Sized 标记具体大小/任意大小
+      \item Send 线程间移动
+      \item Sync 线程间共享
+      \item Unpin 自引用，与Future相关
+    \end{itemize}
+  \item AsRef/AsMut类型转换
+  \item \&[u8]实现了Read这个Trait，可直接生成对应的Reader
+    \begin{itemize}
+      \renewcommand\labelitemii{\ding{79}}
+      \item \codeinline{rust}{let reader: &mut dyn Read = &mut message.as_bytes();}
+    \end{itemize}
+\end{itemize}
 
 \subsection{深入类型}
 Rust的类型比较多，char，字符串，整数，浮点数等等。这些基础类型和其他语言比较类似，

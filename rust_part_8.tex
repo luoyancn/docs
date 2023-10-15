@@ -1052,6 +1052,22 @@ lto = true
 使用上述的配置参数，Rust会尝试对所有的crate进行优化（包括依赖关系），即所谓的“胖优化（fat）”。
 如果不需要这么“激进”的优化策略，则可以设置\codeinline{toml}{lto = "thin"}。
 
+另外，一些数据结构的选择也会影响程序的性能，比较明显的就是HashMap\footnote{\url{https://https://blues-star.github.io/perf-book-zh/hashing_zh.html}}。
+如果HashDoS attacks并不是你的应用所关心的问题，那么使用具有更快的散列算法的
+散列表可以提供很大的速度优势，比如：
+\begin{itemize}
+  \item rustc-hash提供了FxHashSet和FxHashMap类型，它们是HashSet和HashMap的替代物。它的散列算法质量不高，但速度非常快，特别是对整数键而言，并且发现它的性能优于rustc内的所有其他散列算法。
+  \item fnv提供了FnvHashSet和FnvHashMap类型。其散列算法比fxhash的质量高，但速度稍慢。
+  \item ahash提供AHashSet和AHashMap。它的哈希算法可以采取一些处理器上的AES指令支持的优势。
+\end{itemize}
+
+如果散列性能在程序中很重要，那么值得尝试以上几种选择。以上述类库为例，在rustc中看到以下结果。
+\begin{itemize}
+  \item 从fnv切换到rustc-hash的结果是速度提高了6\%。
+  \item 试图从rustc-hash切换到ahash的结果是减速1-4\%。
+  \item 试图从rustc-hash切换回默认的哈希，结果是速度减慢了4-84\%!
+\end{itemize}
+
 从Rust1.60（2022-04-07）开始，Cargo的配置文件toml新增了一个项，专门用于对生成的二进制
 文件进行文件缩小（strip）操作：
 \begin{code-block}{toml}

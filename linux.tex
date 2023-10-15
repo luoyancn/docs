@@ -986,6 +986,12 @@ rw init=/bin/bash
 \1 修改grub启动顺序
 
 \begin{code-block}{bash}
+# 安装grub2的管理工具
+yum install -y grub2-pc
+
+# 扫描内核信息并更新grub
+grub2-mkconfig -o /boot/grub2/grub.cfg
+
 # 仅适用于Reahat/CentOS/Fedora，不适于Ubuntu
 # 0表示grub2.cfg当中，menuentry标题的顺序
 awk -F\' '$1=="menuentry " {print $2}' /etc/grub2.cfg
@@ -1138,6 +1144,42 @@ dpkg-buildpackage -us -uc -nc
 
 \1 ffmpeg的常见操作
 
+\2 编译支持cuda的ffmpeg
+\begin{code-block}{bash}
+# 如果不执行，则可能无法生成ffplay
+yum install SDL2-devel
+# 首先要编译安装nv-codec-headers库
+git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git
+make
+make install
+
+# 然后编译ffmpeg
+# PKG_CONFIG_PATH指向nv-codec-headers的pkg-config
+PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure \
+  --extra-cflags=-I/usr/local/cuda/include \
+  --extra-ldflags=-L/usr/local/cuda/lib64 \
+  --enable-gpl --enable-libfdk_aac --enable-libfreetype \
+  --enable-libmp3lame --enable-libopus --enable-libvorbis \
+  --enable-libvpx --enable-libx264 --enable-libx265 --enable-nonfree \
+  --enable-cuda --enable-cuvid --enable-nvenc --enable-cuvid --enable-libnpp \ 
+  --disable-shared --enable-static --arch=x86_64
+make
+make install
+\end{code-block}
+
+\2 利用GPU进行视频转码
+\begin{code-block}{bash}
+# -hwaccel cuda表示使用cuda
+# -hwaccel_device 0 表示利用第0个GPU
+# -c:v h264_cuvid 表示利用cuda进行h264的视频解码
+# -c:v h264_nvenc 表示利用cuda进行h264的视频编码
+# -c:v h264_amf 表示利用AMD显卡进行h264的视频编码
+# AMD显卡目前只支持h264编码，不支持h265
+ffmpeg -hwaccel cuda -hwaccel_device 0 \
+  -c:v h264_cuvid -i xxx.mp4 \
+  -c:v h264_nvenc -preset fast -y out.mp4
+\end{code-block}
+
 \2 转换为webp图片
 
 \begin{code-block}{bash}
@@ -1165,6 +1207,64 @@ ffmpeg -h encoder=libwebp
 ffmpeg -i old.mp4 -c copy -ss 00:00:00 -t 01:43:29 new.mp4
 \end{code-block}
 
+\2 视频合并
+\begin{code-block}{bash}
+
+# 对于mpeg格式的文件，可通过如下的方式进行
+ffmpeg -i "concat:input1.mpg|input2.mpg|input3.mpg" -c copy output.mpg
+
+# FFmpeg concat 分离器，成功率很高，也是最好的
+cat >filelist.txt<<EOF
+file 'input1.mkv'
+file 'input2.mkv'
+file 'input3.mkv'
+EOF
+ffmpeg -f concat -i filelist.txt -c copy output.mkv
+
+# 但对于H.264的视频，比如mp4，则可能需要先将文件转换成ts，再进行
+ffmpeg -i 1.mp4 -vcodec copy -acodec copy -vbsf h264_mp4toannexb 1.ts
+ffmpeg -i 2.mp4 -vcodec copy -acodec copy -vbsf h264_mp4toannexb 2.ts
+ffmpeg -i "concat:1.ts|2.ts" -acodec copy -vcodec copy -absf aac_adtstoasc output.mp4
+
+# 或者如下操作
+ffmpeg -i input1.flv -c copy -bsf:v h264_mp4toannexb -f mpegts input1.ts
+ffmpeg -i input2.flv -c copy -bsf:v h264_mp4toannexb -f mpegts input2.ts
+ffmpeg -i input3.flv -c copy -bsf:v h264_mp4toannexb -f mpegts input3.ts
+ffmpeg -i "concat:input1.ts|input2.ts|input3.ts" -c copy -bsf:a aac_adtstoasc -movflags +faststart output.mp4
+\end{code-block}
+
+\2 视频压缩
+\begin{code-block}{bash}
+# 默认的压缩方式
+ffmpeg -i video.mp4 out_video.mp4
+
+# 使用x265编码器进行压缩
+# CRF使用 0 到 51 之间的数字，恒定速率因子（CRF）是x264和x265编码的默认质量设置。
+# 值越高，压缩率越高，值越高这可能会导致质量损失
+ffmpeg -i id.mp4 -vcodec libx265 -crf 25 id_compress.mp4
+
+# 使用多cpu并行压缩
+# h265最多只能使用16个线程并行处现
+# -tile-columns 和 -tile-rows
+# 用于并行编码 H.264/H.265 视频时的瓦片编码
+# 这些选项将视频分成多个瓦片，每个瓦片可以使用不同的编码线程进行处理
+# 从而提高编码速度。-tile-columns 设置水平方向的瓦片数
+# -tile-rows 设置垂直方向的瓦片数
+# 如果需要变更比特率，则需要使用-b:v 100k参数（将bit率降到100k）
+ffmpeg -i input.mp4 -c:v libx265 -crf 25 -threads 16 -tile-columns 8 -tile-rows 8 output.mp4
+
+# 如果需要保留视频当中的所有音轨与字幕轨，则需要如下操作
+# -map 0 表示将源文件的所有流包含进输出文件中
+# -c:s copy 则表示复制字幕流而不进行重新编码
+# 注意，保留所有的音轨与字幕轨，需要使用mkv做为容器，mp4标准不支持
+# hdmv_pgs_subtitle，因此无法将字幕轨嵌入，然而mkv容器是可以的
+ffmpeg -i 01.mkv -c:v libx265 -b:v 1000k -crf 25 -threads 16 -tile-columns 8 -tile-rows 8 \
+  -map 0 -c:s copy /srv/output/01.mkv
+
+# 如果需要将iso转换成视频文件，则需要如下操作
+ffmpeg -i input.ISO -c:v copy -c:a copy output.mp4
+\end{code-block}
+
 \1 下载youtube视频
 
 \begin{code-block}{bash}
@@ -1182,6 +1282,10 @@ yt-dlp --proxy http://127.0.0.1:8589 -f 247+251 --downloader aria2c \
 # 将youtube的cookies导出成Netscape格式的文件
 yt-dlp --proxy http://127.0.0.1:8589 --cookies /mnt/d/cookies.txt \
   -F https://www.youtube.com/watch\?v\=PXl7vCTszmI
+
+# 下载最高质量的视频
+yt-dlp --proxy socks5://127.0.0.1:8888 -f "bv+ba/b" \
+  https://www.youtube.com/watch\?v\=sqmvnq9CSo8\&list\=PLgC4CYIOokeIAwAqz4PJ40Q2xMSuDqCv8
 \end{code-block}
 
 \ 1 find的使用
@@ -1192,6 +1296,34 @@ find . -empty -type d
 
 # 排除目录
 find src/vendor/ -path src/vendor/periph.io -prune -o -name "*.go"
+
+# 导出有空格的文件名
+find . -type f | xargs -0 -I {} echo {} >> ../azur_lane.txt
+\end{code-block}
+
+\ 文件操作
+
+\begin{code-block}{bash}
+# 读取文件内容并生成文件
+while read file;do touch "${file#./}"; done < log;
+
+# 使用md5值批量重命名文件
+md5sum * > ~/log
+while read -r md5_value filename; do mv "$filename" "$md5_value.jpg" ;done < ~/log
+md5sum * | while read -r md5_value file_name; do mv "$file_name" "$md5_value.jpg";done
+
+# 使用下划线替换文件名中的所有的空格
+ls |while read -r filename; do mv "$filename" $(echo "$filename" | tr ' ' '_');done
+
+# 去除文件名中的[]及其所包含的内容
+ls |while read -r filename; do mv "$filename" $(echo "$filename" | sed 's/\[[^]]*\]//g');done
+
+# 去除文件名中的特定字符串
+ls |while read -r filename; do mv "$filename" ${filename//Speak_Well_In_60_Days_/};done
+
+# 去除文件名中的特殊字符串"｜"，"| _"则是${filename//\｜_/}
+ls |while read -r filename; do mv "$filename" ${filename//\｜/};done
+
 \end{code-block}
 
 \end{outline}
