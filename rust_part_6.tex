@@ -729,7 +729,6 @@ fn get_generics(
     let mut generics_params = st.generics.clone();
     let mut field_type_name = Vec::new();
     let mut phantomdata_type_param_names = Vec::new();
-
     for field in fields {
         if let Some(name) = get_field_type_name(&field)? {
             field_type_name.push(name);
@@ -738,7 +737,6 @@ fn get_generics(
             phantomdata_type_param_names.push(phd);
         }
     }
-
     for param in generics_params.params.iter_mut() {
         if let syn::GenericParam::Type(t) = param {
             let type_name = t.ident.to_string();
@@ -762,7 +760,6 @@ fn get_generics(
 #[derive(CustomDebug)]
 pub struct Custom<'a, T, U, W, X> {
     name: &'a str,
-
     #[debug = "0b{:08b}"]
     age: u8,
     other: T,
@@ -792,22 +789,17 @@ trait Contains {
     fn first(&self) -> Self::A;
     fn last(&self) -> Self::B;
 }
-
 struct Container(i32, i32);
-
 impl Contains for Container {
     // 指出 `A` 和 `B` 是什么类型。如果 `input`（输入）类型
     // 为 `Container(i32, i32)`，那么 `output`（输出）类型
     // 会被确定为 `i32` 和 `i32`。
     type A = i32;
     type B = i32;
-
     fn contains(&self, number_1: &Self::A, number_2: &Self::B) -> bool {
         (&self.0 == number_1) && (&self.1 == number_2)
     }
-
     fn first(&self) -> Self::A { self.0 }
-
     fn last(&self) -> Self::B { self.1 }
 }
 \end{code-block}
@@ -817,7 +809,6 @@ impl Contains for Container {
 pub trait Trait {
     type Value;
 }
-
 pub struct Geek<T:Trait> {
     blog: T::Value,
     ideawand: PhantomData<T::Value>,
@@ -836,12 +827,10 @@ Visitor模式的核心原理在于定义了一个名为Visit的Trait，这个Tra
 官方文档\footnote{\url{https://docs.rs/syn/1.0.64/syn/visit/index.html}}：
 \begin{code-block}{rust}
 use syn::visit::{self, Visit};
-
 struct TypePathVisitor {
     generic_type_names: Vec<String>,
     associated_types: HashMap<String, Vec<syn::TypePath>>,
 }
-
 // 使用该结构体实现Visit Trait
 impl<'ast> Visit<'ast> for TypePathVisitor {
     // 只实现对TypePath的访问回调
@@ -855,7 +844,6 @@ impl<'ast> Visit<'ast> for TypePathVisitor {
                         Vec::new()).push(node.clone());
             }
         }
-
         // 进行递归式的访问，否则，无法遍历所有满足条件的语法树节点
         visit::visit_type_path(self, node);
     }
@@ -871,7 +859,6 @@ fn get_generic_associated_types(
             if let syn::GenericParam::Type(ty) = f {
                 return Some(ty.ident.to_string());
             }
-
             return None;
         }).collect();
 
@@ -880,10 +867,8 @@ fn get_generic_associated_types(
         generic_type_names: origin_generic_param_names,
         associated_types: HashMap::new(),
     };
-
     // 对语法树节点进行遍历访问
     visitor.visit_derive_input(st);
-
     return visitor.associated_types;
 }
 \end{code-block}
@@ -892,7 +877,6 @@ fn get_generic_associated_types(
 trait TraitA {
     type Value;
 }
-
 #[derive(CustomDebug)]
 pub struct Custom<'a, T, U: TraitA> {
     name: &'a str,

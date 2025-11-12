@@ -556,3 +556,70 @@ a &= (~(0x1<<n))
 
 C/C++当中，通常用到size\_t和ssize\_t，其中，size\_t等价于unsigned int，而
 ssize\_t则等价于signed int。
+
+\section{c与lua的结合}
+\subsection{将lua代码编译成so}
+\begin{enumerate}
+  \item lua转换成字节码文件
+\begin{code-block}{bash}
+luac -o myscript.luac myscript.lua
+\end{code-block}
+
+  \item 字节码转换成c代码
+\begin{code-block}{bash}
+xxd -i myscript.luac > myscript_luac.h
+\end{code-block}
+
+  \item 编写c代码加载字节码
+\begin{code-block}{c}
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+#include "myscript_luac.h"  // 引入字节码
+
+// myscript_luac与myscript_luac_len在myscript_luac.h中定义
+int luaopen_mylibrary(lua_State *L) {
+    if (luaL_loadbuffer(L, (const char *)myscript_luac,
+        myscript_luac_len, "myscript") || lua_pcall(L, 0, 0, 0)) {
+        return luaL_error(L, "Error loading bytecode: %s",
+            lua_tostring(L, -1));
+    }
+    return 1;
+}
+\end{code-block}
+
+  \item 编译成so
+\begin{code-block}{bash}
+gcc -shared -fPIC -o leader_ld128eii.so leader_ld128eii.luac.c   -I/tmp/lua-5.4.7/src  -lm
+\end{code-block}
+
+  \item 编译主程序
+\begin{code-block}{bash}
+gcc -o example_ld128e_printer_so example_ld128e_printer_so.c \
+    /tmp/lua-5.4.7/src/*.c -I/tmp/lua-5.4.7/src\
+    -lm -DLUA_USE_LINUX -ldl -Wl,-E
+\end{code-block}
+
+\end{enumerate}
+
+\section{使用zig编译}
+Zig默认可用于C/C++项目的编译，并且可进行对应的交叉编译，以ctags为例
+\begin{code-block}{bash}
+# 类unix的静态编译
+CC="zig cc -target x86_64-windows-gnu" \
+    CFLAGS="-O3 -s -DNDEBUG -g0 -Wno-error=date-time -static" \
+    LDFLAGS="-s" ./configure --disable-pcre2 --enable-static --disable-debugging
+# windows的静态编译
+CC="zig cc -target x86_64-windows-gnu" \
+    CFLAGS="-O3 -s -DNDEBUG -g0 -Wno-error=date-time -static" \
+    LDFLAGS="-s" ./configure --disable-pcre2 --enable-static \
+    --disable-debugging --host=x86_64-windows-gnu --disable-iconv
+\end{code-block}
+
+在上述操作中，存在一些比较关键的参数：
+\begin{enumerate}
+  \item \codeinlinebg{bash}{-g0}：禁用所有调试符号，比 -g、-g1 等优先级高
+  \item \codeinlinebg{bash}{-s}：告诉Zig与GCC在链接阶段剥离符号表，相当于自动strip
+  \item \codeinlinebg{bash}{-DNDEBUG}：禁用断言，减少额外符号
+\end{enumerate}
+

@@ -247,6 +247,15 @@ git push origin :<branch>
 
 # 查找时间段内的提交
 git log --since=2022-01-01 --until=2022-01-31
+
+# 根据人员统计提交的代码行
+git log --format='%aN' | sort -u | while read name; do
+  echo -n "$name: "
+  git log --author="$name" --pretty=tformat: --numstat \
+        | awk '{ added += $1; removed += $2; } \
+        END { printf "新增: %d, 删除: %d, 总计: %d\n", \
+            added, removed, added - removed }'
+done | sort -k3 -nr
 \end{code-block}
 
 除了基本的操作之外，github/gitlab也允许发布release，包括二进制文件，其具体步骤如下：
@@ -1198,7 +1207,7 @@ PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure \
   --enable-gpl --enable-libfdk_aac --enable-libfreetype \
   --enable-libmp3lame --enable-libopus --enable-libvorbis \
   --enable-libvpx --enable-libx264 --enable-libx265 --enable-nonfree \
-  --enable-cuda --enable-cuvid --enable-nvenc --enable-cuvid --enable-libnpp \ 
+  --enable-cuda --enable-cuvid --enable-nvenc --enable-cuvid --enable-libnpp \
   --disable-shared --enable-static --arch=x86_64
 make
 make install
@@ -1297,6 +1306,8 @@ ffmpeg -i input.mp4 -c:v libx265 -crf 25 -threads 16 -tile-columns 8 -tile-rows 
 ffmpeg -i 01.mkv -c:v libx265 -b:v 1000k -crf 25 -threads 16 -tile-columns 8 -tile-rows 8 \
   -map 0 -c:s copy /srv/output/01.mkv
 
+ffmpeg -hwaccel d3d11va -i Despicable_Me_4.mkv -b:v 1000K  -c:v hevc_amf -preset fast -crf 25 -threads 16  output.mkv
+
 # 如果需要将iso转换成视频文件，则需要如下操作
 ffmpeg -i input.ISO -c:v copy -c:a copy output.mp4
 \end{code-block}
@@ -1360,6 +1371,9 @@ ls |while read -r filename; do mv "$filename" ${filename//Speak_Well_In_60_Days_
 
 # 去除文件名中的特殊字符串"｜"，"| _"则是${filename//\｜_/}
 ls |while read -r filename; do mv "$filename" ${filename//\｜/};done
+
+# 将所有文件名变更为小写
+for var in `ls`; do mv -f "$var" `echo "$var" |tr A-Z a-z`; done
 
 \end{code-block}
 

@@ -329,6 +329,20 @@ java -jar gerrit-3.6.2.war init -d gerrit-review
 # Install plugin replication version v3.6.2 [y/N]? y
 \end{code-block}
 
+如果操作了Verified label，有可能会导致代码无法合并，解决方式如下：
+\begin{code-block}{bash}
+git clone "ssh://zhangjl@172.16.1.180:29418/All-Projects" \
+    && (cd "All-Projects" && mkdir -p `git rev-parse --git-dir`/hooks/ \
+    && curl -Lo `git rev-parse --git-dir`/hooks/commit-msg http://172.16.1.180:8080/tools/hooks/commit-msg \
+    && chmod +x `git rev-parse --git-dir`/hooks/commit-msg)
+sed -i '/Verified/,$d' project.config
+git add project.config
+git commit -m 'del verified'
+git push origin HEAD:refs/meta/config
+\end{code-block}
+
+然后重启gerrit服务器即可。
+
 安装成功之后，即可使用ldap当中的用户登陆gerrit（\url{ http://10.1.1.105:8080/#/admin/projects/}）进行操作了。
 启动gerrit服务如下：
 \begin{code-block}{bash}

@@ -56,8 +56,8 @@
 %\usepackage[printwatermark]{xwatermark}
 
 % 设置页面颜色
-\usepackage{pagecolor}
-\pagecolor{yellow!8!white}
+%\usepackage{pagecolor}
+%\pagecolor{yellow!8!white}
 
 % 每页的脚注重新编号
 % 强制脚注和引用在相同页，需要使用footnote，不能使用footmark
@@ -320,7 +320,8 @@
 % 所标记的名称
 % see the line of \ref{code}
 \newtcblisting{code-block}[2][]
-{beamer,colback=yellow!8!white,colframe=black,listing only,breakable, width=\linewidth,
+%{beamer,colback=yellow!8!white,colframe=black,listing only,breakable, width=\linewidth,
+{beamer, colback=gray!20!white,colframe=gray!35!white,listing only,breakable,width=\linewidth,
  %underlay={\begin{tcbclipinterior}
  %\shade[inner color=black!80!white,outer color=yellow!10!white]
  %(interior.north east) circle (1cm);
@@ -333,23 +334,23 @@
 
 % 从文件中读取代码的实现
 % 使用方式：\codefile{rust}{new.rs}
-\newtcbinputlisting{codefile}[2]
-{beamer, colback=gray!20!white, colframe=gray!35!white,
- listing only,breakable,width=\linewidth,
- listing engine=minted,
- minted language={#1},
- listing file={#2},
- minted options={
-    fontsize=\scriptsize,breaklines=true,
-    breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,}
-    % 在tcolorbox当中显示行号，也可用于上面定义的code-block
-    %numbersep=2mm,linenos,},
-    %overlay={
-    %  \begin{tcbclipinterior}
-    %      \fill[gray!25] (frame.south west) rectangle ([xshift=4mm]frame.north west);
-    %  \end{tcbclipinterior}
-    %}
-}
+%\newtcbinputlisting{codefile}[2]
+%{beamer, colback=gray!20!white, colframe=gray!35!white,
+% listing only,breakable,width=\linewidth,
+% listing engine=minted,
+% minted language={#1},
+% listing file={#2},
+% minted options={
+%    fontsize=\scriptsize,breaklines=true,
+%    breakanywhere,breaksymbolleft=,breakanywheresymbolpre=,}
+%    % 在tcolorbox当中显示行号，也可用于上面定义的code-block
+%    %numbersep=2mm,linenos,},
+%    %overlay={
+%    %  \begin{tcbclipinterior}
+%    %      \fill[gray!25] (frame.south west) rectangle ([xshift=4mm]frame.north west);
+%    %  \end{tcbclipinterior}
+%    %}
+%}
 
 % 设置单行代码样式，当页面宽度不够时，bgcolor参数将影响换行操作
 \newcommand{\codeinlinebg}[1]{\mintinline[bgcolor=lbcolor,]{#1}}
@@ -756,14 +757,14 @@
 \part{存储篇}
 \include{storage}
 \include{ceph}
-\part{OpenStack}
-\include{mitaka}
-\part{Ironic篇}
-\include{ironic_introduction}
-\include{ironic_install}
-\include{ironic_develop}
-\include{ironic_architecture}
-\include{ironic_images}
+%\part{OpenStack}
+%\include{mitaka}
+%\part{Ironic篇}
+%\include{ironic_introduction}
+%\include{ironic_install}
+%\include{ironic_develop}
+%\include{ironic_architecture}
+%\include{ironic_images}
 \part{容器篇}
 \include{docker}
 \include{kubernetes}

@@ -11,6 +11,7 @@ latexpdf:
 	xelatex -shell-escape -8bit $(BASENAME).tex
 	xelatex -shell-escape -8bit $(BASENAME).tex
 	@echo "xelatex finished; the PDF files are in $(BUILDDIR)/latex."
+	#gs -o $(BASENAME)_release.pdf -dNoOutputFonts -sDEVICE=pdfwrite $(BASENAME).pdf
 
 echo:
 	@echo $(BASENAME)

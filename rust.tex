@@ -18,20 +18,50 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 安装完毕之后，通常需要进行一些安装和配置，操作如下（Linux/Windows通用）：
 \begin{code-block}{bash}
 rustup toolchain add nightly
-rustup component add rust-src rls rust-analysis
-cargo install cargo-expand
+rustup component add rust-src
 \end{code-block}
 
 如果需要对Rust和相关的工具进行升级，则操作如下：
 \begin{code-block}{bash}
 rustup update
-# 如果cargo无法连接网络，也需要使用代理，则可如下进行操作：
-# cat /.cargo/config
-# [http]
-# proxy = "socks5://127.0.0.1:8588"
-# [https]
-# proxy = "socks5://127.0.0.1:8588"
 \end{code-block}
+
+Rust的工具链也支持多种配置，常用配置通常放在config.toml当中，
+其全局作用域的配置具体路径如下：
+\begin{itemize}
+  \item 全平台通用 \$CARGO\_HOME/config.toml
+  \item 类Unix平台 /.config/config.toml
+  \item Windows平台 \%USERPROFILE\%$\backslash$.cargo$\backslash$config.toml
+\end{itemize}
+
+常见的config.toml的内容如下：
+\begin{code-block}{toml}
+# 编译时的参数
+[build]
+# 指定全局的编译过程与结果的存放路径
+target-dir = "/mnt/d/rust-build-target"
+# 使用增量编译
+incremental = true
+# 使用sccache进行缓存编译
+rustc-wrapper = "sccache"
+
+[profile.release]
+# release模式下的调优
+lto = true
+# 去除debug信息
+strip = true
+
+[target.x86_64-pc-windows-msvc]
+# windows下设定静态编译参数
+rustflags = ["-Ctarget-feature=+crt-static"]
+
+# 设置http与https代理，cargo与rustup共享
+[http]
+proxy = "socks5://172.16.1.48:9999"
+[https]
+proxy = "socks5://172.16.1.48:9999"
+\end{code-block}
+
 如果需要将某一个Rust工程（文件夹）切换成指定版本/分支进行编译，则操作如下：
 \begin{code-block}{bash}
 # 与Cargo.toml同级的目录，在workspaces则是全工作区范围，在workspaces下的目录，则是
@@ -91,14 +121,15 @@ cargo build --release --target=x86_64-unknown-linux-musl
 \begin{enumerate}
   \item 创建配置文件：进入rust工程的根目录
 \begin{code-block}{bash}
-# 如果是针对全局的rust项目，则应该将.cargo目录放在/.cargo下
+# 如果是针对全局的rust项目，则应该将.cargo目录放在/.cargo（$CARGO_HOME/config.toml）下
 mkdir /.cargo
-touch /.cargo/config
+#低于1.80版本为/.cargo/config
+touch /.cargo/config.toml
 \end{code-block}
 
   \item 修改配置文件，设置交叉编译工具
 \begin{code-block}{bash}
-cat >/.cargo/config<<EOF
+cat >/.cargo/config.toml<<EOF
 [target.armv7-unknown-linux-gnueabihf]
 linker = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc"
 ar = "/opt/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-ar"
@@ -149,6 +180,25 @@ rust就使用直接了系统(host) 的pkg-config path了，如/usr/lib/pkgconfig
 
 同样的，arm以及aarch的编译也会有上述问题。
 \end{note}
+
+\noindent\tikz[baseline=(crayon.base), scale=1] \node[scale=0.8, inner sep=0pt, anchor=center, align=center] (crayon) {\bccrayon}; {\SectionFont\Large\rmfamily 扩展阅读——Zig交叉编译}
+\vspace{1em}
+
+在上述的交叉编译方式中，部分代码无法实现真正的交叉编译与静态编译，其实质是
+底层编译器还是使用了与当前平台相匹配的C编译器（比如Gcc/MS Studio/Clang等）,
+并且编译生成二进制文件时，需要链接一个C运行时。如果将C运行时打包进生成的二
+进制文件中，则可以真正意义上实现静态编译与交叉编译。由此，可以使用Zig\footnote{\url{https://ziglang.org/}}
+当作后端的C编译器与运行时，从而解决上述问题。其操作方式如下：
+\begin{code-block}{bash}
+# 安装zig编译器，参见zig官网
+# 安装zigbuild
+cargo install cargo-zigbuild
+# 使用zig替换llvm/gcc作为后端
+# 类unix
+cargo zigbuild --release --target x86_64-unknown-linux-musl
+# windows，gcc的宏会被更严格的zig标记为错误，需要禁用它
+CFLAGS_x86_64_pc_windows_gnu="-Wno-error=date-time" cargo zigbuild --release --target x86_64-pc-windows-gnu
+\end{code-block}
 
 \section{Rust的控制流}
 Rust的控制流和其他语言相同，都包含了判断和循环。Rust的判断流通过if/else以及
@@ -887,7 +937,6 @@ match msg {
 \end{code-block}
 \end{outline}
 
-
 \section{包/模块管理}
 在大型项目当中，Rust同样提供了代码的管理机制。和Python、Golang等不同，Rust的
 代码管理可以分为包（crate）和模块（mod）。这2种模式有不少的区别。Mod模式类似
@@ -924,7 +973,6 @@ pub fn logging() {
 如下：
 \begin{code-block}{rust}
 mod logging;
-
 // 模块别名
 use logging as log;
 \end{code-block}
@@ -932,10 +980,8 @@ use logging as log;
 相同的层次，如果在common当中需要使用logging模块，则必须使用全路径crate。如果
 如同在main当中使用logging一样
 \begin{code-block}{rust}
-
 // common.rs
 mod logging;
-
 
 // 同样是错误的代码
 // mod crate::logging;
@@ -949,10 +995,8 @@ mod logging;
 \end{figure}
 而正确的使用方式（全路径）则如下：
 \begin{code-block}{rust}
-
 // common.rs
 use crate::logging;
-
 \end{code-block}
 
 如果强行需要在common.rs文件当中，以相对路径的方式使用logging，则必须将logging.rs
@@ -1246,11 +1290,7 @@ cargo new shared --lib
 \begin{code-block}{bash}
 cat >Cargo.toml<<EOF
 [workspace]
-members = [
-    "first",
-    "second",
-    "shared",
-]
+members = [ "first", "second", "shared"]
 EOF
 \end{code-block}
 
