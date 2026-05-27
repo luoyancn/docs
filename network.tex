@@ -140,6 +140,48 @@ for {
         go handler(conn)
 }
 \end{code-block}
+
+如果是rust（tokio）为例，则对应的代码大致如下：
+\begin{code-block}{golang}
+extern crate socket2;
+extern crate tokio;
+async fn serve(serve_port: usize, remote: &str, kv_maps: HashMap<u64, u64>, protocal_private: bool) {
+    let server: std::net::SocketAddr = format!("0.0.0.0:{}", serve_port).parse().unwrap();
+    // tokio的tcp默认不支持keep alive，但可以从socket2创建连接
+    // 而socket2库的可以支持tcp的参数设置，所以可以在socket2上创建
+    // 支持tcp参数的socket，然后使用这个socket创建tokio或者std的tcp连接
+    if let Ok(sockets) = socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::STREAM, None) {
+        // 设置地址复用
+        sockets.set_reuse_address(true).unwrap();
+        // 允许keep alive
+        sockets.set_keepalive(true).unwrap();
+        // 设置keep alive参数
+        // keep alive设置为5s，每1s探测一次
+        let keep_alive = socket2::TcpKeepalive::new()
+            .with_time(std::time::Duration::from_secs(5))
+            .with_interval(std::time::Duration::from_secs(1));
+        sockets.set_tcp_keepalive(&keep_alive).unwrap();
+        sockets.bind(&server.into()).unwrap();
+        // 设置允许最大同时多少连接
+        sockets.listen(1024).unwrap();
+        if let Ok(listener) = tokio::net::TcpListener::from_std(sockets.into()) {
+            loop {
+                if let Ok((stream, addr)) = listener.accept().await {
+                    debug!("Accepted :{:?}", addr);
+                    let remote_copy = remote.to_owned();
+                    let kv_clone = kv_maps.clone();
+                    tokio::spawn(async move {
+                        proxy(stream, &remote_copy, kv_clone.clone(), protocal_private).await;
+                    });
+                }
+            }
+        }
+    } else {
+        crit!("Failed to create server socket");
+    }
+}
+\end{code-block}
+
 当应用程序设置保活之后，可以直接查看：
 \begin{code-block}{bash}
 ss -aoen|grep 169.254.169.254

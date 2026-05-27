@@ -1,0 +1,193 @@
+\chapter{Zig}
+
+\section{zig的项目结构}
+创建zig项目通常使用{codeinline}{bash}{zig init}，执行之后，整个目录结构大致如下：
+\begin{code-block}{text}
+├── build.zig
+├── build.zig.zon
+└── src
+    ├── main.zig
+    └── root.zig
+\end{code-block}
+build.zig类似makefile，是zig项目的编译脚本，在里面可以定义项目的入口，以及是否编译
+lib库（包括动态库与静态库）。一个常见的build.zig如下：
+\begin{code-block}{zig}
+const std = @import("std");
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+    const mod = b.addModule("zigso", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+    });
+
+    const exe = b.addExecutable(.{
+        .name = "zigso",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zigso", .module = mod },
+            },
+        }),
+    });
+    b.installArtifact(exe);
+    const run_step = b.step("run", "Run the app");
+    const run_cmd = b.addRunArtifact(exe);
+    run_step.dependOn(&run_cmd.step);
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    }
+    const mod_tests = b.addTest(.{
+        .root_module = mod,
+    });
+    const run_mod_tests = b.addRunArtifact(mod_tests);
+    const exe_tests = b.addTest(.{
+        .root_module = exe.root_module,
+    });
+    const run_exe_tests = b.addRunArtifact(exe_tests);
+    const test_step = b.step("test", "Run tests");
+    test_step.dependOn(&run_mod_tests.step);
+    test_step.dependOn(&run_exe_tests.step);
+}
+\end{code-block}
+
+如果是需要编译成lib，则一个（编译成嵌入式）的build.zig大致如下：
+\begin{code-block}{zig}
+const std = @import("std");
+pub fn build(b: *std.Build) void {
+    const target = b.resolveTargetQuery(.{
+        .cpu_arch = .thumb,
+        .os_tag = .linux,
+        .abi = .gnueabihf,
+        .cpu_model = .{.explicit = &std.Target.arm.cpu.cortex_m7},
+    });
+    const optimize = b.standardOptimizeOption(.{.preferred_optimize_mode = .ReleaseSmall});
+    const mod = b.addModule("hello", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .strip = true,
+    });
+    const lib = b.addLibrary(.{
+        .name = "hello_zig",
+        .root_module = mod,
+        .linkage = .dynamic,
+    });
+    lib.linkage = .dynamic;
+    lib.link_function_sections = true;
+    lib.rdynamic = true;
+    lib.link_gc_sections = true;
+    lib.link_z_max_page_size = 4;
+    lib.link_z_common_page_size = 4;
+    b.installArtifact(lib);
+}
+\end{code-block}
+
+build.zig.zon与Cargo.toml类似，是
+表明项目的依赖关系的文件。编译项目只需要执行\codeinline{bash}{zig build}即可。
+编译之后，结果如下
+\begin{code-block}{text}
+├── build.zig
+├── build.zig.zon
+├── src
+│   ├── main.zig
+│   └── root.zig
+└── zig-out
+    └── bin
+        └── zigso
+\end{code-block}
+
+除使用build.zig进行编译之外，zig也支持直接使用\codeinline{bash}{zig build-exe}与
+\codeinline{bash}{zig build-lib}来编译可执行程序与lib库。与build.zig相比，build-exe
+与build-lib更灵活，build.zig默认使用“完整动态链接模型”，而build-lib 在CLI模式下会
+触发minimal object 模式。两者生成的 ELF 在 链接策略上完全不同，因此结构差异很大。
+
+一个build-lib的例子如下：
+\begin{code-block}{bash}
+zig build-lib src/root.zig \
+  -target thumb-linux-gnueabihf \
+  -mcpu cortex_m7 \
+  -femit-bin=libhello_zig.so \
+  -dynamic \
+  -rdynamic \
+  -O ReleaseSmall \
+  --gc-sections -z max-page-size=4 -z common-page-size=4
+\end{code-block}
+
+zig编译时会产生cache路径，可以通过修改环境变量的方式来指定，比如\codeinline{bash}{export ZIG_GLOBAL_CACHE_DIR=/tmp/zig-cache}，
+然后通过\codeinline{bash}{zig env}可以看到相关改动：
+\begin{code-block}{text}
+.{
+    .zig_exe = "/opt/zig-x86_64-linux-0.15.2/zig",
+    .lib_dir = "/opt/zig-x86_64-linux-0.15.2/lib",
+    .std_dir = "/opt/zig-x86_64-linux-0.15.2/lib/std",
+    .global_cache_dir = "/tmp/zig-cache-global",
+    .version = "0.15.2",
+    .target = "x86_64-linux.5.10...6.16-gnu.2.31",
+    .env = .{
+        .ZIG_GLOBAL_CACHE_DIR = "/tmp/zig-cache-global",
+        .ZIG_LOCAL_CACHE_DIR = null,
+        .ZIG_LIB_DIR = null,
+        .ZIG_LIBC = null,
+        .ZIG_BUILD_RUNNER = null,
+        .ZIG_VERBOSE_LINK = null,
+        .ZIG_VERBOSE_CC = null,
+        .ZIG_BTRFS_WORKAROUND = null,
+        .ZIG_DEBUG_CMD = null,
+        .CC = null,
+        .NO_COLOR = null,
+        .CLICOLOR_FORCE = null,
+        .XDG_CACHE_HOME = null,
+        .HOME = "/root",
+    },
+}
+\end{code-block}
+
+使用系统的内存管理方案
+\begin{code-block}{zig}
+extern fn malloc(size: usize) ?*anyopaque;
+extern fn free(ptr: ?*anyopaque) void;
+
+pub const User = extern struct {
+    id: u64,
+    name: [*:0]const u8,
+    email: [*:0]const u8,
+};
+
+pub export fn user_create() callconv(.c) ?*User {
+    const raw = malloc(@sizeOf(User)) orelse return null;
+    const user: *User = @ptrCast(@alignCast(raw));
+
+    const name = "Alice";
+    const email = "alice@example.com";
+
+    const name_raw = malloc(name.len + 1) orelse return null;
+    const email_raw = malloc(email.len + 1) orelse return null;
+
+    const name_buf: [*]u8 = @ptrCast(@alignCast(name_raw));
+    const email_buf: [*]u8 = @ptrCast(@alignCast(email_raw));
+
+    @memcpy(name_buf[0..name.len], name);
+    name_buf[name.len] = 0;
+
+    @memcpy(email_buf[0..email.len], email);
+    email_buf[email.len] = 0;
+
+    user.* = .{
+        .id = 1,
+        .name = @as([*:0]const u8, @ptrCast(name_buf)),
+        .email = @as([*:0]const u8, @ptrCast(email_buf)),
+    };
+
+    return user;
+}
+
+pub export fn user_destroy(user: *User) callconv(.c) void {
+    free(@ptrCast(@constCast(user.name)));
+    free(@ptrCast(@constCast(user.email)));
+    free(@ptrCast(user));
+}
+\end{code-block}

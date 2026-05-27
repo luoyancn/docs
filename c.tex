@@ -606,7 +606,7 @@ gcc -o example_ld128e_printer_so example_ld128e_printer_so.c \
 Zig默认可用于C/C++项目的编译，并且可进行对应的交叉编译，以ctags为例
 \begin{code-block}{bash}
 # 类unix的静态编译
-CC="zig cc -target x86_64-windows-gnu" \
+CC="zig cc -target x86_64-linux-musl" \
     CFLAGS="-O3 -s -DNDEBUG -g0 -Wno-error=date-time -static" \
     LDFLAGS="-s" ./configure --disable-pcre2 --enable-static --disable-debugging
 # windows的静态编译
